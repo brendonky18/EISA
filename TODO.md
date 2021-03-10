@@ -27,7 +27,8 @@
    -  4 words per line
  - [ ] Implement Clock
    - Loop with callback function that is executed every cycle
- - [ ] Implement Memory
+ - [ ] Implement memory device interface
+ - [ ] Implement external memory
  - [ ] Implement unified cache
    - [ ] Implement Load/Store from memory
      - Must record time taken for operation
