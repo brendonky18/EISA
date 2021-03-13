@@ -1,4 +1,5 @@
 from abc import ABC, abstractmethod # Abstract Base Class
+from typing import Union
 
 class MemoryDevice(ABC):
     """Interface for all components of the memory subsystem
@@ -41,7 +42,7 @@ class MemoryDevice(ABC):
         # Print ending line
         print('+', "".center(10, '-'), '+')
 
-    def validate_address(self, address: int):
+    def validate_address(self, address: Union[int, slice]):
         """helper function which checks that an address is an integer, and not out of bounds
 
         Parameters
@@ -56,10 +57,16 @@ class MemoryDevice(ABC):
         IndexError
             if the address is out of bounds
         """
-        if type(address) is not int:
+        if isinstance(address, int):
+            if address > self._size:
+                raise IndexError
+        elif isinstance(address, slice):
+            if address.start > self._size or address.stop > self._size:
+                raise IndexError
+            if address.step is not 1:
+                raise ValueError('address slices only support steps of 1')
+        else:
             raise TypeError
-        if address > self._size:
-            raise IndexError
     
     @abstractmethod
     def __getitem__(self, address: int) -> int: 
