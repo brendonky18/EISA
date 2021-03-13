@@ -1,15 +1,19 @@
 from ast import literal_eval
-from typing import Callable, Any
+from typing import Callable, Any, Optional
 from dataclasses import dataclass
 
 @dataclass
 class Command:
     arg_types: list[type ]
     callback: Callable[[str], Any]
-@dataclass
+
 class UserInput:
     command: str
-    args: str = ''
+    args: list[str] = []
+
+    def __init__(self, command: str, arg_string: str=""):
+        self.command = command
+        self.args = arg_string.split()
 
 class CommandParser:
     def __init__(self, name=""):
@@ -23,9 +27,8 @@ class CommandParser:
         self.name = name
         self.valid_commands = {}
 
-    # add a command which the terminal will recognize
     def add_command(self, cmd: str, arg_types: list[type], callback: Callable[..., Any]) -> bool:
-        """Adds a command to the terminal
+        """add a command which the terminal will recognize
 
         Parameters
         ----------
@@ -71,28 +74,25 @@ class CommandParser:
             else:
                 try:
                     # invokes the designated callback, and passes the provided arguments as strings
-                    self.valid_commands[cur_input.command].callback(*cur_input.args.split())
+                    self.valid_commands[cur_input.command].callback(*cur_input.args)
                 except (TypeError, ValueError) as e: # will error on anything that isn't a literal, including strings
-                    if e is TypeError:
-                        print(f'invalid input, {cur_input.command} requires argument types ({self.valid_commands[cur_input.command].arg_types}). You entered {cur_input.args}')
-                    else:
-                        print(f'invalid input, {cur_input.command} requires {len(self.valid_commands[cur_input.command].arg_types)} arguments. You entered {len(cur_input.args)}: {cur_input.args}')
+                        num_args = len(self.valid_commands[cur_input.command].arg_types)
+                        print(f'invalid input, {cur_input.command} requires {num_args} argument{"s" if num_args > 1 else ""} of type{"s" if num_args > 1 else ""} {", ".join([f"<{t.__name__}>" for t in self.valid_commands[cur_input.command].arg_types])}. You entered {cur_input.args}')
+                        
 
 
-def commandparse_cb(*args, arg_types:list[type]=[int], **kwargs) -> Callable[..., Any]: 
-    def commandparse_decorator(func):
-        def decorator_wrapper():
-            if not len(args) == len(arg_types):
-                raise ValueError
-            
-            casted_args = [None] * len(args)
+def commandparse_cb(func, arg_types:list[type]=[int], **kwargs) -> Callable[..., Any]: 
+    def commandparse_decorator(*args):
+        if not len(args) == len(arg_types):
+            raise ValueError
+        
+        casted_args = [None] * len(args)
 
-            for i in range(len(args)):
-                # cast the arguments, the 
-                casted_args[i] = arg_types[i](args[i])
+        for i in range(len(args)):
+            # cast the arguments, the 
+            casted_args[i] = arg_types[i](args[i])
 
-            return func(*casted_args)
-        return decorator_wrapper
+        return func(*casted_args)
     return commandparse_decorator
         
             
