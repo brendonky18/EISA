@@ -97,19 +97,6 @@ class CacheWay:
         """
         pass
 
-
-    # @property
-    # def valid(self) -> bool:
-    #     return bool(self._entry >> self._valid_start)
-
-    # @valid.setter
-    # def valid(self, valid: bool):
-    #     self._entry &= ~( 0b1 << self._valid_start) # clears the original value
-    #     self._entry |= valid << self._valid_start # assigns the value
-
-    
-
-
 # TODO: extra credit, use to implement associative caches instead of direct-mapped
 class CacheBlock():
     pass
@@ -147,7 +134,6 @@ class Cache(MemoryDevice):
 
     #TODO implement data structure for cache
     def __getitem__(self, address: int):
-        
         pass
     
     def __setitem__(self, address: int, value: int) -> int:
