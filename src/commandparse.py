@@ -74,26 +74,27 @@ class CommandParser:
             else:
                 try:
                     # invokes the designated callback, and passes the provided arguments as strings
-                    self.valid_commands[cur_input.command].callback(*cur_input.args)
+                    cur_cmd = self.valid_commands[cur_input.command]
+                    cur_cmd.callback(*cur_input.args, arg_types=cur_cmd.arg_types)
                 except (TypeError, ValueError) as e: # will error on anything that isn't a literal, including strings
                         num_args = len(self.valid_commands[cur_input.command].arg_types)
                         print(f'invalid input, {cur_input.command} requires {num_args} argument{"s" if num_args > 1 else ""} of type{"s" if num_args > 1 else ""} {", ".join([f"<{t.__name__}>" for t in self.valid_commands[cur_input.command].arg_types])}. You entered {cur_input.args}')
                         
 
 
-def commandparse_cb(func, arg_types:list[type]=[int], **kwargs) -> Callable[..., Any]: 
-    def commandparse_decorator(*args):
+def commandparse_cb(func) -> Callable[..., Any]: 
+    def commandparse_cb_wrapper(*args, arg_types: list[type]=[int], **kwargs):
         if not len(args) == len(arg_types):
-            raise ValueError
+            raise ValueError("lists do not match")
         
-        casted_args = [None] * len(args)
+        # casted_args = [any] * len(args)
+        casted_args = map(lambda arg_type, arg: arg_type(arg), arg_types, args)
 
-        for i in range(len(args)):
-            # cast the arguments, the 
-            casted_args[i] = arg_types[i](args[i])
+        # for i in range(len(args)):
+        #     casted_args[i] = arg_types[i](args[i])
 
         return func(*casted_args)
-    return commandparse_decorator
+    return commandparse_cb_wrapper
         
             
 
