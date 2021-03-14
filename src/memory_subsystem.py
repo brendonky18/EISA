@@ -1,8 +1,8 @@
 from __future__ import annotations # must be first import, allows type hinting of next_device to be the enclosing class
 from abc import ABC, abstractmethod # Abstract Base Class
 from typing import Union, Optional, NewType
-from eisa import EISA
-from constant import const
+from src import eisa
+from src import constant as c
 
 
 class MemoryDevice(ABC):
@@ -32,7 +32,7 @@ class MemoryDevice(ABC):
             the number of cycles required to perform a write operation
         """
         self._addr_space = addr_space
-        self._memory = [0b0 * EISA.WORD_SIZE] * (2**addr_space) # 1 word * the number of words
+        self._memory = [0b0 * eisa.WORD_SIZE] * (2**addr_space) # 1 word * the number of words
         self._read_speed = read_speed
         self._write_speed = write_speed
         self._next_device = next_device
@@ -108,12 +108,12 @@ def validate_address(address: Union[int, slice]):
             if a block of addresses are not sequential
         """
         if isinstance(address, int):
-            if address > EISA.ADDRESS_SPACE:
+            if address > eisa.ADDRESS_SPACE:
                 raise IndexError
             else:
                 return True
         elif isinstance(address, slice):
-            if address.start > EISA.ADDRESS_SPACE or address.stop > EISA.ADDRESS_SPACE:
+            if address.start > eisa.ADDRESS_SPACE or address.stop > eisa.ADDRESS_SPACE:
                 raise IndexError
             elif address.step != 1:
                 raise ValueError('address slices only support steps of 1')
