@@ -1,7 +1,7 @@
 import argparse
-from src import commandparse as cp
-from src import memory_devices as md
-from src import eisa
+from commandparse import CommandParser, commandparse_cb
+from memory_devices import RAM, Cache
+from eisa import EISA
 
 
 if __name__ == '__main__':

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 @dataclass
 class Command:
-    arg_types: list[type]
+    arg_types: list[type ]
     callback: Callable[[str], Any]
 
 class UserInput:
