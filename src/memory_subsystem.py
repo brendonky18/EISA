@@ -1,6 +1,6 @@
 from __future__ import annotations # must be first import, allows type hinting of next_device to be the enclosing class
 from abc import ABC, abstractmethod # Abstract Base Class
-from typing import Union, Optional, NewType
+from typing import Union, Optional, Callable, Any
 from eisa import EISA
 from constant import const
 
@@ -9,13 +9,14 @@ class MemoryDevice(ABC):
     """Interface for all components of the memory subsystem
     """
     
-    _size: int
+    _addr_size: int
+    _addr_space: int
     _memory: list[int]
     _read_speed: int
     _write_speed: int
     _next_device: Union[MemoryDevice, None]
 
-    def __init__(self, addr_space: int, next_device: Union[MemoryDevice, None], read_speed: int, write_speed: int): #TODO check if we need to specify read and write speeds seperately
+    def __init__(self, addr_size: int, next_device: Union[MemoryDevice, None], read_speed: int, write_speed: int): #TODO check if we need to specify read and write speeds seperately
         """Constructor for a memory device
 
         Parameters
@@ -31,8 +32,9 @@ class MemoryDevice(ABC):
         write_speed : int
             the number of cycles required to perform a write operation
         """
-        self._addr_space = addr_space
-        self._memory = [0b0 * EISA.WORD_SIZE] * (2**addr_space) # 1 word * the number of words
+        self._addr_size = addr_size
+        self._addr_space = 2**self._addr_size
+        self._memory = [0b0 * EISA.WORD_SIZE] * self._addr_space # 1 word * the number of words
         self._read_speed = read_speed
         self._write_speed = write_speed
         self._next_device = next_device
@@ -142,15 +144,21 @@ def check_address(address: Union[int, slice], address_space: int):
         else:
             return address.start <= 2 ** address_space and address.stop <= 2 ** address_space
 
-def bitfield_property_constructor(start: int, size: int):
-    def bit_field_set(self, value):
-        self._entry &= ~(((2**size) - 1) << self._valid_start) # clears the original value
-        self._entry |= value << start # assigns the value
+def bitfield_property_constructor(start, size) -> Callable[[Any], Any]: # this becomes the decorator
+    print('constructor')
+    
+    def bitfield_property(self, value: Union[int, None]=None) -> Any: 
+        # get
+        if value is None:
+            print('get')
+            return int(self._entry >> self._valid_start)
+        # set
+        else:
+            print("set")
+            self._entry &= ~(((2**size) - 1) << self._valid_start) # clears the original value
+            self._entry |= value << start # assigns the value
 
-    def bit_field_get(self):
-        return bool(self._entry >> self._valid_start)
-
-    return property(bit_field_get, bit_field_set)
+    return bitfield_property
 
 def protected_bitfield_property_constructor(start: int, size: int):
     def bit_field_set(self, value):

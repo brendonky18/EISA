@@ -58,10 +58,17 @@ class CacheWay:
         self._dirty_start = self._tag_start + self._tag_bits
         self._valid_start = self._dirty_start + 1
 
+        # creates the accessor functions
         self.valid = bitfield_property_constructor(self._valid_start, 1)
         self.dirty = bitfield_property_constructor(self._dirty_start, 1)
         self.tag = bitfield_property_constructor(self._tag_start, self._tag_bits)
         self.index = protected_bitfield_property_constructor(self._index_start, self._index_bits)
+
+        # initializes values
+        self.valid(False)
+        self.dirty(False)
+        self.tag(0)
+        self.index(0)
 
     def __getitem__(self, offset: int) -> int:
         """read a word from the line
@@ -110,13 +117,14 @@ class Cache(MemoryDevice):
     """
 
     _offset_bits: int = 2 # 2 bits -> 4 words per line
+    _cache: list[CacheWay]
 
-    def __init__(self, addr_space: int, offset_bits: int, next_device: MemoryDevice, read_speed: int, write_speed: int):
+    def __init__(self, addr_size: int, offset_bits: int, next_device: MemoryDevice, read_speed: int, write_speed: int):
         """Constructor for a cache
 
         Parameters
         ----------
-        addr_space : int
+        addr_size : int
             the number of bits in the device's address space
             eg. 3 bits of address space -> 8 addressable lines
         offset_bits:
@@ -129,8 +137,10 @@ class Cache(MemoryDevice):
         write_speed : int
             the number of cycles required to perform a write operation
         """
-        super().__init__(addr_space, next_device, read_speed, write_speed)
+        super().__init__(addr_size, next_device, read_speed, write_speed)
         self._offset_bits = offset_bits
+        self._cache = [CacheWay(EISA.ADDRESS_SIZE - self._addr_size, self._addr_size, offset_bits)] * EISA.CACHE_ADDR_SPACE
+                
 
     #TODO implement data structure for cache
     def __getitem__(self, address: int):
