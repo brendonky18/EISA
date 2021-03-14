@@ -13,12 +13,12 @@ class EISA_properties(object):
 
     # wrappers
     @const
-    def ADDRESS_SPACE(self): return 2**ADDRESS_SIZE # the number of valid addresses
+    def ADDRESS_SPACE(self): return 2**self.ADDRESS_SIZE # the number of valid addresses
     @const
-    def OFFSET_SPACE(self): return 2**OFFSET_SIZE # the number of words per line
+    def OFFSET_SPACE(self): return 2**self.OFFSET_SIZE # the number of words per line
     @const
-    def CACHE_ADDR_SPACE(self): return 2**CACHE_SIZE # the number of cache lines
+    def CACHE_ADDR_SPACE(self): return 2**self.CACHE_SIZE # the number of cache lines
     @const
-    def RAM_ADDR_SPACE(self): return 2**RAM_SIZE # the range of valid RAM addresses
+    def RAM_ADDR_SPACE(self): return 2**self.RAM_SIZE # the range of valid RAM addresses
 
 EISA = EISA_properties()
