@@ -4,5 +4,5 @@ def const(f):
     def fset(self, value):
         raise TypeError('cannot assign values to a constant')
     def fget(self):
-        return f()
+        return f(self)
     return property(fget, fset)
