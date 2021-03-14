@@ -1,8 +1,7 @@
-from memory_subsystem import *
+from src import memory_subsystem as ms
 from typing import Union
 from functools import reduce
-from eisa import EISA
-
+from src import eisa
 
 class CacheWay:
     """
@@ -17,7 +16,7 @@ class CacheWay:
         dirty bit
         valid bit
     """
-
+    
     # the raw bits corresponding to the cache way
     _entry: int = 0b0
 
@@ -48,9 +47,9 @@ class CacheWay:
         self._tag_bits = tag_bits
         self._index_bits = index_bits
         self._offset_bits = offset_bits
-
+        
         # the total number of bits needed to store all of the words in each way
-        self._data_bits = EISA.WORD_SIZE * offset_bits
+        self._data_bits = eisa.WORD_SIZE * offset_bits
 
         # calculates the indicies of where each section starts within entry
         self._index_start = self._data_start + self._data_bits
@@ -59,10 +58,10 @@ class CacheWay:
         self._dirty_start = self._tag_start + self._tag_bits
         self._valid_start = self._dirty_start + 1
 
-        self.valid = bitfield_property_constructor(self._valid_start, 1)
-        self.dirty = bitfield_property_constructor(self._dirty_start, 1)
-        self.tag = bitfield_property_constructor(self._tag_start, self._tag_bits)
-        self.index = protected_bitfield_property_constructor(self._index_start, self._index_bits)
+        self.valid = ms.bitfield_property_constructor(self._valid_start, 1)
+        self.dirty = ms.bitfield_property_constructor(self._dirty_start, 1)
+        self.tag = ms.bitfield_property_constructor(self._tag_start, self._tag_bits)
+        self.index = ms.protected_bitfield_property_constructor(self._index_start, self._index_bits)
 
     def __getitem__(self, offset: int) -> int:
         """read a word from the line
@@ -79,10 +78,10 @@ class CacheWay:
         """
 
         # ensures that the offset is correct
-        if offset > 2 ** self._offset_bits:
-            raise IndexError(f'offset can be at most {2 ** self._offset_bits}')
+        if offset > 2**self._offset_bits:
+            raise IndexError(f'offset can be at most {2**self._offset_bits}')
 
-        return (self._entry >> (offset * EISA.WORD_SIZE)) & (2 ** EISA.WORD_SIZE - 1)
+        return (self._entry >> (offset * eisa.WORD_SIZE)) & (2**eisa.WORD_SIZE - 1)
 
     # TODO: finish function to add items to cache line, should only be able to write all 4 words,
     # should not be able to write words individually
@@ -90,20 +89,19 @@ class CacheWay:
         """write a word to the line
 
         Parameters
-        offset : int
+        offset
+        address : int
             the offset of the word 
         value : int
             the value to write
         """
         pass
 
-
 # TODO: extra credit, use to implement associative caches instead of direct-mapped
 class CacheBlock():
     pass
 
-
-class Cache(MemoryDevice):
+class Cache(ms.MemoryDevice):
     """CPU cache
     write-through
     direct-mapped
@@ -111,10 +109,9 @@ class Cache(MemoryDevice):
     4 words per line
     """
 
-    _offset_bits: int = 2  # 2 bits -> 4 words per line
+    _offset_bits: int = 2 # 2 bits -> 4 words per line
 
-
-    def __init__(self, addr_space: int, offset_bits: int, next_device: MemoryDevice, read_speed: int, write_speed: int):
+    def __init__(self, addr_space: int, offset_bits: int, next_device: ms.MemoryDevice, read_speed: int, write_speed: int):
         """Constructor for a cache
 
         Parameters
@@ -135,73 +132,14 @@ class Cache(MemoryDevice):
         super().__init__(addr_space, next_device, read_speed, write_speed)
         self._offset_bits = offset_bits
 
-    # TODO implement data structure for cache
-    def __getitem__(self, address: int) -> int:
-        """read a word from the line
-
-        Parameters
-        ----------
-        address : int
-            index of the line in the cache
-
-        Returns
-        -------
-        int
-            the data stored at the specified offset
-
-        Raises
-        ------
-        ValueError
-            if provided address is outside the addressable cache space space
-        """
-
-        if address > self._addr_space or address < 0:
-            raise ValueError(f'Invalid address {address} (read) from cache')
-
-        #Splice address at 2 and 6
-
-        #converted_addr = (address >> self._offset_bits) & (EISA.CACHE_ADDR_SPACE - 1)
-
-        #for i in self._memory:
-
-
-        return self._memory[((address >> self._offset_bits) & (EISA.CACHE_ADDR_SPACE - 1))]
-
+    #TODO implement data structure for cache
+    def __getitem__(self, address: int):
+        pass
+    
     def __setitem__(self, address: int, value: int) -> int:
-        """read a word from the line
+        pass
 
-                Parameters
-                ----------
-                address : int
-                    index of the line in the cache
-
-                value : int
-                    value to be placed in cache
-
-                Returns
-                -------
-                int
-                    the data stored at the specified offset
-
-                Raises
-                ------
-                ValueError
-                    if provided address is outside the addressable cache space space
-                        or value is not acceptable (negative or too large)
-                """
-
-        if address >= self._addr_space or address < 0:
-            raise ValueError(f'Invalid address {address} (read) from cache')
-
-        if value >= EISA.WORD_INT_LIM or value < 0:
-            raise ValueError(f'Cannot assign value {value} in cache (negative or too large)')
-
-        self._memory[address] = value
-
-
-
-
-class RAM(MemoryDevice):
+class RAM(ms.MemoryDevice):
     def __getitem__(self, address: Union[int, slice]) -> int:
         """retreives the data from the specified address or range of addresses
 
@@ -216,14 +154,16 @@ class RAM(MemoryDevice):
             single combined integer representind all of the data found at the passed address(es)
         """
 
-        validate_address(address)
+        ms.validate_address(address)
 
         if isinstance(address, int):
             return self._memory[address]
         elif isinstance(address, slice):
             # combines the list of 4 words, into a single integer
-            return reduce(lambda accumulator, cur: (accumulator << EISA.WORD_SIZE) + cur, self._memory[address], 0)
+            return reduce(lambda accumulator, cur: (accumulator << eisa.WORD_SIZE) + cur, self._memory[address], 0)
 
     def __setitem__(self, address: int, value: int):
-        validate_address(address)
+        ms.validate_address(address)
         self._memory[address] = value
+
+
