@@ -1,7 +1,9 @@
+from __future__ import annotations # must be first import, allows type hinting of next_device to be the enclosing class
 from abc import ABC, abstractmethod # Abstract Base Class
-from typing import Union
+from typing import Union, Optional, NewType
 from eisa import EISA
 from constant import const
+
 
 class MemoryDevice(ABC):
     """Interface for all components of the memory subsystem
@@ -11,13 +13,9 @@ class MemoryDevice(ABC):
     _memory: list[int]
     _read_speed: int
     _write_speed: int
-    _next_device: MemoryDevice
+    _next_device: Union[MemoryDevice, None]
 
-    @staticmethod
-    @const
-    def ADDR_SPACE(): return 32 # number of addressable words
-
-    def __init__(self, addr_space: int, next_device: MemoryDevice, read_speed: int, write_speed: int): #TODO check if we need to specify read and write speeds seperately
+    def __init__(self, addr_space: int, next_device: Union[MemoryDevice, None], read_speed: int, write_speed: int): #TODO check if we need to specify read and write speeds seperately
         """Constructor for a memory device
 
         Parameters
@@ -27,30 +25,35 @@ class MemoryDevice(ABC):
             eg. 3 bits of address space -> 8 addressable words
         next_device : Memory Device
             the next memory device in the memory subsystem hierarchy
+            None if there is not another
         read_speed : int
             the number of cycles required to perform a read operation
         write_speed : int
             the number of cycles required to perform a write operation
         """
         self._addr_space = addr_space
-        self._memory = [0b0 * EISA.WORD_SIZE] * (2 ** addr_space) # 1 word * the number of words
+        self._memory = [0b0 * EISA.WORD_SIZE] * (2**addr_space) # 1 word * the number of words
         self._read_speed = read_speed
         self._write_speed = write_speed
+        self._next_device = next_device
 
-    def __str__(self):
+    def __str__(self) -> str:
         """to string method
         """
-
+        
+        
         # Print starting line
-        print('+', "".center(10, '-'), '+')
+        s = f'+{"".center(10, '-')}+\n'
 
         # Print each entry line + block line
         for i in self._memory:
-            print('+', str(int(i)).center(10), '+')
-            print('+', "".center(10, '-'), '+')
+            s += f'+{str(int(i)).center(10)}+\n \
+            +{"".center(10, '-')}+\n'
 
         # Print ending line
-        print('+', "".center(10, '-'), '+')
+        s += f'+{"".center(10, '-')}+\n'
+
+        return s
     
     @abstractmethod
     def __getitem__(self, address: int) -> int: 
@@ -109,14 +112,14 @@ def validate_address(address: Union[int, slice]):
             if a block of addresses are not sequential
         """
         if isinstance(address, int):
-            if address > MemoryDevice.ADDR_SPACE:
+            if address > EISA.ADDRESS_SPACE:
                 raise IndexError
             else:
                 return True
         elif isinstance(address, slice):
-            if address.start > MemoryDevice.ADDR_SPACE or address.stop > MemoryDevice.ADDR_SPACE:
+            if address.start > EISA.ADDRESS_SPACE or address.stop > EISA.ADDRESS_SPACE:
                 raise IndexError
-            elif address.step is not 1:
+            elif address.step != 1:
                 raise ValueError('address slices only support steps of 1')
             else:
                 return True
