@@ -127,11 +127,9 @@ class CacheWay:
         def bitfield_property(value: Optional[int]=None) -> Any: 
             # get
             if value is None:
-                print('get')
                 return int(self._entry >> self._valid_start)
             # set
             else:
-                print("set")
                 self._entry &= ~(((2**size) - 1) << start) # clears the original value
                 self._entry |= value << start # assigns the value
 
@@ -152,9 +150,6 @@ class CacheWay:
         # initialize value
         self._entry &= ~(((2**size) - 1) << start) # clears the original value
         self._entry |= initial_val << start # assigns the value
-
-        print(f'init val: {initial_val}')
-        print(f'value initialized: {protected_bitfield_property()}')
 
         return protected_bitfield_property
 
