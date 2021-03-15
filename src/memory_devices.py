@@ -198,11 +198,11 @@ class Cache(MemoryDevice):
         """to string method
         """
         # Print starting line
-        s = f'+{"".center(10, "-")}+\n'
+        s = f'+{"".center(20, "-")}+\n'
 
         # Print each entry line + block line
-        for i in self._cache:
-            s += f'|{str(int(i.data())).center(10)}|\n+{"".center(10, "-")}+\n'
+        for i in range(len(self._cache)):
+            s += f'|{str(i).center(4)}|{str(int(self._cache[i].data())).center(15)}|\n+{"".center(20, "-")}+\n'
 
         return s
 
