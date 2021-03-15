@@ -1,8 +1,9 @@
-from tabulate import tabulate # pip install tabulate
+from tabulate import tabulate  # pip install tabulate
 from memory_subsystem import *
 from typing import Union
 from functools import reduce
 from eisa import EISA
+
 
 class CacheWay:
     """
@@ -17,7 +18,7 @@ class CacheWay:
         dirty bit
         valid bit
     """
-    
+
     # the raw bits corresponding to the cache way
     _entry: int = 0b0
 
@@ -46,11 +47,11 @@ class CacheWay:
         """
 
         self._tag_bits = EISA.ADDRESS_SIZE - index_bits - offset_bits
-        if self._tag_bits < 0: # ensure that the tag field is at least 0
+        if self._tag_bits < 0:  # ensure that the tag field is at least 0
             raise TypeError('index bits and offset bits are larger than the address size')
         self._index_bits = index_bits
         self._offset_bits = offset_bits
-        
+
         # the total number of bits needed to store all of the words in each way
         self._data_bits = EISA.WORD_SIZE * offset_bits
 
@@ -74,20 +75,20 @@ class CacheWay:
         # Print starting line
         s = tabulate(
             [
-                ['Valid',   f'{self.valid():#0{2}x}'], 
-                ['Dirty',   f'{self.dirty():#0{2}x}'], 
-                ['Tag',     f'{self.tag():#0{2 + self._tag_bits//4}x}'], 
-                ['Index',   f'{self.index():#0{2 + self._index_bits//4}x}'], 
-                ['Data',    f'{self.data():#0{2 + self._data_bits//4}x}']
+                ['Valid', f'{self.valid():#0{2}x}'],
+                ['Dirty', f'{self.dirty():#0{2}x}'],
+                ['Tag', f'{self.tag():#0{2 + self._tag_bits // 4}x}'],
+                ['Index', f'{self.index():#0{2 + self._index_bits // 4}x}'],
+                ['Data', f'{self.data():#0{2 + self._data_bits // 4}x}']
             ],
             headers=['Field', 'Value'],
             tablefmt='pretty',
             stralign='left',
             numalign='right'
-            )
+        )
 
         return s
-    
+
     def __getitem__(self, offset: int) -> int:
         """read a word from the line
 
@@ -103,10 +104,10 @@ class CacheWay:
         """
 
         # ensures that the offset is correct
-        if offset > 2**self._offset_bits:
-            raise IndexError(f'offset can be at most {2**self._offset_bits}')
+        if offset > 2 ** self._offset_bits:
+            raise IndexError(f'offset can be at most {2 ** self._offset_bits}')
 
-        return (self._entry >> (offset * EISA.WORD_SIZE)) & (2**EISA.WORD_SIZE - 1)
+        return (self._entry >> (offset * EISA.WORD_SIZE)) & (2 ** EISA.WORD_SIZE - 1)
 
     # TODO: finish function to add items to cache line, should only be able to write all 4 words,
     # should not be able to write words individually
@@ -121,41 +122,44 @@ class CacheWay:
             the value to write
         """
         pass
-    
-    def bitfield_property_constructor(self, start: int, size: int, initial_val: int) -> Callable[[Any], Any]: # this becomes the decorator
+
+    def bitfield_property_constructor(self, start: int, size: int, initial_val: int) -> Callable[
+        [Any], Any]:  # this becomes the decorator
         # create accessor function
-        def bitfield_property(value: Optional[int]=None) -> Any: 
+        def bitfield_property(value: Optional[int] = None) -> Any:
             # get
             if value is None:
                 return int(self._entry >> start)
             # set
             else:
-                self._entry &= ~(((2**size) - 1) << start) # clears the original value
-                self._entry |= value << start # assigns the value
+                self._entry &= ~(((2 ** size) - 1) << start)  # clears the original value
+                self._entry |= value << start  # assigns the value
 
         # initialize value
-        self._entry &= ~(((2**size) - 1) << start) # clears the original value
-        self._entry |= initial_val << start # assigns the value
+        self._entry &= ~(((2 ** size) - 1) << start)  # clears the original value
+        self._entry |= initial_val << start  # assigns the value
 
         return bitfield_property
 
     def protected_bitfield_property_constructor(self, start: int, size: int, initial_val: int):
         # create protected accessor function
-        def protected_bitfield_property(value: Optional[int]=None) -> Any: 
+        def protected_bitfield_property(value: Optional[int] = None) -> Any:
             if value is None:
                 return int(self._entry >> start)
             else:
                 raise TypeError('cannot assign values to a protected bitfield')
 
         # initialize value
-        self._entry &= ~(((2**size) - 1) << start) # clears the original value
-        self._entry |= initial_val << start # assigns the value
+        self._entry &= ~(((2 ** size) - 1) << start)  # clears the original value
+        self._entry |= initial_val << start  # assigns the value
 
         return protected_bitfield_property
+
 
 # TODO: extra credit, use to implement associative caches instead of direct-mapped
 class CacheBlock():
     pass
+
 
 class Cache(MemoryDevice):
     """CPU cache
@@ -165,7 +169,7 @@ class Cache(MemoryDevice):
     4 words per line
     """
 
-    _offset_bits: int = 2 # 2 bits -> 4 words per line
+    _offset_bits: int = 2  # 2 bits -> 4 words per line
     _cache: list[CacheWay]
 
     def __init__(self, addr_size: int, offset_bits: int, next_device: MemoryDevice, read_speed: int, write_speed: int):
@@ -189,20 +193,20 @@ class Cache(MemoryDevice):
         super().__init__(addr_size, next_device, read_speed, write_speed)
         self._offset_bits = offset_bits
         self._cache = [CacheWay(self._addr_size, offset_bits)] * EISA.CACHE_ADDR_SPACE
-    
+
     def __str__(self) -> str:
         def __str__(self) -> str:
-        """to string method
-        """
-        # Print starting line
-        s = f'+{"".center(10, "-")}+\n'
+            """to string method
+            """
+            # Print starting line
+            s = f'+{"".center(10, "-")}+\n'
 
-        # Print each entry line + block line
-        for i in self._cache:
-            s += f'|{str(int(i)).center(10)}|\n+{"".center(10, "-")}+\n'
+            # Print each entry line + block line
+            for i in self._cache:
+                s += f'|{str(int(i)).center(10)}|\n+{"".center(10, "-")}+\n'
 
-    #TODO implement data structure for cache
-    def __getitem__(self, address: int) -> int: # TODO: fix documentation
+    # TODO implement data structure for cache
+    def __getitem__(self, address: int) -> int:  # TODO: fix documentation
         # Check if it's in the cache
         # Return it if it is
 
@@ -280,7 +284,7 @@ class Cache(MemoryDevice):
 
         # Write cache hit - write 1 word to cache and to RAM
         try:
-              # Retrieve cacheway associated with this address
+            # Retrieve cacheway associated with this address
             tempCacheWay = self.get_cacheway(address)
             # TODO - Uncomment this if we need to write to cache, update hardcoded vals
             # self.get_cacheway(address).__setitem__(address & 0b11, value)
@@ -330,6 +334,7 @@ class Cache(MemoryDevice):
         """
         return self._next_device[address & ~(EISA.OFFSET_SPACE - 1): address | (EISA.OFFSET_SPACE - 1)]
 
+
 class RAM(MemoryDevice):
     def __getitem__(self, address: Union[int, slice]) -> int:
         """retreives the data from the specified address or range of addresses
@@ -351,13 +356,12 @@ class RAM(MemoryDevice):
             return self._memory[address]
         elif isinstance(address, slice):
             # combines the list of 4 words, into a single integer
-            return reduce(lambda accumulator, cur: (accumulator << EISA.WORD_SIZE) | cur, self._memory[address][::-1], 0) 
+            return reduce(lambda accumulator, cur: (accumulator << EISA.WORD_SIZE) | cur, self._memory[address][::-1],
+                          0)
 
     def __setitem__(self, address: int, value: int):
         validate_address(address)
         self._memory[address] = value
-
-
 
 # #debugging
 # if __name__ == '__main__':

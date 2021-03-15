@@ -46,8 +46,8 @@ class MemoryDevice(ABC):
         s = f'+{"".center(10, "-")}+\n'
 
         # Print each entry line + block line
-        for i in self._memory:
-            s += f'|{str(int(i)).center(10)}|\n+{"".center(10, "-")}+\n'
+        for i in range(len(self._memory)):
+            s += f'|{str(i).center(4)}|{str(int(self._memory[i])).center(10)}|\n+{"".center(10, "-")}+\n'
 
         return s
 
