@@ -191,11 +191,105 @@ class Cache(MemoryDevice):
         self._cache = [CacheWay(self._addr_size, offset_bits)] * EISA.CACHE_ADDR_SPACE
            
     #TODO implement data structure for cache
-    def __getitem__(self, address: int):
-        pass
-    
-    def __setitem__(self, address: int, value: int) -> int:
-        pass
+    def __getitem__(self, address: int) -> int:
+
+        # Check if it's in the cache
+        # Return it if it is
+
+        # on cache hit return word from cache
+        # on cache miss return word from memory
+
+        """read a word from the line
+
+        Parameters
+        ----------
+        address : int
+            address of word to be retrieved
+
+        Returns
+        -------
+        int
+            the data stored at the specified word address in cache
+        """
+
+        if address >= EISA.CACHE_ADDR_SPACE or address < 0:
+            raise ValueError(f'Invalid cache read address {address}')
+
+        # Read cache hit - return the word from cache
+        try:
+
+            # Get the corresponding cacheway associated with the address
+            tempCacheWay = self.get_cacheway(address)
+
+            # TODO
+            # Confirm correct method for obtaining offset
+
+            if tempCacheWay.valid:
+                return tempCacheWay.__getitem__(address & 0b11)
+            else:
+                raise MemoryError('Tried to read from invalid (valid=0) cacheway')
+
+        # Read cache miss - load 4 words from ram into the associated cacheway
+        except ValueError:
+
+            # Retrieve value from ram
+            ramVal = self.read_words_from_ram(address)
+
+            # Write the value retrieved from ram to cache
+            # self.get_cacheway(address).__setitem__((address >> 6) & 0b11, ramVal)
+            tempCacheWay = self.get_cacheway(address)
+            tempCacheWay.data = ramVal
+
+            # TODO
+            # set corresponding valid and dirty bits of new cacheway
+            # check whether need to write to ram after writing ram values to cache
+
+            return tempCacheWay.__getitem__(address & 0b11)
+
+    def __setitem__(self, address: int, value: int):
+        """function to expose individual cache ways so that they can be viewed
+
+        Parameters
+        ----------
+        address : int
+            address of the word to set
+
+        value : int
+            value of word to set
+        """
+
+        # Verify address is in range of cache address space
+        if address >= EISA.CACHE_ADDR_SPACE or address < 0:
+            raise ValueError(f'Invalid cache write (set) address {address}')
+
+        # Verify value is within word space
+        if value >= EISA.WORD_SPACE or value < 0:
+            raise ValueError(f'Invalid cache write value {value}')
+
+        # Retrieve cacheway associated with this address
+        tempCacheWay = self.get_cacheway(address)
+
+        # Write through, no allocate - you only write to RAM
+
+        # Write cache hit - write 1 word to cache and to RAM
+        try:
+
+            # TODO - Uncomment this if we need to write to cache, update hardcoded vals
+            # self.get_cacheway(address).__setitem__(address & 0b11, value)
+
+            # TODO - Figure out correct meaning of write through, no alloc
+            # Write through to RAM
+            self._next_device.__setitem__(address, value)
+
+            # Set corresponding valid and dirty bit
+            tempCacheWay.valid = 1
+            tempCacheWay.dirty = 0
+
+        # Miss - write to RAM
+        except ValueError:
+
+            # Write to ram on write cache miss
+            self._next_device.__setitem__(address, value)
 
     def get_cacheway(self, address: int) -> CacheWay:
         """function to expose individual cache ways so that they can be viewed
@@ -203,9 +297,30 @@ class Cache(MemoryDevice):
         Parameters
         ----------
         address : int
-            address of the cache way
+            address of the value to retrieve the associated cacheway for
         """
-        pass
+
+        # TODO - Fix tag constant
+        cache_line = (address >> EISA.OFFSET_SIZE) & (EISA.CACHE_ADDR_SPACE - 1)
+        if self._cache[cache_line.tag() != ((address >> (EISA.OFFSET_SIZE + EISA.CACHE_SIZE)) & 0b11)]:
+            raise ValueError('entry is not in the cache')
+        else:
+            return self._cache[cache_line]
+
+    def read_words_from_ram(self, address: int) -> list[int]:
+        """ obtain the four 'byte bounded' words associated to the address
+
+        Parameters
+        ----------
+        address : int
+            address of the value(s) in ram
+
+        Returns
+        ----------
+        list[int]
+            byte bounded values in ram
+        """
+        return self._next_device[address & ~(EISA.OFFSET_SPACE - 1): address | (EISA.OFFSET_SPACE - 1)]
 
 class RAM(MemoryDevice):
     def __getitem__(self, address: Union[int, slice]) -> int:
