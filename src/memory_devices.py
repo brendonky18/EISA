@@ -77,11 +77,11 @@ class CacheWay:
         # Print starting line
         s = tabulate(
             [
-                ['Valid', f'{self.valid():#0{2}x}'],
-                ['Dirty', f'{self.dirty():#0{2}x}'],
-                ['Tag', f'{self.tag():#0{2 + self._tag_bits // 4}x}'],
-                ['Index', f'{self.index():#0{2 + self._index_bits // 4}x}'],
-                ['Data', f'{self.data():#0{2 + self._data_bits // 4}x}']
+                ['Valid', f'{self.valid():#0{2}x}'], # type: ignore
+                ['Dirty', f'{self.dirty():#0{2}x}'], # type: ignore
+                ['Tag', f'{self.tag():#0{2 + self._tag_bits // 4}x}'],# type: ignore
+                ['Index', f'{self.index():#0{2 + self._index_bits // 4}x}'], # type: ignore
+                ['Data', f'{self.data():#0{2 + self._data_bits // 4}x}'] # type: ignore
             ],
             headers=['Field', 'Value'],
             tablefmt='pretty',
@@ -204,7 +204,7 @@ class Cache(MemoryDevice):
 
         # Print each entry line + block line
         for i in range(len(self._cache)):
-            s += f'|{str(i).center(4)}|{str(int(self._cache[i].data())).center(15)}|\n+{"".center(20, "-")}+\n'
+            s += f'|{str(i).center(4)}|{str(int(self._cache[i].data())).center(15)}|\n+{"".center(20, "-")}+\n' # type: ignore
 
         return s
 
@@ -298,17 +298,17 @@ class Cache(MemoryDevice):
 
             # TODO - Figure out correct meaning of write through, no alloc
             # Write through to RAM
-            self._next_device.__setitem__(address, value)
+            self._next_device.__setitem__(address, value) # type: ignore
 
             # Set corresponding valid and dirty bit
-            tempCacheWay.valid = 1
-            tempCacheWay.dirty = 0
+            tempCacheWay.valid(True)
+            tempCacheWay.dirty(False)
 
         # Miss - write to RAM
         except ValueError:
 
             # Write to ram on write cache miss
-            self._next_device.__setitem__(address, value)
+            self._next_device.__setitem__(address, value) # type: ignore
 
     def get_cacheway(self, address: int) -> CacheWay:
         """function to expose individual cache ways so that they can be viewed
@@ -339,7 +339,7 @@ class Cache(MemoryDevice):
         list[int]
             byte bounded values in ram
         """
-        return self._next_device[address & ~(EISA.OFFSET_SPACE - 1): address | (EISA.OFFSET_SPACE - 1)]
+        return self._next_device[address & ~(EISA.OFFSET_SPACE - 1): address | (EISA.OFFSET_SPACE - 1)]# type: ignore
 
 
 class RAM(MemoryDevice):
