@@ -43,11 +43,11 @@ class MemoryDevice(ABC):
         """to string method
         """
         # Print starting line
-        s = f'+{"".center(10, "-")}+\n'
+        s = f'+{"".center(20, "-")}+\n'
 
         # Print each entry line + block line
         for i in range(len(self._memory)):
-            s += f'|{str(i).center(4)}|{str(int(self._memory[i])).center(10)}|\n+{"".center(10, "-")}+\n'
+            s += f'|{str(i).center(4)}|{str(int(self._memory[i])).center(15)}|\n+{"".center(20, "-")}+\n'
 
         return s
 

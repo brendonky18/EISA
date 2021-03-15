@@ -192,18 +192,19 @@ class Cache(MemoryDevice):
         """
         super().__init__(addr_size, next_device, read_speed, write_speed)
         self._offset_bits = offset_bits
-        self._cache = [CacheWay(self._addr_size, offset_bits)] * EISA.CACHE_ADDR_SPACE
-
+        self._cache = [CacheWay(self._addr_size, offset_bits) for i in range(EISA.CACHE_ADDR_SPACE)]
+    
     def __str__(self) -> str:
-        def __str__(self) -> str:
-            """to string method
-            """
-            # Print starting line
-            s = f'+{"".center(10, "-")}+\n'
+        """to string method
+        """
+        # Print starting line
+        s = f'+{"".center(10, "-")}+\n'
 
-            # Print each entry line + block line
-            for i in self._cache:
-                s += f'|{str(int(i)).center(10)}|\n+{"".center(10, "-")}+\n'
+        # Print each entry line + block line
+        for i in self._cache:
+            s += f'|{str(int(i.data())).center(10)}|\n+{"".center(10, "-")}+\n'
+
+        return s
 
     # TODO implement data structure for cache
     def __getitem__(self, address: int) -> int:  # TODO: fix documentation
