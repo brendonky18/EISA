@@ -41,11 +41,8 @@ class Clock:
                         for cur_event in cls.pending_calls: # iterate over and update all events
                             if cur_event.delay == 0:    
                                 cur_event.callback()        # trigger the event's callback
-                                print('callback triggered')
                                                
                             cur_event.delay -= 1            # decrement event delay
-                            print('decrement')
-                        print('loop')
                         
                         # remove events that have been called
                         cls.pending_calls = [cur_event for cur_event in cls.pending_calls if cur_event.delay >= 0]
@@ -57,7 +54,6 @@ class Clock:
         
             cls.clock_thread = Thread(target=run)
             cls.clock_thread.start()                        # actually start running the thread
-            print('clock thread started')
             
     @classmethod
     def stop(cls):
@@ -85,12 +81,11 @@ class Clock:
         Any
             returns whatever the passed function returns
         """
+        print('Warning: Clock not started. commands will not be executed')
         self._waiting = True
 
         def on_done():
             self._waiting = False
-
-            print(f'updated waiting: {self._waiting}') # debug
 
         # add to the list of events
         with Clock.pending_calls_lock:

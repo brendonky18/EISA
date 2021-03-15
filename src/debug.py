@@ -2,6 +2,7 @@ import argparse
 from commandparse import CommandParser, commandparse_cb
 from memory_devices import RAM, Cache
 from eisa import EISA
+from clock import Clock
 
 
 if __name__ == '__main__':
@@ -16,7 +17,7 @@ if __name__ == '__main__':
     ram = RAM(EISA.RAM_SIZE, None, 1, 1)
     cache = Cache(EISA.CACHE_SIZE, EISA.OFFSET_SIZE, ram, 1, 1)
 
-    cmd_parser = CommandParser(args.n)
+    cmd_parser = CommandParser('dbg' if args.n is None else args.n)
 
     @commandparse_cb
     def cache_read(addr: int):
@@ -40,12 +41,24 @@ if __name__ == '__main__':
     def view_way(address: int):
         print(str(cache.get_cacheway))
 
+    @commandparse_cb
+    def clock(mode: str):
+        if mode.lower() == 'start':
+            Clock.start()
+            print('Clock started')
+        elif mode.lower() == 'stop':
+            Clock.stop()
+            print('Clock stopped')
+        else:
+            print(f'<{mode}> is not a valid option, please enter start/stop')
+
     cmd_parser.add_command('read', [int], cache_read)
     cmd_parser.add_command('write', [int, int], cache_write)
     cmd_parser.add_command('view', [str], view)
     cmd_parser.add_command('show', [str], view) # alias for the view command
     cmd_parser.add_command('view-way', [int], view_way)
     cmd_parser.add_command('show-way', [int], view_way) # alias
+    cmd_parser.add_command('clock', [str], clock) # alias
 
     cmd_parser.start()
 
