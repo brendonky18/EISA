@@ -1,4 +1,6 @@
 from tabulate import tabulate  # pip install tabulate
+
+from clock import Clock
 from memory_subsystem import *
 from typing import Union
 from functools import reduce
@@ -198,11 +200,11 @@ class Cache(MemoryDevice):
         """to string method
         """
         # Print starting line
-        s = f'+{"".center(10, "-")}+\n'
+        s = f'+{"".center(20, "-")}+\n'
 
         # Print each entry line + block line
-        for i in self._cache:
-            s += f'|{str(int(i.data())).center(10)}|\n+{"".center(10, "-")}+\n'
+        for i in range(len(self._cache)):
+            s += f'|{str(i).center(4)}|{str(int(self._cache[i].data())).center(15)}|\n+{"".center(20, "-")}+\n'
 
         return s
 
@@ -226,6 +228,8 @@ class Cache(MemoryDevice):
         int
             the data stored at the specified word address in cache
         """
+
+        Clock.wait(lambda: None, self._write_speed)
 
         if address >= EISA.CACHE_ADDR_SPACE or address < 0:
             raise ValueError(f'Invalid cache read address {address}')
@@ -272,6 +276,8 @@ class Cache(MemoryDevice):
         value : int
             value of word to set
         """
+
+        Clock.wait(lambda: None, self._write_speed)
 
         # Verify address is in range of cache address space
         if address >= EISA.CACHE_ADDR_SPACE or address < 0:
@@ -351,6 +357,8 @@ class RAM(MemoryDevice):
             single combined integer representind all of the data found at the passed address(es)
         """
 
+        Clock.wait(lambda: None, self._read_speed)
+
         validate_address(address)
 
         if isinstance(address, int):
@@ -361,6 +369,9 @@ class RAM(MemoryDevice):
                           0)
 
     def __setitem__(self, address: int, value: int):
+
+        Clock.wait(lambda: None, self._write_speed)
+
         validate_address(address)
         self._memory[address] = value
 
