@@ -1,8 +1,9 @@
-from tabulate import tabulate # pip install tabulate
+from tabulate import tabulate  # pip install tabulate
 from memory_subsystem import *
 from typing import Union
 from functools import reduce
 from eisa import EISA
+
 
 class CacheWay:
     """
@@ -17,7 +18,7 @@ class CacheWay:
         dirty bit
         valid bit
     """
-    
+
     # the raw bits corresponding to the cache way
     _entry: int = 0b0
 
@@ -46,11 +47,11 @@ class CacheWay:
         """
 
         self._tag_bits = EISA.ADDRESS_SIZE - index_bits - offset_bits
-        if self._tag_bits < 0: # ensure that the tag field is at least 0
+        if self._tag_bits < 0:  # ensure that the tag field is at least 0
             raise TypeError('index bits and offset bits are larger than the address size')
         self._index_bits = index_bits
         self._offset_bits = offset_bits
-        
+
         # the total number of bits needed to store all of the words in each way
         self._data_bits = EISA.WORD_SIZE * offset_bits
 
@@ -66,7 +67,7 @@ class CacheWay:
         self.dirty = self.bitfield_property_constructor(self._dirty_start, 1, False)
         self.tag = self.bitfield_property_constructor(self._tag_start, self._tag_bits, 0)
         self.index = self.protected_bitfield_property_constructor(self._index_start, self._index_bits, 0)
-        self.data = self.protected_bitfield_property_constructor(0, self._data_bits, 0)
+        self.data = self.bitfield_property_constructor(0, self._data_bits, 0)
 
     def __str__(self) -> str:
         """to string method
@@ -74,20 +75,20 @@ class CacheWay:
         # Print starting line
         s = tabulate(
             [
-                ['Valid',   f'{self.valid():#0{2}x}'], 
-                ['Dirty',   f'{self.dirty():#0{2}x}'], 
-                ['Tag',     f'{self.tag():#0{2 + self._tag_bits//4}x}'], 
-                ['Index',   f'{self.index():#0{2 + self._index_bits//4}x}'], 
-                ['Data',    f'{self.data():#0{2 + self._data_bits//4}x}']
+                ['Valid', f'{self.valid():#0{2}x}'],
+                ['Dirty', f'{self.dirty():#0{2}x}'],
+                ['Tag', f'{self.tag():#0{2 + self._tag_bits // 4}x}'],
+                ['Index', f'{self.index():#0{2 + self._index_bits // 4}x}'],
+                ['Data', f'{self.data():#0{2 + self._data_bits // 4}x}']
             ],
             headers=['Field', 'Value'],
             tablefmt='pretty',
             stralign='left',
             numalign='right'
-            )
+        )
 
         return s
-    
+
     def __getitem__(self, offset: int) -> int:
         """read a word from the line
 
@@ -103,10 +104,10 @@ class CacheWay:
         """
 
         # ensures that the offset is correct
-        if offset > 2**self._offset_bits:
-            raise IndexError(f'offset can be at most {2**self._offset_bits}')
+        if offset > 2 ** self._offset_bits:
+            raise IndexError(f'offset can be at most {2 ** self._offset_bits}')
 
-        return (self._entry >> (offset * EISA.WORD_SIZE)) & (2**EISA.WORD_SIZE - 1)
+        return (self._entry >> (offset * EISA.WORD_SIZE)) & (2 ** EISA.WORD_SIZE - 1)
 
     # TODO: finish function to add items to cache line, should only be able to write all 4 words,
     # should not be able to write words individually
@@ -120,11 +121,13 @@ class CacheWay:
         value : int
             the value to write
         """
-        pass
-    
-    def bitfield_property_constructor(self, start: int, size: int, initial_val: int) -> Callable[[Any], Any]: # this becomes the decorator
+
+        raise MemoryError('Trying to write individual word into cache')
+
+    def bitfield_property_constructor(self, start: int, size: int, initial_val: int) -> Callable[
+        [Any], Any]:  # this becomes the decorator
         # create accessor function
-        def bitfield_property(value: Optional[int]=None) -> Any: 
+        def bitfield_property(value: Optional[int] = None) -> Any:
             # get
             if value is None:
                 print('get')
@@ -132,35 +135,37 @@ class CacheWay:
             # set
             else:
                 print("set")
-                self._entry &= ~(((2**size) - 1) << start) # clears the original value
-                self._entry |= value << start # assigns the value
+                self._entry &= ~(((2 ** size) - 1) << start)  # clears the original value
+                self._entry |= value << start  # assigns the value
 
         # initialize value
-        self._entry &= ~(((2**size) - 1) << start) # clears the original value
-        self._entry |= initial_val << start # assigns the value
+        self._entry &= ~(((2 ** size) - 1) << start)  # clears the original value
+        self._entry |= initial_val << start  # assigns the value
 
         return bitfield_property
 
     def protected_bitfield_property_constructor(self, start: int, size: int, initial_val: int):
         # create protected accessor function
-        def protected_bitfield_property(value: Optional[int]=None) -> Any: 
+        def protected_bitfield_property(value: Optional[int] = None) -> Any:
             if value is None:
                 return int(self._entry >> start)
             else:
                 raise TypeError('cannot assign values to a protected bitfield')
 
         # initialize value
-        self._entry &= ~(((2**size) - 1) << start) # clears the original value
-        self._entry |= initial_val << start # assigns the value
+        self._entry &= ~(((2 ** size) - 1) << start)  # clears the original value
+        self._entry |= initial_val << start  # assigns the value
 
         print(f'init val: {initial_val}')
         print(f'value initialized: {protected_bitfield_property()}')
 
         return protected_bitfield_property
 
+
 # TODO: extra credit, use to implement associative caches instead of direct-mapped
 class CacheBlock():
     pass
+
 
 class Cache(MemoryDevice):
     """CPU cache
@@ -170,7 +175,7 @@ class Cache(MemoryDevice):
     4 words per line
     """
 
-    _offset_bits: int = 2 # 2 bits -> 4 words per line
+    _offset_bits: int = 2  # 2 bits -> 4 words per line
     _cache: list[CacheWay]
 
     def __init__(self, addr_size: int, offset_bits: int, next_device: MemoryDevice, read_speed: int, write_speed: int):
@@ -194,13 +199,108 @@ class Cache(MemoryDevice):
         super().__init__(addr_size, next_device, read_speed, write_speed)
         self._offset_bits = offset_bits
         self._cache = [CacheWay(self._addr_size, offset_bits)] * EISA.CACHE_ADDR_SPACE
-           
-    #TODO implement data structure for cache
-    def __getitem__(self, address: int):
-        pass
-    
-    def __setitem__(self, address: int, value: int) -> int:
-        pass
+
+    def __getitem__(self, address: int) -> int:
+
+        # Check if it's in the cache
+        # Return it if it is
+
+        # on cache hit return word from cache
+        # on cache miss return word from memory
+
+        """read a word from the line
+
+        Parameters
+        ----------
+        address : int
+            address of word to be retrieved
+
+        Returns
+        -------
+        int
+            the data stored at the specified word address in cache
+        """
+
+        if address >= EISA.CACHE_ADDR_SPACE or address < 0:
+
+            raise ValueError(f'Invalid cache read address {address}')
+
+        # Read cache hit - return the word from cache
+        try:
+
+            # Get the corresponding cacheway associated with the address
+            tempCacheWay = self.get_cacheway(address)
+
+            # TODO
+            # Confirm correct method for obtaining offset
+
+            if tempCacheWay.valid:
+                return tempCacheWay.__getitem__((address >> 6) & 0b11)
+            else:
+                raise MemoryError('Tried to read from invalid (valid=0) cacheway')
+
+        # Read cache miss - load 4 words from ram into the associated cacheway
+        except ValueError:
+
+            # Retrieve value from ram
+            ramVal = self.read_words_from_ram(address)
+
+            # Write the value retrieved from ram to cache
+            # self.get_cacheway(address).__setitem__((address >> 6) & 0b11, ramVal)
+            tempCacheWay = self.get_cacheway(address)
+            tempCacheWay.data = ramVal
+
+            # TODO
+            # set corresponding valid and dirty bits of new cacheway
+            # check whether need to write to ram after writing ram values to cache
+
+            return tempCacheWay.__getitem__((address >> 6) & 0b11)
+
+    def __setitem__(self, address: int, value: int):
+        """function to expose individual cache ways so that they can be viewed
+
+        Parameters
+        ----------
+        address : int
+            address of the word to set
+
+        value : int
+            value of word to set
+        """
+
+        # Verify address is in range of cache address space
+        if address >= EISA.CACHE_ADDR_SPACE or address < 0:
+            raise ValueError(f'Invalid cache write (set) address {address}')
+
+        # Verify value is within word space
+        if value >= EISA.WORD_SPACE or value < 0:
+            raise ValueError(f'Invalid cache write value {value}')
+
+        # Retrieve cacheway associated with this address
+        tempCacheWay = self.get_cacheway(address)
+
+        # Write through, no allocate - you only write to RAM
+
+        # Write cache hit - write 1 word to cache and to RAM
+        try:
+
+            # TODO - Uncomment this if we need to write to cache
+            # self.get_cacheway(address).__setitem__((address >> 6) & 0b11, value)
+
+            # TODO - Figure out correct meaning of write through, no alloc
+            # Write through to RAM
+            self._next_device.__setitem__(address, value)
+
+            # Set corresponding valid and dirty bit
+            tempCacheWay.valid = 1
+            tempCacheWay.dirty = 0
+
+        # Miss - write to RAM
+        except ValueError:
+
+            # Write to ram on write cache miss
+            self._next_device.__setitem__(address,value)
+
 
     def get_cacheway(self, address: int) -> CacheWay:
         """function to expose individual cache ways so that they can be viewed
@@ -211,6 +311,22 @@ class Cache(MemoryDevice):
             address of the cache way
         """
         pass
+
+    def read_words_from_ram(self, address: int) -> list[int]:
+        """ obtain the four 'byte bounded' words associated to the address
+
+        Parameters
+        ----------
+        address : int
+            address of the value(s) in ram
+
+        Returns
+        ----------
+        list[int]
+            byte bounded values in ram
+        """
+        return self._next_device[address & ~(EISA.OFFSET_SPACE - 1): address | (EISA.OFFSET_SPACE - 1)]
+
 
 class RAM(MemoryDevice):
     def __getitem__(self, address: Union[int, slice]) -> int:
@@ -233,13 +349,11 @@ class RAM(MemoryDevice):
             return self._memory[address]
         elif isinstance(address, slice):
             # combines the list of 4 words, into a single integer
-            return reduce(lambda accumulator, cur: (accumulator << EISA.WORD_SIZE) + cur, self._memory[address], 0) 
+            return reduce(lambda accumulator, cur: (accumulator << EISA.WORD_SIZE) + cur, self._memory[address], 0)
 
     def __setitem__(self, address: int, value: int):
         validate_address(address)
         self._memory[address] = value
-
-
 
 # #debugging
 # if __name__ == '__main__':

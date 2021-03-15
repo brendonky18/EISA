@@ -8,7 +8,7 @@ from constant import const
 class MemoryDevice(ABC):
     """Interface for all components of the memory subsystem
     """
-    
+
     _addr_size: int
     _addr_space: int
     _memory: list[int]
@@ -50,9 +50,9 @@ class MemoryDevice(ABC):
             s += f'+{str(int(i)).center(10)}+\n+{"".center(10, "-")}+\n'
 
         return s
-    
+
     @abstractmethod
-    def __getitem__(self, address: int) -> int: 
+    def __getitem__(self, address: int) -> int:
         """Reads the specified address from the memory and returns the stored value
 
         Parameters
@@ -71,9 +71,9 @@ class MemoryDevice(ABC):
             if this method is not implemented by a class inheriting this interface
         """
         raise NotImplementedError
-    
+
     @abstractmethod
-    def __setitem__(self, address: int, value: int): 
+    def __setitem__(self, address: object, value: object) -> object:
         """Writes the passed value to the specified address
 
         Parameters
@@ -141,3 +141,4 @@ def check_address(address: Union[int, slice], address_space: int):
             return address <= 2 ** address_space
         else:
             return address.start <= 2 ** address_space and address.stop <= 2 ** address_space
+
