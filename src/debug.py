@@ -36,10 +36,16 @@ if __name__ == '__main__':
         else:
             print(f'<{device}> is not a valid memory device')
 
+    @commandparse_cb
+    def view_way(address: int):
+        print(str(cache.get_cacheway))
+
     cmd_parser.add_command('read', [int], cache_read)
     cmd_parser.add_command('write', [int, int], cache_write)
     cmd_parser.add_command('view', [str], view)
     cmd_parser.add_command('show', [str], view) # alias for the view command
+    cmd_parser.add_command('view-way', [int], view_way)
+    cmd_parser.add_command('show-way', [int], view_way) # alias
 
     cmd_parser.start()
 

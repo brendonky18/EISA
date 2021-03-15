@@ -4,8 +4,8 @@ from constant import const
 class EISA_properties(object):
     """
      _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _ _
-    | 0 | 1 | 2 | 3 | 4 | 5 | 6 | 7 |
-    |Offset |      Index    |  Tag  |
+    | 7 | 6 | 5 | 4 | 3 | 2 | 1 | 0 |
+    |  Tag  |      Index    |Offset |
     | _ _ _ | _ _ _ _ _ _ _ | _ _ _ |
 
     First 0,1 bits are offset
