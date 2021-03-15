@@ -3,6 +3,7 @@
 - [System Design](#system-design)
 - [TODO:](#todo)
   - [Memory and Cache Demo](#memory-and-cache-demo)
+  - [Second Memory Demo](#second-memory-demo)
   - [Partial Simulation](#partial-simulation)
   - [Full ISA](#full-isa)
   - [GUI](#gui)
@@ -38,6 +39,12 @@
    - [ ] Read to memory
    - [ ] Display contents from memory
    - [ ] Specify size for cache and memory
+
+## Second Memory Demo
+  - [ ] Fix issues with improper formating in cache
+  - [ ] Clock changes
+    - [ ] Make clock faster
+    - [ ] print delays in cycles rather than ms
 
 ## Partial Simulation
  - [ ] Minimal instruction set implementation
