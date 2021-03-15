@@ -1,6 +1,7 @@
 from ast import literal_eval
 from typing import Callable, Any, Optional
 from dataclasses import dataclass
+from clock import Clock
 
 @dataclass
 class Command:
@@ -67,6 +68,10 @@ class CommandParser:
             # checks if the user wants to exit the interface
             if cur_input.command == 'exit': 
                 run = False
+                if Clock.run_clock:
+                    print('Warning: Clock not stopped, stopping now')
+                    Clock.stop()
+                
             
             # checks if the user entered a valid command
             elif cur_input.command not in self.valid_commands:
@@ -78,7 +83,9 @@ class CommandParser:
                     cur_cmd.callback(*cur_input.args, arg_types=cur_cmd.arg_types)
                 except (TypeError, ValueError) as e: # will error on anything that isn't a literal, including strings
                         num_args = len(self.valid_commands[cur_input.command].arg_types)
-                        print(f'invalid input, {cur_input.command} requires {num_args} argument{"s" if num_args > 1 else ""} of type{"s" if num_args > 1 else ""} {", ".join([f"<{t.__name__}>" for t in self.valid_commands[cur_input.command].arg_types])}. You entered {cur_input.args}', flush=True)
+                        print(str(e))
+                        
+                        # print(f'invalid input, {cur_input.command} requires {num_args} argument{"s" if num_args > 1 else ""} of type{"s" if num_args > 1 else ""} {", ".join([f"<{t.__name__}>" for t in self.valid_commands[cur_input.command].arg_types])}. You entered {cur_input.args}', flush=True)
                         
 
 

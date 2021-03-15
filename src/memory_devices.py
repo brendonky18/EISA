@@ -229,7 +229,7 @@ class Cache(MemoryDevice):
             the data stored at the specified word address in cache
         """
 
-        Clock.wait(lambda: None, self._write_speed)
+        Clock().wait(self._write_speed, lambda: None)
 
         if address >= EISA.CACHE_ADDR_SPACE or address < 0:
             raise ValueError(f'Invalid cache read address {address}')
@@ -277,7 +277,7 @@ class Cache(MemoryDevice):
             value of word to set
         """
 
-        Clock.wait(lambda: None, self._write_speed)
+        Clock().wait(self._write_speed, lambda: None)
 
         # Verify address is in range of cache address space
         if address >= EISA.CACHE_ADDR_SPACE or address < 0:
@@ -321,10 +321,10 @@ class Cache(MemoryDevice):
 
         # TODO - Fix tag constant
         cache_line = self._cache[(address >> EISA.OFFSET_SIZE) & (EISA.CACHE_ADDR_SPACE - 1)]
-        if self._cache[cache_line.tag() != ((address >> (EISA.OFFSET_SIZE + EISA.CACHE_SIZE)) & 0b11)]:
-            raise ValueError('entry is not in the cache')
+        if cache_line.tag() != self._cache[((address >> (EISA.OFFSET_SIZE + EISA.CACHE_SIZE)) & 0b11)].tag():
+            raise ValueError(f'{address} is not in the cache')
         else:
-            return self._cache[cache_line]
+            return cache_line
 
     def read_words_from_ram(self, address: int) -> list[int]:
         """ obtain the four 'byte bounded' words associated to the address
@@ -357,7 +357,7 @@ class RAM(MemoryDevice):
             single combined integer representind all of the data found at the passed address(es)
         """
 
-        Clock.wait(lambda: None, self._read_speed)
+        Clock().wait(self._read_speed, lambda: None)
 
         validate_address(address)
 
@@ -370,7 +370,7 @@ class RAM(MemoryDevice):
 
     def __setitem__(self, address: int, value: int):
 
-        Clock.wait(lambda: None, self._write_speed)
+        Clock().wait(self._write_speed, lambda: None)
 
         validate_address(address)
         self._memory[address] = value

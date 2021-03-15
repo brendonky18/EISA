@@ -1,6 +1,6 @@
 from typing import Callable, Any, List, Optional
 from threading import Thread, Lock
-from time import sleep
+from time import sleep, perf_counter_ns
 from dataclasses import dataclass
 
 @dataclass
@@ -83,7 +83,9 @@ class Clock:
         """
         
         if not Clock.run_clock:
-            print('Warning: Clock not started. commands will not be executed')
+            raise ValueError('Warning: Clock not started. commands will not be executed')
+
+        start_time = perf_counter_ns()
             
         self._waiting = True
 
@@ -97,6 +99,8 @@ class Clock:
         # wait for it
         while self._waiting:
             sleep(0.01)
+
+        print(f'Command took {(perf_counter_ns() - start_time) // 10**6}ms to complete')
 
         if wait_event_args == None:
             return wait_event()

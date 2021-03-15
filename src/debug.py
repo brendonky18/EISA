@@ -39,7 +39,7 @@ if __name__ == '__main__':
 
     @commandparse_cb
     def view_way(address: int):
-        print(str(cache.get_cacheway))
+        print(str(cache.get_cacheway(address)))
 
     @commandparse_cb
     def clock(mode: str):
