@@ -88,7 +88,7 @@ def commandparse_cb(func) -> Callable[..., Any]:
             raise ValueError("lists do not match")
         
         # casted_args = [any] * len(args)
-        casted_args = map(lambda arg_type, arg: arg_type(arg), arg_types, args)
+        casted_args = list(map(lambda arg_type, arg: arg_type(arg), arg_types, args))
 
         # for i in range(len(args)):
         #     casted_args[i] = arg_types[i](args[i])

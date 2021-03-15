@@ -191,8 +191,7 @@ class Cache(MemoryDevice):
         self._cache = [CacheWay(self._addr_size, offset_bits)] * EISA.CACHE_ADDR_SPACE
            
     #TODO implement data structure for cache
-    def __getitem__(self, address: int) -> int:
-
+    def __getitem__(self, address: int) -> int: # TODO: fix documentation
         # Check if it's in the cache
         # Return it if it is
 
@@ -234,10 +233,10 @@ class Cache(MemoryDevice):
 
             # Retrieve value from ram
             ramVal = self.read_words_from_ram(address)
+            tempCacheWay = self._cache[(address >> EISA.OFFSET_SIZE) & (EISA.CACHE_ADDR_SPACE - 1)]
 
             # Write the value retrieved from ram to cache
             # self.get_cacheway(address).__setitem__((address >> 6) & 0b11, ramVal)
-            tempCacheWay = self.get_cacheway(address)
             tempCacheWay.data = ramVal
 
             # TODO
@@ -266,14 +265,12 @@ class Cache(MemoryDevice):
         if value >= EISA.WORD_SPACE or value < 0:
             raise ValueError(f'Invalid cache write value {value}')
 
-        # Retrieve cacheway associated with this address
-        tempCacheWay = self.get_cacheway(address)
-
         # Write through, no allocate - you only write to RAM
 
         # Write cache hit - write 1 word to cache and to RAM
         try:
-
+              # Retrieve cacheway associated with this address
+            tempCacheWay = self.get_cacheway(address)
             # TODO - Uncomment this if we need to write to cache, update hardcoded vals
             # self.get_cacheway(address).__setitem__(address & 0b11, value)
 
@@ -301,7 +298,7 @@ class Cache(MemoryDevice):
         """
 
         # TODO - Fix tag constant
-        cache_line = (address >> EISA.OFFSET_SIZE) & (EISA.CACHE_ADDR_SPACE - 1)
+        cache_line = self._cache[(address >> EISA.OFFSET_SIZE) & (EISA.CACHE_ADDR_SPACE - 1)]
         if self._cache[cache_line.tag() != ((address >> (EISA.OFFSET_SIZE + EISA.CACHE_SIZE)) & 0b11)]:
             raise ValueError('entry is not in the cache')
         else:

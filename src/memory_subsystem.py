@@ -73,7 +73,7 @@ class MemoryDevice(ABC):
         raise NotImplementedError
 
     @abstractmethod
-    def __setitem__(self, address: object, value: object) -> object:
+    def __setitem__(self, address: int, value: int) -> int:
         """Writes the passed value to the specified address
 
         Parameters
@@ -115,7 +115,7 @@ def validate_address(address: Union[int, slice]):
         elif isinstance(address, slice):
             if address.start > EISA.ADDRESS_SPACE or address.stop > EISA.ADDRESS_SPACE:
                 raise IndexError
-            elif address.step != 1:
+            elif address.step != 1 and address.step != None:
                 raise ValueError('address slices only support steps of 1')
             else:
                 return True

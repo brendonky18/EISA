@@ -16,7 +16,7 @@ if __name__ == '__main__':
     ram = RAM(EISA.RAM_SIZE, None, 1, 1)
     cache = Cache(EISA.CACHE_SIZE, EISA.OFFSET_SIZE, ram, 1, 1)
 
-    cmd_parser = CommandParser(args)
+    cmd_parser = CommandParser(args.n)
 
     @commandparse_cb
     def cache_read(addr: int):
