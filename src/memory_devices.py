@@ -1,6 +1,4 @@
 from tabulate import tabulate  # pip install tabulate
-
-from clock import Clock
 from memory_subsystem import *
 from typing import Union
 from functools import reduce
@@ -77,11 +75,11 @@ class CacheWay:
         # Print starting line
         s = tabulate(
             [
-                ['Valid', f'{self.valid():#0{2}x}'], # type: ignore
-                ['Dirty', f'{self.dirty():#0{2}x}'], # type: ignore
-                ['Tag', f'{self.tag():#0{2 + self._tag_bits // 4}x}'],# type: ignore
-                ['Index', f'{self.index():#0{2 + self._index_bits // 4}x}'], # type: ignore
-                ['Data', f'{self.data():#0{2 + self._data_bits // 4}x}'] # type: ignore
+                ['Valid', f'{self.valid():#0{2}x}'],
+                ['Dirty', f'{self.dirty():#0{2}x}'],
+                ['Tag', f'{self.tag():#0{2 + self._tag_bits // 4}x}'],
+                ['Index', f'{self.index():#0{2 + self._index_bits // 4}x}'],
+                ['Data', f'{self.data():#0{2 + self._data_bits // 4}x}']
             ],
             headers=['Field', 'Value'],
             tablefmt='pretty',
@@ -119,7 +117,7 @@ class CacheWay:
         Parameters
         offset
         address : int
-            the offset of the word 
+            the offset of the word
         value : int
             the value to write
         """
@@ -195,16 +193,16 @@ class Cache(MemoryDevice):
         super().__init__(addr_size, next_device, read_speed, write_speed)
         self._offset_bits = offset_bits
         self._cache = [CacheWay(self._addr_size, offset_bits) for i in range(EISA.CACHE_ADDR_SPACE)]
-    
+
     def __str__(self) -> str:
         """to string method
         """
         # Print starting line
-        s = f'+{"".center(20, "-")}+\n'
+        s = f'+{"".center(10, "-")}+\n'
 
         # Print each entry line + block line
-        for i in range(len(self._cache)):
-            s += f'|{str(i).center(4)}|{str(int(self._cache[i].data())).center(15)}|\n+{"".center(20, "-")}+\n' # type: ignore
+        for i in self._cache:
+            s += f'|{str(int(i.data())).center(10)}|\n+{"".center(10, "-")}+\n'
 
         return s
 
@@ -228,8 +226,6 @@ class Cache(MemoryDevice):
         int
             the data stored at the specified word address in cache
         """
-
-        Clock().wait(self._write_speed, lambda: None)
 
         if address >= EISA.CACHE_ADDR_SPACE or address < 0:
             raise ValueError(f'Invalid cache read address {address}')
@@ -277,8 +273,6 @@ class Cache(MemoryDevice):
             value of word to set
         """
 
-        Clock().wait(self._write_speed, lambda: None)
-
         # Verify address is in range of cache address space
         if address >= EISA.CACHE_ADDR_SPACE or address < 0:
             raise ValueError(f'Invalid cache write (set) address {address}')
@@ -298,17 +292,17 @@ class Cache(MemoryDevice):
 
             # TODO - Figure out correct meaning of write through, no alloc
             # Write through to RAM
-            self._next_device.__setitem__(address, value) # type: ignore
+            self._next_device.__setitem__(address, value)
 
             # Set corresponding valid and dirty bit
-            tempCacheWay.valid(True)
-            tempCacheWay.dirty(False)
+            tempCacheWay.valid = 1
+            tempCacheWay.dirty = 0
 
         # Miss - write to RAM
         except ValueError:
 
             # Write to ram on write cache miss
-            self._next_device.__setitem__(address, value) # type: ignore
+            self._next_device.__setitem__(address, value)
 
     def get_cacheway(self, address: int) -> CacheWay:
         """function to expose individual cache ways so that they can be viewed
@@ -321,10 +315,10 @@ class Cache(MemoryDevice):
 
         # TODO - Fix tag constant
         cache_line = self._cache[(address >> EISA.OFFSET_SIZE) & (EISA.CACHE_ADDR_SPACE - 1)]
-        if cache_line.tag() != self._cache[((address >> (EISA.OFFSET_SIZE + EISA.CACHE_SIZE)) & 0b11)].tag():
-            raise ValueError(f'{address} is not in the cache')
+        if self._cache[cache_line.tag() != ((address >> (EISA.OFFSET_SIZE + EISA.CACHE_SIZE)) & 0b11)]:
+            raise ValueError('entry is not in the cache')
         else:
-            return cache_line
+            return self._cache[cache_line]
 
     def read_words_from_ram(self, address: int) -> list[int]:
         """ obtain the four 'byte bounded' words associated to the address
@@ -339,7 +333,7 @@ class Cache(MemoryDevice):
         list[int]
             byte bounded values in ram
         """
-        return self._next_device[address & ~(EISA.OFFSET_SPACE - 1): address | (EISA.OFFSET_SPACE - 1)]# type: ignore
+        return self._next_device[address & ~(EISA.OFFSET_SPACE - 1): address | (EISA.OFFSET_SPACE - 1)]
 
 
 class RAM(MemoryDevice):
@@ -349,15 +343,13 @@ class RAM(MemoryDevice):
         Parameters
         ----------
         address : int or slice
-            the address or range of addresses 
+            the address or range of addresses
 
         Returns
         -------
         int
             single combined integer representind all of the data found at the passed address(es)
         """
-
-        Clock().wait(self._read_speed, lambda: None)
 
         validate_address(address)
 
@@ -369,9 +361,6 @@ class RAM(MemoryDevice):
                           0)
 
     def __setitem__(self, address: int, value: int):
-
-        Clock().wait(self._write_speed, lambda: None)
-
         validate_address(address)
         self._memory[address] = value
 
