@@ -66,7 +66,7 @@ class CacheWay:
         self.dirty = self.bitfield_property_constructor(self._dirty_start, 1, False)
         self.tag = self.bitfield_property_constructor(self._tag_start, self._tag_bits, 0)
         self.index = self.protected_bitfield_property_constructor(self._index_start, self._index_bits, 0)
-        self.data = self.protected_bitfield_property_constructor(0, self._data_bits, 0)
+        self.data = self.bitfield_property_constructor(0, self._data_bits, 0)
 
     def __str__(self) -> str:
         """to string method
@@ -127,7 +127,7 @@ class CacheWay:
         def bitfield_property(value: Optional[int]=None) -> Any: 
             # get
             if value is None:
-                return int(self._entry >> self._valid_start)
+                return int(self._entry >> start)
             # set
             else:
                 self._entry &= ~(((2**size) - 1) << start) # clears the original value
@@ -189,7 +189,18 @@ class Cache(MemoryDevice):
         super().__init__(addr_size, next_device, read_speed, write_speed)
         self._offset_bits = offset_bits
         self._cache = [CacheWay(self._addr_size, offset_bits)] * EISA.CACHE_ADDR_SPACE
-           
+    
+    def __str__(self) -> str:
+        def __str__(self) -> str:
+        """to string method
+        """
+        # Print starting line
+        s = f'+{"".center(10, "-")}+\n'
+
+        # Print each entry line + block line
+        for i in self._cache:
+            s += f'|{str(int(i)).center(10)}|\n+{"".center(10, "-")}+\n'
+
     #TODO implement data structure for cache
     def __getitem__(self, address: int) -> int: # TODO: fix documentation
         # Check if it's in the cache
@@ -237,7 +248,7 @@ class Cache(MemoryDevice):
 
             # Write the value retrieved from ram to cache
             # self.get_cacheway(address).__setitem__((address >> 6) & 0b11, ramVal)
-            tempCacheWay.data = ramVal
+            tempCacheWay.data(ramVal)
 
             # TODO
             # set corresponding valid and dirty bits of new cacheway
@@ -340,7 +351,7 @@ class RAM(MemoryDevice):
             return self._memory[address]
         elif isinstance(address, slice):
             # combines the list of 4 words, into a single integer
-            return reduce(lambda accumulator, cur: (accumulator << EISA.WORD_SIZE) + cur, self._memory[address], 0) 
+            return reduce(lambda accumulator, cur: (accumulator << EISA.WORD_SIZE) | cur, self._memory[address][::-1], 0) 
 
     def __setitem__(self, address: int, value: int):
         validate_address(address)

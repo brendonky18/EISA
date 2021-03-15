@@ -78,7 +78,7 @@ class CommandParser:
                     cur_cmd.callback(*cur_input.args, arg_types=cur_cmd.arg_types)
                 except (TypeError, ValueError) as e: # will error on anything that isn't a literal, including strings
                         num_args = len(self.valid_commands[cur_input.command].arg_types)
-                        print(f'invalid input, {cur_input.command} requires {num_args} argument{"s" if num_args > 1 else ""} of type{"s" if num_args > 1 else ""} {", ".join([f"<{t.__name__}>" for t in self.valid_commands[cur_input.command].arg_types])}. You entered {cur_input.args}')
+                        print(f'invalid input, {cur_input.command} requires {num_args} argument{"s" if num_args > 1 else ""} of type{"s" if num_args > 1 else ""} {", ".join([f"<{t.__name__}>" for t in self.valid_commands[cur_input.command].arg_types])}. You entered {cur_input.args}', flush=True)
                         
 
 
