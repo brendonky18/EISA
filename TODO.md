@@ -43,6 +43,8 @@
  - [ ] Minimal instruction set implementation
  - [ ] Working assembler
  - [ ] Full GUI
+ - [ ] Add masking constant to EISA
+   - EISA.X_MASK = EISA.X_SIZE - 1
 
 ## Full ISA
  - [ ] Implement AES instructions
