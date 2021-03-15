@@ -42,8 +42,6 @@ class MemoryDevice(ABC):
     def __str__(self) -> str:
         """to string method
         """
-        
-        
         # Print starting line
         s = f'+{"".center(10, "-")}+\n'
 
@@ -143,28 +141,3 @@ def check_address(address: Union[int, slice], address_space: int):
             return address <= 2 ** address_space
         else:
             return address.start <= 2 ** address_space and address.stop <= 2 ** address_space
-
-def bitfield_property_constructor(start, size) -> Callable[[Any], Any]: # this becomes the decorator
-    print('constructor')
-    
-    def bitfield_property(self, value: Union[int, None]=None) -> Any: 
-        # get
-        if value is None:
-            print('get')
-            return int(self._entry >> self._valid_start)
-        # set
-        else:
-            print("set")
-            self._entry &= ~(((2**size) - 1) << self._valid_start) # clears the original value
-            self._entry |= value << start # assigns the value
-
-    return bitfield_property
-
-def protected_bitfield_property_constructor(start: int, size: int):
-    def bit_field_set(self, value):
-        raise TypeError('cannot assign values to a protected bitfield')
-
-    def bit_field_get(self):
-        return bool(self._entry >> self._valid_start)
-
-    return property(bit_field_get, bit_field_set)

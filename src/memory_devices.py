@@ -1,3 +1,4 @@
+from tabulate import tabulate # pip install tabulate
 from memory_subsystem import *
 from typing import Union
 from functools import reduce
@@ -63,13 +64,23 @@ class CacheWay:
         self.dirty = bitfield_property_constructor(self._dirty_start, 1)
         self.tag = bitfield_property_constructor(self._tag_start, self._tag_bits)
         self.index = protected_bitfield_property_constructor(self._index_start, self._index_bits)
+        self.data = protected_bitfield_property_constructor(0, self._data_bits)
 
         # initializes values
         self.valid(False)
         self.dirty(False)
         self.tag(0)
         self.index(0)
+        self.data(0)
 
+    def __str__(self) -> str:
+        """to string method
+        """
+        # Print starting line
+        s = tabulate([['Valid', self.valid()], ['Dirty', self.dirty()], ['Tag', self.tag()], ['Index', self.index()], ['Data', self.data()]])
+
+        return s
+    
     def __getitem__(self, offset: int) -> int:
         """read a word from the line
 
@@ -103,7 +114,31 @@ class CacheWay:
             the value to write
         """
         pass
+    
+    def bitfield_property_constructor(self, start, size) -> Callable[[Any], Any]: # this becomes the decorator
+        print('constructor')
+        
+        def bitfield_property(self, value: Optional[int]=None) -> Any: 
+            # get
+            if value is None:
+                print('get')
+                return int(self._entry >> self._valid_start)
+            # set
+            else:
+                print("set")
+                self._entry &= ~(((2**size) - 1) << self._valid_start) # clears the original value
+                self._entry |= value << start # assigns the value
 
+        return bitfield_property
+
+    def protected_bitfield_property_constructor(self, start: int, size: int):
+        def bit_field_set(self, value):
+            raise TypeError('cannot assign values to a protected bitfield')
+
+        def bit_field_get(self):
+            return bool(self._entry >> self._valid_start)
+
+        return property(bit_field_get, bit_field_set)
 # TODO: extra credit, use to implement associative caches instead of direct-mapped
 class CacheBlock():
     pass
@@ -140,14 +175,15 @@ class Cache(MemoryDevice):
         super().__init__(addr_size, next_device, read_speed, write_speed)
         self._offset_bits = offset_bits
         self._cache = [CacheWay(EISA.ADDRESS_SIZE - self._addr_size, self._addr_size, offset_bits)] * EISA.CACHE_ADDR_SPACE
-                
-
+           
     #TODO implement data structure for cache
     def __getitem__(self, address: int):
         pass
     
     def __setitem__(self, address: int, value: int) -> int:
         pass
+
+
 
 class RAM(MemoryDevice):
     def __getitem__(self, address: Union[int, slice]) -> int:
