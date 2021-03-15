@@ -81,7 +81,10 @@ class Clock:
         Any
             returns whatever the passed function returns
         """
-        print('Warning: Clock not started. commands will not be executed')
+        
+        if not Clock.run_clock:
+            print('Warning: Clock not started. commands will not be executed')
+            
         self._waiting = True
 
         def on_done():
