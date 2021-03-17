@@ -247,13 +247,13 @@ class Cache(MemoryDevice):
         try:
 
             # Get the corresponding cacheway associated with the address
-            tempCacheWay = self.get_cacheway(address)
+            destination_CacheWay = self.get_cacheway(address)
 
             # TODO
             # Confirm correct method for obtaining offset
 
-            if tempCacheWay.valid:
-                return tempCacheWay.__getitem__(address & 0b11)
+            if destination_CacheWay.valid:
+                return destination_CacheWay.__getitem__(address & 0b11)
             else:
                 raise MemoryError('Tried to read from invalid (valid=0) cacheway')
 
@@ -262,17 +262,17 @@ class Cache(MemoryDevice):
 
             # Retrieve value from ram
             ramVal = self.read_words_from_ram(address)
-            tempCacheWay = self._cache[(address >> EISA.OFFSET_SIZE) & (EISA.CACHE_ADDR_SPACE - 1)]
+            destination_CacheWay = self._cache[(address >> EISA.OFFSET_SIZE) & (EISA.CACHE_ADDR_SPACE - 1)]
 
             # Write the value retrieved from ram to cache
             # self.get_cacheway(address).__setitem__((address >> 6) & 0b11, ramVal)
-            tempCacheWay.data(ramVal)
+            destination_CacheWay.data(ramVal)
 
             # TODO
             # set corresponding valid and dirty bits of new cacheway
             # check whether need to write to ram after writing ram values to cache
 
-            return tempCacheWay.__getitem__(address & 0b11)
+            return destination_CacheWay.__getitem__(address & 0b11)
 
     def __setitem__(self, address: int, value: int):
         """function to expose individual cache ways so that they can be viewed
@@ -299,7 +299,7 @@ class Cache(MemoryDevice):
         # Write cache hit - write 1 word to cache and to RAM
         try:
             # Retrieve cacheway associated with this address
-            tempCacheWay = self.get_cacheway(address)
+            destination_CacheWay = self.get_cacheway(address)
             # TODO - Uncomment this if we need to write to cache, update hardcoded vals
             # self.get_cacheway(address).__setitem__(address & 0b11, value)
 
