@@ -3,6 +3,7 @@ from memory_subsystem import *
 from typing import Union
 from functools import reduce
 from eisa import EISA
+from clock import Clock
 
 
 class CacheWay:
@@ -32,6 +33,7 @@ class CacheWay:
     _tag_start: int
     _index_start: int
     _data_start: int = 0
+    _clock: Clock = Clock()
 
     def __init__(self, index_bits: int, offset_bits: int):
         """constructor for a cache way
@@ -107,6 +109,8 @@ class CacheWay:
         if offset > 2 ** self._offset_bits:
             raise IndexError(f'offset can be at most {2 ** self._offset_bits}')
 
+        self._clock.wait(1)
+
         return (self._entry >> (offset * EISA.WORD_SIZE)) & (2 ** EISA.WORD_SIZE - 1)
 
     # TODO: finish function to add items to cache line, should only be able to write all 4 words,
@@ -121,10 +125,16 @@ class CacheWay:
         value : int
             the value to write
         """
+
+        self._clock.wait(1)
+
+        # Set corresponding valid and dirty bit
+        self.valid(True)
+        self.dirty(False)
         pass
 
     def bitfield_property_constructor(self, start: int, size: int, initial_val: int) -> Callable[
-        [Any], Any]:  # this becomes the decorator
+        ...,  Any]:  # this becomes the decorator
         # create accessor function
         def bitfield_property(value: Optional[int] = None) -> Any:
             # get
@@ -160,7 +170,6 @@ class CacheWay:
 class CacheBlock():
     pass
 
-
 class Cache(MemoryDevice):
     """CPU cache
     write-through
@@ -171,6 +180,7 @@ class Cache(MemoryDevice):
 
     _offset_bits: int = 2  # 2 bits -> 4 words per line
     _cache: list[CacheWay]
+    _next_device: MemoryDevice
 
     def __init__(self, addr_size: int, offset_bits: int, next_device: MemoryDevice, read_speed: int, write_speed: int):
         """Constructor for a cache
@@ -207,7 +217,7 @@ class Cache(MemoryDevice):
         return s
 
     # TODO implement data structure for cache
-    def __getitem__(self, address: int) -> int:  # TODO: fix documentation
+    def __getitem__(self, address: Union[int, slice]) -> int:  # TODO: fix documentation
         # Check if it's in the cache
         # Return it if it is
 
@@ -226,6 +236,9 @@ class Cache(MemoryDevice):
         int
             the data stored at the specified word address in cache
         """
+
+        if isinstance(address, slice):
+            raise TypeError('Cache does not support reading slices') # TODO implement reading slices from the cache
 
         if address >= EISA.CACHE_ADDR_SPACE or address < 0:
             raise ValueError(f'Invalid cache read address {address}')
@@ -294,10 +307,6 @@ class Cache(MemoryDevice):
             # Write through to RAM
             self._next_device.__setitem__(address, value)
 
-            # Set corresponding valid and dirty bit
-            tempCacheWay.valid = 1
-            tempCacheWay.dirty = 0
-
         # Miss - write to RAM
         except ValueError:
 
@@ -320,7 +329,7 @@ class Cache(MemoryDevice):
         else:
             return self._cache[cache_line]
 
-    def read_words_from_ram(self, address: int) -> list[int]:
+    def read_words_from_ram(self, address: int) -> int:
         """ obtain the four 'byte bounded' words associated to the address
 
         Parameters
@@ -353,6 +362,8 @@ class RAM(MemoryDevice):
 
         validate_address(address)
 
+        self._clock.wait(self._read_speed)
+
         if isinstance(address, int):
             return self._memory[address]
         elif isinstance(address, slice):
@@ -362,6 +373,9 @@ class RAM(MemoryDevice):
 
     def __setitem__(self, address: int, value: int):
         validate_address(address)
+
+        self._clock.wait(self._write_speed)
+
         self._memory[address] = value
 
 # #debugging

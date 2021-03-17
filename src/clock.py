@@ -1,4 +1,4 @@
-from typing import Callable, Any, List, Optional
+from typing import Callable, Any, List, Optional, Type
 from threading import Thread, Lock
 from time import sleep, perf_counter_ns
 from dataclasses import dataclass
@@ -6,6 +6,7 @@ from dataclasses import dataclass
 @dataclass
 class ClockEvent:
     delay: int = 0
+    counter: int = 0
     callback: Callable[[], None] = lambda: None
 
 class Clock:
@@ -39,15 +40,13 @@ class Clock:
 
                     with cls.pending_calls_lock:
                         for cur_event in cls.pending_calls: # iterate over and update all events
-                            if cur_event.delay == 0:    
-                                cur_event.callback()        # trigger the event's callback
-                                               
-                            cur_event.delay -= 1            # decrement event delay
-                        
+                            cur_event.counter += 1
+                            
+                            if cur_event.delay == cur_event.counter:    
+                                cur_event.callback()        # trigger the event's callback         
+                                                        
                         # remove events that have been called
-                        cls.pending_calls = [cur_event for cur_event in cls.pending_calls if cur_event.delay >= 0]
-                    
-                    sleep(0.1)
+                        cls.pending_calls = [cur_event for cur_event in cls.pending_calls if cur_event.counter < cur_event.delay]
 
                     cls.run_clock_lock.acquire()            # get the lock for the next iteration
                 cls.run_clock_lock.release()                # release the lock when finished
@@ -64,7 +63,7 @@ class Clock:
         cls.clock_thread.join()
 
 
-    def wait(self, delay: int, wait_event: Callable[..., Any], wait_event_args: Optional[List[Any]] = None) -> None:
+    def wait(self, delay: int, wait_event: Optional[Callable[..., Any]] = None, wait_event_args: Optional[List[Any]] = None) -> None:
         """instance function which will wait the specified amount of time and then invoke the passed function
         
         requires an instance of Clock to be called for each thread
@@ -84,8 +83,6 @@ class Clock:
         
         if not Clock.run_clock:
             raise ValueError('Warning: Clock not started. commands will not be executed')
-
-        start_time = perf_counter_ns()
             
         self._waiting = True
 
@@ -93,17 +90,23 @@ class Clock:
             self._waiting = False
 
         # add to the list of events
+        my_event = ClockEvent(delay=delay, counter=0, callback=on_done)
         with Clock.pending_calls_lock:
-            Clock.pending_calls.append(ClockEvent(delay=delay, callback=on_done))
+            Clock.pending_calls.append(my_event)
         
         # wait for it
         while self._waiting:
-            sleep(0.01)
+            sleep(0.001)
 
-        print(f'Command took {(perf_counter_ns() - start_time) // 10**6}ms to complete')
+        print(f'Command took {my_event.counter} cycle{"s" if my_event.counter > 1 else ""} to complete')
 
-        if wait_event_args == None:
-            return wait_event()
+        # trigger the event function if one was passes
+        if wait_event is not None:
+            if wait_event_args is None:
+                return wait_event()
+            else:
+                return wait_event(*wait_event_args) # type: ignore
+                # not sure how to get around that error, something with the ellipsis when defining the wait_event's type
         else:
-            return wait_event(*wait_event_args) # type: ignore
-            # not sure how to get around that error, something with the ellipsis when defining the wait_event's type
+            return None
+        
