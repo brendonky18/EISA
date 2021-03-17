@@ -60,6 +60,7 @@ class CommandParser:
         """
 
         run = True
+        Clock.start()
 
         while run:
             # gets the user's input, splits it between the command and arguments, and puts it in a named tuple
