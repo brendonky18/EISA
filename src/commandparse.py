@@ -60,14 +60,11 @@ class CommandParser:
         """
 
         run = True
-        Clock.start()
 
         while run:
             # gets the user's input, splits it between the command and arguments, and puts it in a named tuple
-            try:
-                cur_input = UserInput(*input(f'{self.name}$ ').split(maxsplit=1))
-            except EOFError:
-                cur_input = UserInput('exit', '')
+            cur_input = UserInput(*input(f'{self.name}$ ').split(maxsplit=1))
+
             # checks if the user wants to exit the interface
             if cur_input.command == 'exit': 
                 run = False

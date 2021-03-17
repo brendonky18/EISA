@@ -3,7 +3,6 @@ from abc import ABC, abstractmethod # Abstract Base Class
 from typing import Union, Optional, Callable, Any
 from eisa import EISA
 from constant import const
-from clock import Clock
 
 
 class MemoryDevice(ABC):
@@ -16,7 +15,6 @@ class MemoryDevice(ABC):
     _read_speed: int
     _write_speed: int
     _next_device: Union[MemoryDevice, None]
-    _clock: Clock = Clock()
 
     def __init__(self, addr_size: int, next_device: Union[MemoryDevice, None], read_speed: int, write_speed: int): #TODO check if we need to specify read and write speeds seperately
         """Constructor for a memory device
@@ -54,7 +52,7 @@ class MemoryDevice(ABC):
         return s
 
     @abstractmethod
-    def __getitem__(self, address: Union[int, slice]) -> int:
+    def __getitem__(self, address: int) -> int:
         """Reads the specified address from the memory and returns the stored value
 
         Parameters

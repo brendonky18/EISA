@@ -14,14 +14,14 @@ if __name__ == '__main__':
 
     args = arg_parser.parse_args()
 
-    ram = RAM(EISA.RAM_SIZE, None, 2, 2)
+    ram = RAM(EISA.RAM_SIZE, None, 1, 1)
     cache = Cache(EISA.CACHE_SIZE, EISA.OFFSET_SIZE, ram, 1, 1)
 
     cmd_parser = CommandParser('dbg' if args.n is None else args.n)
 
     @commandparse_cb
     def cache_read(addr: int):
-        print(f'Reading from address {addr}\n{addr:#0{4}x}: {cache[addr]}')
+        print(f'reading from address {addr}\n{addr:#0{4}x}: {cache[addr]}')
 
     @commandparse_cb
     def cache_write(addr: int, val: int):
