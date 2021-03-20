@@ -21,7 +21,7 @@ class CacheWay:
     """
 
     # the raw bits corresponding to the cache way
-    _entry: int = 0b0
+    _bits: int = 0b0
 
     _tag_bits: int
     _index_bits: int
@@ -104,14 +104,15 @@ class CacheWay:
         int
             the data stored at the specified offset
         """
+        pass
 
-        # ensures that the offset is correct
-        if offset > 2 ** self._offset_bits:
-            raise IndexError(f'offset can be at most {2 ** self._offset_bits}')
+        # # ensures that the offset is correct
+        # if offset > 2 ** self._offset_bits:
+        #     raise IndexError(f'offset can be at most {2 ** self._offset_bits}')
 
-        self._clock.wait(1)
+        # self._clock.wait(1)
 
-        return (self._entry >> (offset * EISA.WORD_SIZE)) & (2 ** EISA.WORD_SIZE - 1)
+        # return (self._bits >> (offset * EISA.WORD_SIZE)) & (2 ** EISA.WORD_SIZE - 1)
 
     # TODO: finish function to add items to cache line, should only be able to write all 4 words,
     # should not be able to write words individually
@@ -125,13 +126,14 @@ class CacheWay:
         value : int
             the value to write
         """
+        pass
 
-        self._clock.wait(1)
+        # self._clock.wait(1)
 
-        # TODO refactor bitfield getter/setter into separate function, and use setter for here
-        # bitfield setter
-        self._entry &= ~((EISA.WORD_SPACE - 1) << (offset * EISA.WORD_SIZE))
-        self._entry |= value << (offset * EISA.WORD_SIZE)
+        # # TODO refactor bitfield getter/setter into separate function, and use setter for here
+        # # bitfield setter
+        # self._bits &= ~((EISA.WORD_SPACE - 1) << (offset * EISA.WORD_SIZE))
+        # self._bits |= value << (offset * EISA.WORD_SIZE)
 
     def bitfield_property_constructor(self, start: int, size: int, initial_val: int) -> Callable[
         ...,  Any]:  # this becomes the decorator
@@ -139,15 +141,15 @@ class CacheWay:
         def bitfield_property(value: Optional[int] = None) -> Any:
             # get
             if value is None:
-                return int(self._entry >> start)
+                return int(self._bits >> start)
             # set
             else:
-                self._entry &= ~(((2 ** size) - 1) << start)  # clears the original value
-                self._entry |= value << start  # assigns the value
+                self._bits &= ~(((2 ** size) - 1) << start)  # clears the original value
+                self._bits |= value << start  # assigns the value
 
         # initialize value
-        self._entry &= ~(((2 ** size) - 1) << start)  # clears the original value
-        self._entry |= initial_val << start  # assigns the value
+        self._bits &= ~(((2 ** size) - 1) << start)  # clears the original value
+        self._bits |= initial_val << start  # assigns the value
 
         return bitfield_property
 
@@ -155,13 +157,13 @@ class CacheWay:
         # create protected accessor function
         def protected_bitfield_property(value: Optional[int] = None) -> Any:
             if value is None:
-                return int(self._entry >> start)
+                return int(self._bits >> start)
             else:
                 raise TypeError('cannot assign values to a protected bitfield')
 
         # initialize value
-        self._entry &= ~(((2 ** size) - 1) << start)  # clears the original value
-        self._entry |= initial_val << start  # assigns the value
+        self._bits &= ~(((2 ** size) - 1) << start)  # clears the original value
+        self._bits |= initial_val << start  # assigns the value
 
         return protected_bitfield_property
 
@@ -236,47 +238,47 @@ class Cache(MemoryDevice):
         int
             the data stored at the specified word address in cache
         """
+        pass
+        # if isinstance(address, slice):
+        #     raise TypeError('Cache does not support reading slices') # TODO implement reading slices from the cache
 
-        if isinstance(address, slice):
-            raise TypeError('Cache does not support reading slices') # TODO implement reading slices from the cache
+        # if address >= EISA.CACHE_ADDR_SPACE or address < 0:
+        #     raise ValueError(f'Invalid cache read address {address}')
 
-        if address >= EISA.CACHE_ADDR_SPACE or address < 0:
-            raise ValueError(f'Invalid cache read address {address}')
+        # # Read cache hit - return the word from cache
+        # try:
 
-        # Read cache hit - return the word from cache
-        try:
+        #     # Get the corresponding cacheway associated with the address
+        #     destination_CacheWay = self.get_cacheway(address)
 
-            # Get the corresponding cacheway associated with the address
-            destination_CacheWay = self.get_cacheway(address)
+        #     # TODO
+        #     # Confirm correct method for obtaining offset
 
-            # TODO
-            # Confirm correct method for obtaining offset
+        #     if destination_CacheWay.valid():
+        #         return destination_CacheWay.__getitem__(address & 0b11)
+        #     else:
+        #         raise MemoryError('Tried to read from invalid (valid=0) cacheway')
 
-            if destination_CacheWay.valid():
-                return destination_CacheWay.__getitem__(address & 0b11)
-            else:
-                raise MemoryError('Tried to read from invalid (valid=0) cacheway')
+        # # Read cache miss - load 4 words from ram into the associated cacheway
+        # except MemoryError:
 
-        # Read cache miss - load 4 words from ram into the associated cacheway
-        except MemoryError:
-
-            # Retrieve value from ram
-            ramVal = self.read_words_from_ram(address)
-            destination_CacheWay = self._cache[(address >> EISA.OFFSET_SIZE) & (EISA.CACHE_ADDR_SPACE - 1)]
+        #     # Retrieve value from ram
+        #     ramVal = self.read_words_from_ram(address)
+        #     destination_CacheWay = self._cache[(address >> EISA.OFFSET_SIZE) & (EISA.CACHE_ADDR_SPACE - 1)]
             
-            # Write the value retrieved from ram to cache
-            # self.get_cacheway(address).__setitem__((address >> 6) & 0b11, ramVal)
-            destination_CacheWay.data(ramVal)
+        #     # Write the value retrieved from ram to cache
+        #     # self.get_cacheway(address).__setitem__((address >> 6) & 0b11, ramVal)
+        #     destination_CacheWay.data(ramVal)
 
-            # Set corresponding valid and dirty bit
-            destination_CacheWay.valid(True)
-            destination_CacheWay.dirty(False)
+        #     # Set corresponding valid and dirty bit
+        #     destination_CacheWay.valid(True)
+        #     destination_CacheWay.dirty(False)
 
-            # TODO
-            # set corresponding valid and dirty bits of new cacheway
-            # check whether need to write to ram after writing ram values to cache
+        #     # TODO
+        #     # set corresponding valid and dirty bits of new cacheway
+        #     # check whether need to write to ram after writing ram values to cache
 
-            return destination_CacheWay.__getitem__(address & 0b11)
+        #     return destination_CacheWay.__getitem__(address & 0b11)
 
     def __setitem__(self, address: int, value: int):
         """function to expose individual cache ways so that they can be viewed
@@ -289,36 +291,36 @@ class Cache(MemoryDevice):
         value : int
             value of word to set
         """
+        pass
+        # # Verify address is in range of cache address space
+        # if address >= EISA.CACHE_ADDR_SPACE or address < 0:
+        #     raise ValueError(f'Invalid cache write (set) address {address}')
 
-        # Verify address is in range of cache address space
-        if address >= EISA.CACHE_ADDR_SPACE or address < 0:
-            raise ValueError(f'Invalid cache write (set) address {address}')
+        # # Verify value is within word space
+        # if value >= EISA.WORD_SPACE or value < 0:
+        #     raise ValueError(f'Invalid cache write value {value}')
 
-        # Verify value is within word space
-        if value >= EISA.WORD_SPACE or value < 0:
-            raise ValueError(f'Invalid cache write value {value}')
+        # # Write through, no allocate - you only write to RAM on a miss
 
-        # Write through, no allocate - you only write to RAM on a miss
+        # # Write cache hit - write 1 word to cache and to RAM
+        # try:
+        #     # Retrieve cacheway associated with this address
+        #     destination_CacheWay = self.get_cacheway(address)
+        #     # update the value in cache
+        #     self.get_cacheway(address).__setitem__(address & 0b11, value)
 
-        # Write cache hit - write 1 word to cache and to RAM
-        try:
-            # Retrieve cacheway associated with this address
-            destination_CacheWay = self.get_cacheway(address)
-            # update the value in cache
-            self.get_cacheway(address).__setitem__(address & 0b11, value)
+        #     # TODO - Figure out correct meaning of write through, no alloc
+        #     # Write through to RAM
+        #     self._next_device.__setitem__(address, value)
 
-            # TODO - Figure out correct meaning of write through, no alloc
-            # Write through to RAM
-            self._next_device.__setitem__(address, value)
+        # # Miss - write to RAM
+        # except ValueError:
 
-        # Miss - write to RAM
-        except ValueError:
+        #     # Write to ram on write cache miss
+        #     self._next_device.__setitem__(address, value)
 
-            # Write to ram on write cache miss
-            self._next_device.__setitem__(address, value)
-
-            # TODO - Does not write to cache on a miss, uncomment to implement write-through allocate policy
-            # self.get_cacheway(address).__setitem__(address & 0b11, value)
+        #     # TODO - Does not write to cache on a miss, uncomment to implement write-through allocate policy
+        #     # self.get_cacheway(address).__setitem__(address & 0b11, value)
 
 
     def get_cacheway(self, address: int) -> CacheWay:
@@ -329,13 +331,13 @@ class Cache(MemoryDevice):
         address : int
             address of the value to retrieve the associated cacheway for
         """
-
-        # TODO - Fix tag constant
-        cache_line = self._cache[(address >> EISA.OFFSET_SIZE) & (EISA.CACHE_ADDR_SPACE - 1)]
-        if cache_line.tag() != self._cache[((address >> (EISA.OFFSET_SIZE + EISA.CACHE_SIZE)) & 0b11)].tag():
-            raise ValueError('entry is not in the cache')
-        else:
-            return cache_line
+        pass
+        # # TODO - Fix tag constant
+        # cache_line = self._cache[(address >> EISA.OFFSET_SIZE) & (EISA.CACHE_ADDR_SPACE - 1)]
+        # if cache_line.tag() != self._cache[((address >> (EISA.OFFSET_SIZE + EISA.CACHE_SIZE)) & 0b11)].tag():
+        #     raise ValueError('entry is not in the cache')
+        # else:
+        #     return cache_line
 
     def read_words_from_ram(self, address: int) -> int:
         """ obtain the four 'byte bounded' words associated to the address
@@ -350,41 +352,52 @@ class Cache(MemoryDevice):
         list[int]
             byte bounded values in ram
         """
-        return self._next_device[address & ~(EISA.OFFSET_SPACE - 1): address | (EISA.OFFSET_SPACE - 1)]
+        pass
+        # return self._next_device[address & ~(EISA.OFFSET_SPACE - 1): address | (EISA.OFFSET_SPACE - 1)]
 
 
 class RAM(MemoryDevice):
     def __getitem__(self, address: Union[int, slice]) -> int:
-        """retreives the data from the specified address or range of addresses
+        """Reads the specified address/range of addresses from the memory and returns the stored value
 
         Parameters
         ----------
         address : int or slice
-            the address or range of addresses
+            the address or range of addresses, formatted as a 32 bit integer
 
         Returns
         -------
         int
             single combined integer representind all of the data found at the passed address(es)
         """
+        pass
+        # validate_address(address)
 
-        validate_address(address)
+        # self._clock.wait(self._read_speed)
 
-        self._clock.wait(self._read_speed)
-
-        if isinstance(address, int):
-            return self._memory[address]
-        elif isinstance(address, slice):
-            # combines the list of 4 words, into a single integer
-            return reduce(lambda accumulator, cur: (accumulator << EISA.WORD_SIZE) | cur, self._memory[address][::-1],
-                          0)
+        # if isinstance(address, int):
+        #     return self._memory[address]
+        # elif isinstance(address, slice):
+        #     # combines the list of 4 words, into a single integer
+        #     return reduce(lambda accumulator, cur: (accumulator << EISA.WORD_SIZE) | cur, self._memory[address][::-1],
+        #                   0)
 
     def __setitem__(self, address: int, value: int):
-        validate_address(address)
+        """writes the passed value to the specified address
 
-        self._clock.wait(self._write_speed)
+        Parameters
+        ----------
+        address : int
+            the location to write to, formatted as a 32 bit integer
+        value : int
+            the value to write to memory, formatted as a 32 bit integer
+        """
+        pass
+        # validate_address(address)
 
-        self._memory[address] = value
+        # self._clock.wait(self._write_speed)
+
+        # self._memory[address] = value
 
 # #debugging
 # if __name__ == '__main__':
