@@ -1,6 +1,6 @@
 import argparse
 from commandparse import CommandParser, commandparse_cb
-from memory_devices import RAM, Cache
+from memory_subsystem import RAM, Cache
 from eisa import EISA
 from clock import Clock
 
