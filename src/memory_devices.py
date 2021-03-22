@@ -205,11 +205,11 @@ class CacheWay:
         self._data_bits = EISA.WORD_SIZE * offset_bits
 
         # creates the accessor functions, and initialize values
-        self.valid(False) \
-        .dirty(False)\
-        .tag(0)\
-        .index(0)\
-        .data(0)
+        self._valid = False
+        self._dirty = False
+        self._tag = 0
+        self._index = 0
+        self._data = [0, 0, 0, 0]
     
     def __str__(self) -> str:
         """to string method
@@ -221,7 +221,7 @@ class CacheWay:
                 ['Dirty', f'{self.dirty():#0{2}x}'],
                 ['Tag', f'{self.tag():#0{2 + self._tag_bits // 4}x}'],
                 ['Index', f'{self.index():#0{2 + self._index_bits // 4}x}'],
-                ['Data', f'{self.data():#0{2 + self._data_bits // 4}x}']
+                ['Data', f'{self.data()}'] #TODO print data formatted as hex
             ],
             headers=['Field', 'Value'],
             tablefmt='pretty',
@@ -413,7 +413,7 @@ class Cache(MemoryDevice):
         address = address_block.start
 
         self._on_evict()
-        
+
         self.get_cacheway(address).replace(address_block, data)
 
     def check_hit(self, address: int):

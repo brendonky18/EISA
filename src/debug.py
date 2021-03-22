@@ -37,7 +37,8 @@ if __name__ == '__main__':
             print(f'<{device}> is not a valid memory device')
 
     @commandparse_cb
-    def view_way(address: int):
+    def view_way(index: int):
+        address = index << 2
         print(str(memory._cache.get_cacheway(address)))
 
     @commandparse_cb
