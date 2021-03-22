@@ -1,6 +1,6 @@
 import argparse
 from commandparse import CommandParser, commandparse_cb
-from memory_subsystem import RAM, Cache
+from memory_subsystem import MemorySubsystem
 from eisa import EISA
 from clock import Clock
 
@@ -14,32 +14,31 @@ if __name__ == '__main__':
 
     args = arg_parser.parse_args()
 
-    ram = RAM(EISA.RAM_SIZE, None, 2, 2)
-    cache = Cache(EISA.CACHE_SIZE, EISA.OFFSET_SIZE, ram, 1, 1)
+    memory = MemorySubsystem(EISA.ADDRESS_SIZE, args.cs, 1, 1, args.rs, 2, 2)
 
     cmd_parser = CommandParser('dbg' if args.n is None else args.n)
 
     @commandparse_cb
     def cache_read(addr: int):
-        print(f'Reading from address {addr}\n{addr:#0{4}x}: {cache[addr]}')
+        print(f'Reading from address {addr}\n{addr:#0{4}x}: {memory[addr]}')
 
     @commandparse_cb
     def cache_write(addr: int, val: int):
         print(f'writing {val} to address {addr}')
-        cache[addr] = val
+        memory[addr] = val
 
     @commandparse_cb
     def view(device: str):
         if device.lower() == 'ram':
-            print(str(ram))
+            print(str(memory._RAM))
         elif device.lower() == 'cache':
-            print(str(cache))
+            print(str(memory._cache))
         else:
             print(f'<{device}> is not a valid memory device')
 
     @commandparse_cb
     def view_way(address: int):
-        print(str(cache.get_cacheway(address)))
+        print(str(memory._cache.get_cacheway(address)))
 
     @commandparse_cb
     def clock(mode: str):
@@ -58,7 +57,7 @@ if __name__ == '__main__':
     cmd_parser.add_command('show', [str], view) # alias for the view command
     cmd_parser.add_command('view-way', [int], view_way)
     cmd_parser.add_command('show-way', [int], view_way) # alias
-    cmd_parser.add_command('clock', [str], clock) # alias
+    cmd_parser.add_command('clock', [str], clock)
 
     cmd_parser.start()
 

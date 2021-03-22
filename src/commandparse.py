@@ -105,8 +105,3 @@ def commandparse_cb(func) -> Callable[..., Any]:
 
         return func(*casted_args)
     return commandparse_cb_wrapper
-        
-            
-
-                
-
