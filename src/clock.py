@@ -63,7 +63,13 @@ class Clock:
         cls.clock_thread.join()
 
 
-    def wait(self, delay: int, wait_event: Optional[Callable[..., Any]] = None, wait_event_args: Optional[List[Any]] = None) -> None:
+    def wait(
+        self, 
+        delay: int, 
+        wait_event: Optional[Callable[..., Any]] = None, 
+        wait_event_args: Optional[List[Any]] = None,
+        wait_event_name: Optional[str] = None
+    ) -> None:
         """instance function which will wait the specified amount of time and then invoke the passed function
         
         requires an instance of Clock to be called for each thread
@@ -98,7 +104,7 @@ class Clock:
         while self._waiting:
             sleep(0.001)
 
-        print(f'Command took {my_event.counter} cycle{"s" if my_event.counter > 1 else ""} to complete')
+        print(f'{"command" if wait_event_name is None else wait_event_name} took {my_event.counter} cycle{"s" if my_event.counter > 1 else ""} to complete')
 
         # trigger the event function if one was passes
         if wait_event is not None:

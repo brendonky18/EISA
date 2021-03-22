@@ -248,7 +248,7 @@ class CacheWay:
         if tag != self.tag() or not self.valid():
             raise MemoryMissError('Read miss')
 
-        self._clock.wait(1)
+        self._clock.wait(1, wait_event_name='Cache read')
         return self._data[offset]
 
     # write
@@ -268,7 +268,7 @@ class CacheWay:
         if tag != self.tag():
             raise MemoryMissError('Write miss')
         
-        self._clock.wait(1)
+        self._clock.wait(1, wait_event_name='Cache write')
         self._data[offset] = value
         self.valid(True)
 
@@ -277,7 +277,7 @@ class CacheWay:
         address >>= (self._index_bits + self._offset_bits)
         tag = address & (2**self._tag_bits - 1)
 
-        if tag != self.tag():
+        if tag != self.tag() or not self.valid():
             raise MemoryMissError 
     # replace/evict
     def replace(self, address_block: slice, data: int):
@@ -463,7 +463,7 @@ class RAM(MemoryDevice):
         """
         validate_address(address)
 
-        self._clock.wait(self._read_speed)
+        self._clock.wait(self._read_speed, wait_event_name='RAM read')
 
         if isinstance(address, int):
             return self._memory[address]
@@ -485,7 +485,7 @@ class RAM(MemoryDevice):
         """
         validate_address(address)
 
-        self._clock.wait(self._write_speed)
+        self._clock.wait(self._write_speed, wait_event_name='RAM write')
 
         self._memory[address] = value
 

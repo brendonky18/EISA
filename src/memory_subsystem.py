@@ -24,7 +24,6 @@ class MemorySubsystem:
 
     # read
     def __getitem__(self, address: int) -> int: # TODO write docstring
-        print('read')
         val = 0
         try:
             self._cache.check_hit(address)
@@ -44,7 +43,6 @@ class MemorySubsystem:
 
     # write
     def __setitem__(self, address: int, value: int) -> None: # TODO write docstring
-        print('writing')
         try:
             self._cache.check_hit(address)
         except MemoryMissError:
