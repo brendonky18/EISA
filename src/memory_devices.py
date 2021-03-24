@@ -101,9 +101,9 @@ class MemoryDevice(ABC):
         """to string method
         """
         if size == 0:
-            size = self._local_addr_size
+            size = self._local_addr_space
 
-        stop = min(self._local_addr_size, start + size)
+        stop = min(self._local_addr_space, start + size)
 
         s = tabulate(
             zip(range(start, stop), self._memory[start : stop]),
@@ -397,9 +397,9 @@ class Cache(MemoryDevice):
         """
 
         if size == 0:
-            size = self._local_addr_size
+            size = self._local_addr_space
 
-        stop = min(self._local_addr_size, start + size)
+        stop = min(self._local_addr_space, start + size)
 
 
         s = tabulate(
