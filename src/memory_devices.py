@@ -97,16 +97,21 @@ class MemoryDevice(ABC):
         self._write_speed = write_speed
         self._next_device = next_device
 
-    def __str__(self) -> str:
+    def __str__(self, start: int=0, size: int=0) -> str:
         """to string method
         """
-        # Print starting line
-        s = f'+{"".center(20, "-")}+\n'
+        if size == 0:
+            size = self._local_addr_size
 
-        # Print each entry line + block line
-        for i in range(len(self._memory)):
-            s += f'|{str(i).center(4)}|{str(int(self._memory[i])).center(15)}|\n+{"".center(20, "-")}+\n'
+        stop = min(self._local_addr_size, start + size)
 
+        s = tabulate(
+            zip(range(start, stop), self._memory[start : stop]),
+            headers=['Address', 'Value'],
+            tablefmt='pretty',
+            stralign='left',
+            numalign='right'
+        )
         return s
 
     @abstractmethod
@@ -388,9 +393,25 @@ class Cache(MemoryDevice):
         if evict_cb is not None:
             self._on_evict = evict_cb #mypy does not like assigning to functions but I think it should be ok
 
-    def __str__(self) -> str:
+    def __str__(self, start: int=0, size: int=0) -> str:
         """to string method
         """
+
+        if size == 0:
+            size = self._local_addr_size
+
+        stop = min(self._local_addr_size, start + size)
+
+
+        s = tabulate(
+            zip(range(start, stop), [cur.data() for cur in self._cache[start : stop]]),
+            headers=['Address', 'Value'],
+            tablefmt='pretty',
+            stralign='left',
+            numalign='right'
+        )
+        return s
+
         # Print starting line
         s = f'+{"".center(10, "-")}+\n'
 
