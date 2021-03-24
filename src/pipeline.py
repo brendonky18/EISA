@@ -175,3 +175,12 @@ class PipeLine:
         self.stage_writeback()
         self.cycles += 1
 
+    def __str__(self):
+
+        print(f"Fetch:{self.pipeline[0].opcode}->[{self.fd_reg[0].opcode},{self.fd_reg[1].opcode}]"
+              f"->Decode:{self.pipeline[1].opcode}->[{self.de_reg[0].opcode},{self.de_reg[1].opcode}]"
+              f"->Execute:{self.pipeline[2].opcode}->[{self.em_reg[0].opcode},{self.em_reg[1].opcode}]"
+              f"->Memory:{self.pipeline[3].opcode}->[{self.mw_reg[0].opcode},{self.mw_reg[1].opcode}]"
+              f"->Memory:{self.pipeline[4].opcode}")
+
+
