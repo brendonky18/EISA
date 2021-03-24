@@ -28,11 +28,11 @@ if __name__ == '__main__':
         memory[addr] = val
 
     @commandparse_cb
-    def view(device: str):
+    def view(device: str, start: int, size: int):
         if device.lower() == 'ram':
-            print(str(memory._RAM))
+            print(memory._RAM.__str__(start, size))
         elif device.lower() == 'cache':
-            print(str(memory._cache))
+            print(memory._cache.__str__(start, size))
         else:
             print(f'<{device}> is not a valid memory device')
 
@@ -54,8 +54,8 @@ if __name__ == '__main__':
 
     cmd_parser.add_command('read', [int], cache_read)
     cmd_parser.add_command('write', [int, int], cache_write)
-    cmd_parser.add_command('view', [str], view)
-    cmd_parser.add_command('show', [str], view) # alias for the view command
+    cmd_parser.add_command('view', [str, int, int], view)
+    cmd_parser.add_command('show', [str, int, int], view) # alias for the view command
     cmd_parser.add_command('view-way', [int], view_way)
     cmd_parser.add_command('show-way', [int], view_way) # alias
     cmd_parser.add_command('clock', [str], clock)
