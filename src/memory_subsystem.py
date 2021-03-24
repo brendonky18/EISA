@@ -25,9 +25,10 @@ class MemorySubsystem:
     # read
     def __getitem__(self, address: int) -> int: # TODO write docstring
         val = 0
-        try:
-            self._cache.check_hit(address)
-        except MemoryMissError:
+        if self._cache.check_hit(address):
+            # cache hit
+            val = self._cache[address]
+        else:
             # cache miss
 
             # get a slice corresponding to the block of words stored in each cache way
@@ -35,20 +36,18 @@ class MemorySubsystem:
             # load the value from RAM into cache
             self._cache.replace(address_block, self._RAM[address_block]) # TODO: make the read from RAM use RAM's read policy rather than reading directly
             val = self._cache[address]
-        else:
-            # cache hit
-            val = self._cache[address]
-        finally:
-            return val
+        
+        return val
 
     # write
     def __setitem__(self, address: int, value: int) -> None: # TODO write docstring
-        try:
-            self._cache.check_hit(address)
-        except MemoryMissError:
-            # cache miss
-            self._RAM[address] = value
-        else:
+        
+        if self._cache.check_hit(address):
             # cache hit
             self._cache[address] = value
             self._RAM[address] = value
+        else:
+            # cache miss
+            self._RAM[address] = value
+        
+            
