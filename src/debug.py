@@ -68,6 +68,22 @@ if __name__ == '__main__':
         terminal_print(f'Clock stepping {steps} iterations')
         Clock.step(steps)
 
+    @commandparse_cb
+    def load_program(file_path: str, start_addr: int):
+        # read instructions from the file
+        with open(file_path, 'r') as f:
+            program_instructions = [int(line.rstrip()) for line in f]
+
+        # load them into RAM
+        stop_addr = start_addr + len(program_instructions)
+        if stop_addr > memory._RAM._local_addr_space:
+            raise ValueError(f'Program requires {len(program_instructions)*4}b and is too large to be loaded starting at address {start_addr}')
+        
+        for dest_addr, cur_instruction in zip(range(start_addr, stop_addr), program_instructions):
+            memory[dest_addr] = cur_instruction
+
+
+
     cmd_parser.add_command('read', [int], cache_read)
     cmd_parser.add_command('write', [int, int], cache_write)
     cmd_parser.add_command('view', [str, int, int], view)
@@ -76,5 +92,6 @@ if __name__ == '__main__':
     cmd_parser.add_command('show-way', [int], view_way) # alias
     cmd_parser.add_command('clock', [str], clock)
     cmd_parser.add_command('step', [int], step_clock)
+    cmd_parser.add_command('load', [str, int], load_program)
 
     cmd_parser.start()
