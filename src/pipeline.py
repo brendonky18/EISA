@@ -1,6 +1,7 @@
 from memory_subsystem import MemorySubsystem
 from eisa import EISA
 from queue import *
+from typing import List
 
 class Instruction:
     # Operation
@@ -42,8 +43,8 @@ class PipeLine:
     # TODO - implement no-ops and stalls
 
     _memory: MemorySubsystem
-    _pc: None
-    _registers: None
+    _pc: int
+    _registers: List[int]
     _pipeline: list[Instruction]
 
     _fd_reg: Queue[Instruction]
@@ -53,11 +54,11 @@ class PipeLine:
 
     _cycles: int
 
-    def __init__(self, pc: int, registers: list[int], cache_size: int, ram_size: int):
-        self.registers = registers
-        self.pc = pc
-        self.memory = MemorySubsystem(2**32, cache_size, 1, 1, ram_size, 1, 1)
-        self.pipeline = [None for i in range(5)]
+    def __init__(self, pc: int, registers: list[int], memory: MemorySubsystem):
+        self._registers = registers
+        self._pc = pc
+        self._memory = memory
+        self._pipeline = [None for i in range(5)]
         self._fd_reg = Queue()
         self._de_reg = Queue()
         self._em_reg = Queue()
@@ -66,14 +67,14 @@ class PipeLine:
 
     def stage_fetch(self):
         # Load instruction in MEMORY at the address the PC is pointing to
-        instruction = Instruction(self.memory[self.pc])
-        self.pipeline[0] = instruction
+        instruction = Instruction(self._memory[self._pc])
+        self._pipeline[0] = instruction
 
         # increment PC by 1 word
-        self.pc += 1
+        self._pc += 1
 
         # push instruction into queue
-        self.pipeline[0] = instruction
+        self._pipeline[0] = instruction
         self._fd_reg.put(instruction)
 
     def stage_decode(self):
@@ -83,20 +84,20 @@ class PipeLine:
 
         # get fetched instruction
         instruction = self._fd_reg.get()
-        self.pipeline[1] = instruction
+        self._pipeline[1] = instruction
 
         # Decode the instruction
         instruction.decode()
 
         # Access regfile to read the registers
-        opA = self.registers[instruction.regA]
-        opC = self.registers[instruction.regC]
+        opA = self._registers[instruction.regA]
+        opC = self._registers[instruction.regC]
 
         # Determine if second operand is immediate or not
         if instruction.immediate:
             opB = instruction.regB
         else:
-            opB = self.registers[instruction.regB]
+            opB = self._registers[instruction.regB]
 
         # Put outputs of GP regs into two temp regs (for use later)
         #   Storing them inside the instruction itself
@@ -117,7 +118,7 @@ class PipeLine:
 
         # get decoded instruction
         instruction = self._de_reg.get()
-        self.pipeline[2] = instruction
+        self._pipeline[2] = instruction
 
         # Execute depending on instruction
         # https://en.wikipedia.org/wiki/Classic_RISC_pipeline
@@ -142,20 +143,20 @@ class PipeLine:
 
         # get executed instruction
         instruction = self._em_reg.get()
-        self.pipeline[3] = instruction
+        self._pipeline[3] = instruction
 
         # If instruction is a load, data return from memory and are placed in the LMD reg
         if instruction.opcode == 0b010001:
 
             # Load value obtained from address Rn + Rt in memory into instruction
-            instruction.computed = self.memory[instruction.regB + instruction.regC]
+            instruction.computed = self._memory[instruction.regB + instruction.regC]
 
         # If the instruction is a store, then the data from reg B is written into memory
         elif instruction.opcode == 0b010000:
 
             # Store value in register Rm into MEMORY address Rn + Rt
             # Address used is the one computed during the prior cycle and stored in the ALU output reg
-            self.memory[instruction.regB + instruction.regC] = instruction.opA
+            self._memory[instruction.regB + instruction.regC] = instruction.opA
 
         # Push edited instruction into the adjacent queue
         self._mw_reg.put(instruction)
@@ -167,15 +168,15 @@ class PipeLine:
 
         # get memorized instruction
         instruction = self._mw_reg.get()
-        self.pipeline[4] = instruction
+        self._pipeline[4] = instruction
 
         # Write the result into the reg file, whether it comes from the memory system (LMD reg) or
         #   the ALU (ALUOutput).
         if instruction.computed is not None:
             if instruction.opcode == 0b000011:
-                self.registers[instruction.regC] = instruction.computed
+                self._registers[instruction.regC] = instruction.computed
             elif instruction.opcode == 0b010001:
-                self.registers[instruction.regA] = instruction.computed
+                self._registers[instruction.regA] = instruction.computed
 
     def cycle_pipeline(self):
 
@@ -193,10 +194,10 @@ class PipeLine:
 
     def __str__(self):
 
-        print(f"Fetch:{self.pipeline[0].opcode}->[{self.fd_reg[0].opcode},{self.fd_reg[1].opcode}]"
-              f"->Decode:{self.pipeline[1].opcode}->[{self.de_reg[0].opcode},{self.de_reg[1].opcode}]"
-              f"->Execute:{self.pipeline[2].opcode}->[{self.em_reg[0].opcode},{self.em_reg[1].opcode}]"
-              f"->Memory:{self.pipeline[3].opcode}->[{self.mw_reg[0].opcode},{self.mw_reg[1].opcode}]"
-              f"->Memory:{self.pipeline[4].opcode}")
+        print(f"Fetch:{self._pipeline[0].opcode}->[{self.fd_reg[0].opcode},{self.fd_reg[1].opcode}]"
+              f"->Decode:{self._pipeline[1].opcode}->[{self.de_reg[0].opcode},{self.de_reg[1].opcode}]"
+              f"->Execute:{self._pipeline[2].opcode}->[{self.em_reg[0].opcode},{self.em_reg[1].opcode}]"
+              f"->Memory:{self._pipeline[3].opcode}->[{self.mw_reg[0].opcode},{self.mw_reg[1].opcode}]"
+              f"->Memory:{self._pipeline[4].opcode}")
 
 
