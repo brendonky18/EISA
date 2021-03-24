@@ -1,7 +1,8 @@
 from ast import literal_eval
-from typing import Callable, Any, Optional
+from typing import Callable, Any, Optional, List
 from dataclasses import dataclass
 from clock import Clock
+from threading import Thread, Lock
 
 @dataclass
 class Command:
@@ -17,6 +18,8 @@ class UserInput:
         self.args = arg_string.split()
 
 class CommandParser:
+    command_threads: List[Thread] = []
+
     def __init__(self, name=""):
         """Constructor
 
@@ -58,6 +61,7 @@ class CommandParser:
     def start(self):
         """Starts running the termisshnal
         """
+        from __main__ import terminal_print
 
         run = True
         Clock.start()
@@ -65,7 +69,9 @@ class CommandParser:
         while run:
             # gets the user's input, splits it between the command and arguments, and puts it in a named tuple
             try:
-                cur_input = UserInput(*input(f'{self.name}$ ').split(maxsplit=1))
+                terminal_print('')
+                cur_input = UserInput(*input().split(maxsplit=1))
+                
             except EOFError:
                 cur_input = UserInput('exit', '')
             # checks if the user wants to exit the interface
@@ -74,22 +80,29 @@ class CommandParser:
                 if Clock.run_clock:
                     print('Warning: Clock not stopped, stopping now')
                     Clock.stop()
+                for t in CommandParser.command_threads:
+                    t.join()
                 
             
             # checks if the user entered a valid command
             elif cur_input.command not in self.valid_commands:
                 print(f'\'{cur_input.command}\' is not recognized as a command')
             else:
-                try:
-                    # invokes the designated callback, and passes the provided arguments as strings
-                    cur_cmd = self.valid_commands[cur_input.command]
-                    cur_cmd.callback(*cur_input.args, arg_types=cur_cmd.arg_types)
-                except (TypeError, ValueError) as e: # will error on anything that isn't a literal, including strings
+                # thread so we don't wait for something to return
+                def command_thread():
+                    try:
+                        # invokes the designated callback, and passes the provided arguments as strings
+                        cur_cmd = self.valid_commands[cur_input.command]
+                        cur_cmd.callback(*cur_input.args, arg_types=cur_cmd.arg_types)
+                    except (TypeError, ValueError) as e: # will error on anything that isn't a literal, including strings
                         num_args = len(self.valid_commands[cur_input.command].arg_types)
-                        print(str(e))
-                        
-                        # print(f'invalid input, {cur_input.command} requires {num_args} argument{"s" if num_args > 1 else ""} of type{"s" if num_args > 1 else ""} {", ".join([f"<{t.__name__}>" for t in self.valid_commands[cur_input.command].arg_types])}. You entered {cur_input.args}', flush=True)
-                        
+                        terminal_print(str(e))
+                    return
+
+                new_thread = Thread(target=command_thread, name=f'Command thread - {cur_input.command}: {cur_input.args}')
+                new_thread.start()
+                self.command_threads.append(new_thread)
+                
 
 
 def commandparse_cb(func) -> Callable[..., Any]: 
