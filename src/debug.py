@@ -3,6 +3,11 @@ from commandparse import CommandParser, commandparse_cb
 from memory_subsystem import MemorySubsystem
 from eisa import EISA
 from clock import Clock
+from threading import Lock
+
+print_lock: Lock = Lock()
+
+
 
 
 if __name__ == '__main__':
@@ -17,24 +22,30 @@ if __name__ == '__main__':
     memory = MemorySubsystem(EISA.ADDRESS_SIZE, args.cs, 1, 1, args.rs, 2, 2)
 
     cmd_parser = CommandParser('dbg' if args.n is None else args.n)
+    terminal_name = args.n
+
+    def terminal_print(print_string:str):
+        with print_lock:
+            print(f'\r{print_string}')
+            print(terminal_name, end='$ ', flush=True)
 
     @commandparse_cb
     def cache_read(addr: int):
-        print(f'Reading from address {addr}\n{addr:#0{4}x}: {memory[addr]}')
+        terminal_print(f'Reading from address {addr}\n{addr:#0{4}x}: {memory[addr]}')
 
     @commandparse_cb
     def cache_write(addr: int, val: int):
-        print(f'writing {val} to address {addr}')
+        terminal_print(f'writing {val} to address {addr}')
         memory[addr] = val
 
     @commandparse_cb
     def view(device: str, start: int, size: int):
         if device.lower() == 'ram':
-            print(memory._RAM.__str__(start, size))
+            terminal_print(memory._RAM.__str__(start, size))
         elif device.lower() == 'cache':
-            print(memory._cache.__str__(start, size))
+            terminal_print(memory._cache.__str__(start, size))
         else:
-            print(f'<{device}> is not a valid memory device')
+            terminal_print(f'<{device}> is not a valid memory device')
 
     @commandparse_cb
     def view_way(index: int):
@@ -43,14 +54,19 @@ if __name__ == '__main__':
 
     @commandparse_cb
     def clock(mode: str):
-        if mode.lower() == 'start':
+        mode = mode.lower()
+        if mode == 'start':
             Clock.start()
-            print('Clock started')
-        elif mode.lower() == 'stop':
+            terminal_print('Clock started')
+        elif mode == 'stop':
             Clock.stop()
-            print('Clock stopped')
+            terminal_print('Clock stopped')  
         else:
-            print(f'<{mode}> is not a valid option, please enter start/stop')
+            terminal_print(f'<{mode}> is not a valid option, please enter start/stop')
+    @commandparse_cb
+    def step_clock(steps: int):
+        terminal_print(f'Clock stepping {steps} iterations')
+        Clock.step(steps)
 
     cmd_parser.add_command('read', [int], cache_read)
     cmd_parser.add_command('write', [int, int], cache_write)
@@ -59,7 +75,6 @@ if __name__ == '__main__':
     cmd_parser.add_command('view-way', [int], view_way)
     cmd_parser.add_command('show-way', [int], view_way) # alias
     cmd_parser.add_command('clock', [str], clock)
+    cmd_parser.add_command('step', [int], step_clock)
 
     cmd_parser.start()
-
-

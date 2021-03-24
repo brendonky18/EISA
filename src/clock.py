@@ -18,6 +18,10 @@ class Clock:
     pending_calls: list[ClockEvent] = []
     pending_calls_lock: Lock = Lock()
 
+    step_clock: bool = False
+    step_clock_counter: int = 0
+    step_clock_lock: Lock = Lock()
+
     clock_thread = None
 
     @classmethod
@@ -29,12 +33,12 @@ class Clock:
         RuntimeError
             [description]
         """
-        if cls.run_clock:
+        if cls.run_clock or cls.step_clock:
             raise RuntimeError('Cannot have multiple instances of clock running')
         else:
             cls.run_clock = True
             def run():
-                cls.run_clock_lock.acquire()
+                cls.run_clock_lock.acquire()                # get the lock before entering
                 while cls.run_clock:
                     cls.run_clock_lock.release()
 
@@ -48,10 +52,10 @@ class Clock:
                         # remove events that have been called
                         cls.pending_calls = [cur_event for cur_event in cls.pending_calls if cur_event.counter < cur_event.delay]
 
-                    cls.run_clock_lock.acquire()            # get the lock for the next iteration
-                cls.run_clock_lock.release()                # release the lock when finished
+                    cls.run_clock_lock.acquire()            # get the locks for the next iteration
+                cls.run_clock_lock.release()                # releases the lock when finished
         
-            cls.clock_thread = Thread(target=run)
+            cls.clock_thread = Thread(target=run, name='Clock Running')
             cls.clock_thread.start()                        # actually start running the thread
             
     @classmethod
@@ -61,7 +65,37 @@ class Clock:
         with cls.run_clock_lock:
             cls.run_clock = False
         cls.clock_thread.join()
+    
+    @classmethod
+    def step(cls, count: int=1):
+        if cls.run_clock or cls.step_clock:
+            raise RuntimeError('Cannot have multiple instances of clock running')
+        else:
+            cls.step_clock = True
+            def run():
+                cls.step_clock_lock.acquire()                # get the lock before entering
+                for step in range(count):
+                    cls.step_clock_lock.release()
 
+                    with cls.pending_calls_lock:
+                        for cur_event in cls.pending_calls: # iterate over and update all events
+                            cur_event.counter += 1
+                            
+                            if cur_event.delay == cur_event.counter:    
+                                cur_event.callback()        # trigger the event's callback         
+                                                        
+                        # remove events that have been called
+                        cls.pending_calls = [cur_event for cur_event in cls.pending_calls if cur_event.counter < cur_event.delay]
+
+                    cls.step_clock_lock.acquire()            # get the locks for the next iteration
+                cls.step_clock_lock.release()                # releases the lock when finished
+        
+            cls.clock_thread = Thread(target=run, name='Clock Stepping')
+            cls.clock_thread.start()                        # actually start running the thread
+            cls.clock_thread.join()
+            cls.step_clock = False
+
+        
 
     def wait(
         self, 
@@ -86,9 +120,9 @@ class Clock:
         Any
             returns whatever the passed function returns
         """
-        
-        if not Clock.run_clock:
-            raise ValueError('Warning: Clock not started. commands will not be executed')
+        if not (Clock.run_clock or Clock.step_clock):
+            from __main__ import terminal_print
+            terminal_print('Warning: Clock not running. Commands will not be executed')
             
         self._waiting = True
 
@@ -104,7 +138,8 @@ class Clock:
         while self._waiting:
             sleep(0.001)
 
-        print(f'{"command" if wait_event_name is None else wait_event_name} took {my_event.counter} cycle{"s" if my_event.counter > 1 else ""} to complete')
+        from __main__ import terminal_print
+        terminal_print(f'{"Command" if wait_event_name is None else wait_event_name} took {my_event.counter} cycle{"s" if my_event.counter > 1 else ""} to complete')
 
         # trigger the event function if one was passes
         if wait_event is not None:

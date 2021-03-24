@@ -45,5 +45,4 @@ class EISA_properties(object):
     @const
     def WORD_SPACE(self): return 2 ** self.WORD_SIZE  # the range of valid word values
 
-
 EISA = EISA_properties()

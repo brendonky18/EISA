@@ -277,13 +277,12 @@ class CacheWay:
         self._data[offset] = value
         self.valid(True)
 
-    def check_hit(self, address: int):
+    def check_hit(self, address: int) -> bool:
         # get the tag
         address >>= (self._index_bits + self._offset_bits)
         tag = address & (2**self._tag_bits - 1)
 
-        if tag != self.tag() or not self.valid():
-            raise MemoryMissError 
+        return tag == self.tag() and self.valid()
     # replace/evict
     def replace(self, address_block: slice, data: int):
         address = address_block.start
@@ -437,8 +436,8 @@ class Cache(MemoryDevice):
 
         self.get_cacheway(address).replace(address_block, data)
 
-    def check_hit(self, address: int):
-        self.get_cacheway(address).check_hit(address)
+    def check_hit(self, address: int) -> bool:
+        return self.get_cacheway(address).check_hit(address)
 
     def get_cacheway(self, address: int) -> CacheWay:
         """function to expose individual cache ways so that they can be viewed
