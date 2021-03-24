@@ -72,7 +72,7 @@ if __name__ == '__main__':
     def load_program(file_path: str, start_addr: int):
         # read instructions from the file
         with open(file_path, 'r') as f:
-            program_instructions = [int(line.rstrip()) for line in f]
+            program_instructions = [int(line.rstrip(), 2) for line in f] # 2 indicates converting from a base 2 string
 
         # load them into RAM
         stop_addr = start_addr + len(program_instructions)
