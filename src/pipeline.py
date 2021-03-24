@@ -30,11 +30,11 @@ class Instruction:
         self.computed = None
 
     def decode(self):
-        self.opcode = self.encoded >> 28
-        self.regA = (self.encoded >> 2 * EISA.GP_REGS_BITS) & EISA.GP_REGS_BITS
-        self.regB = (self.encoded >> 5 * EISA.GP_REGS_BITS) & EISA.GP_REGS_BITS
+        self.opcode = self.encoded >> 26
+        self.regA = (self.encoded >> 2 * EISA.GP_NUM_FIELD_BITS) & EISA.GP_REGS_BITS
+        self.regB = (self.encoded >> EISA.GP_NUM_FIELD_BITS) & EISA.GP_REGS_BITS
         self.regC = self.encoded & EISA.GP_REGS_BITS
-        self.immediate = (self.encoded >> 14) & 1
+        self.immediate = (self.encoded >> 15) & 1
 
 class PipeLine:
     # TODO - Use dict later to get funcs associated with opcodes
@@ -56,7 +56,7 @@ class PipeLine:
     def __init__(self, pc: int, registers: list[int], cache_size: int, ram_size: int):
         self.registers = registers
         self.pc = pc
-        self.memory = MemorySubsystem(cache_size, ram_size)
+        self.memory = MemorySubsystem(2**32, cache_size, 1, 1, ram_size, 1, 1)
         self.pipeline = [None for i in range(5)]
         self._fd_reg = Queue()
         self._de_reg = Queue()
@@ -66,7 +66,7 @@ class PipeLine:
 
     def stage_fetch(self):
         # Load instruction in MEMORY at the address the PC is pointing to
-        instruction = self.memory[self.pc]
+        instruction = Instruction(self.memory[self.pc])
         self.pipeline[0] = instruction
 
         # increment PC by 1 word
@@ -74,12 +74,15 @@ class PipeLine:
 
         # push instruction into queue
         self.pipeline[0] = instruction
-        self.fd_reg.put(instruction)
+        self._fd_reg.put(instruction)
 
     def stage_decode(self):
 
+        if self._fd_reg.qsize() < 2:
+            return
+
         # get fetched instruction
-        instruction = self.fd_reg.get()
+        instruction = self._fd_reg.get()
         self.pipeline[1] = instruction
 
         # Decode the instruction
@@ -105,12 +108,15 @@ class PipeLine:
         #   into temp Imm reg
 
         # Push edited instruction into the adjacent queue
-        self.de_reg.put(instruction)
+        self._de_reg.put(instruction)
 
     def stage_execute(self):
 
+        if self._de_reg.qsize() < 2:
+            return
+
         # get decoded instruction
-        instruction = self.de_reg.get()
+        instruction = self._de_reg.get()
         self.pipeline[2] = instruction
 
         # Execute depending on instruction
@@ -127,12 +133,15 @@ class PipeLine:
         #   (1-cycle latency). Dictated by opcode
 
         # Push edited instruction into the adjacent queue
-        self.em_reg.put(instruction)
+        self._em_reg.put(instruction)
 
     def stage_memory(self):
 
+        if self._em_reg.qsize() < 2:
+            return
+
         # get executed instruction
-        instruction = self.em_reg.get()
+        instruction = self._em_reg.get()
         self.pipeline[3] = instruction
 
         # If instruction is a load, data return from memory and are placed in the LMD reg
@@ -146,15 +155,18 @@ class PipeLine:
 
             # Store value in register Rm into MEMORY address Rn + Rt
             # Address used is the one computed during the prior cycle and stored in the ALU output reg
-            self.memory[instruction.opB + instruction.opC] = instruction.opA
+            self.memory[instruction.regB + instruction.regC] = instruction.opA
 
         # Push edited instruction into the adjacent queue
-        self.mw_reg.put(instruction)
+        self._mw_reg.put(instruction)
 
     def stage_writeback(self):
 
+        if self._mw_reg.qsize() < 2:
+            return
+
         # get memorized instruction
-        instruction = self.mw_reg.get()
+        instruction = self._mw_reg.get()
         self.pipeline[4] = instruction
 
         # Write the result into the reg file, whether it comes from the memory system (LMD reg) or
@@ -174,6 +186,10 @@ class PipeLine:
         self.stage_memory()
         self.stage_writeback()
         self.cycles += 1
+
+    def cycle(self, x):
+        for i in range(x):
+            self.cycle_pipeline()
 
     def __str__(self):
 

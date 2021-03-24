@@ -33,7 +33,10 @@ class EISA_properties(object):
     def NUM_GP_REGS(self): return 32 # number of 32-bit general purpose registers
 
     @const
-    def GP_REGS_BITS(self): return 5
+    def GP_REGS_BITS(self): return 0b11111 # bits to mask register address
+
+    @const
+    def GP_NUM_FIELD_BITS(self): return 5 # number of bits to shift to each field in instructions
 
 # wrappers
     @const
