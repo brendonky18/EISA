@@ -120,7 +120,7 @@ class Clock:
         Any
             returns whatever the passed function returns
         """
-        from __main__ import terminal_print
+        from debug import terminal_print
         if not (Clock.run_clock or Clock.step_clock):
             terminal_print('Warning: Clock not running. Commands will not be executed')
             
