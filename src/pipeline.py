@@ -5,7 +5,7 @@ from typing import List
 from enum import Enum
 
 class OpCodes(Enum):
-    
+
 
 class Instruction:
 

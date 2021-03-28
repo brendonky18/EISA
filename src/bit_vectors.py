@@ -163,3 +163,15 @@ class BitVector:
             '_size'         : size if size is not None else cls._size,
             'add_field'     : cls.add_field
         })
+
+# if __name__ == '__main__':
+#     Instruction = BitVector.create_subtype('Instruction', size=32)
+
+#     Instruction.add_field('opcode', 27, 5)
+
+#     opcode_instance = Instruction()
+#     opcode_instance['opcode'] = 12
+
+#     opcode_instance._bits
+
+#     BranchInstruction = Instruction.create_subtype('BranchInstruction')
