@@ -61,7 +61,7 @@ class CommandParser:
     def start(self):
         """Starts running the termisshnal
         """
-        from __main__ import terminal_print
+        from debug import terminal_print
 
         run = True
         Clock.start()
