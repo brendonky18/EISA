@@ -5,6 +5,7 @@ from eisa import EISA
 from clock import Clock
 from threading import Lock
 from pipeline import PipeLine
+from pipeline import Instruction
 
 print_lock: Lock = Lock()
 
@@ -88,7 +89,9 @@ if __name__ == '__main__':
     def load_program(file_path: str, start_addr: int):
         # read instructions from the file
         with open(file_path, 'r') as f:
-            program_instructions = [int(line.rstrip(), 2) for line in f]  # 2 indicates converting from a base 2 string
+            program_instructions = [int(line.rstrip().split('#', maxsplit=1)[0], 2) for line in f]  # 2 indicates converting from a base 2 string
+
+
 
         # load them into RAM
         stop_addr = start_addr + len(program_instructions)
@@ -98,6 +101,10 @@ if __name__ == '__main__':
 
         for dest_addr, cur_instruction in zip(range(start_addr, stop_addr), program_instructions):
             memory[dest_addr] = cur_instruction
+            instruction = Instruction(cur_instruction)
+            instruction.decode()
+            print(str(instruction))
+
 
 
     @commandparse_cb
