@@ -4,9 +4,6 @@ from queue import *
 from typing import List
 from enum import Enum
 
-class OpCodes(Enum):
-
-
 class Instruction:
 
     # Operation
@@ -44,8 +41,15 @@ class Instruction:
         self._regA = -1
         self._regB = -1
         self._regC = -1
+        self._opA = -1
+        self._opB = -1
+        self._opC = -1
 
     def decode(self):
+
+        if self._opcode == -1:
+            return
+
         self._opcode = self._encoded >> 26
         self._regA = (self._encoded >> 2 * EISA.GP_NUM_FIELD_BITS) & EISA.GP_REGS_BITS
         self._regB = (self._encoded >> EISA.GP_NUM_FIELD_BITS) & EISA.GP_REGS_BITS
@@ -243,7 +247,6 @@ class PipeLine:
         self._cycles += 1
         self.cycle_stage_regs()
         print(str(self))
-
 
     def cycle(self, x):
         for i in range(x):
