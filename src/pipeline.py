@@ -2,67 +2,7 @@ from memory_subsystem import MemorySubsystem
 from eisa import EISA
 from queue import *
 from typing import List
-from enum import Enum
-
-class OpCodes(Enum):
-
-
-class Instruction:
-
-    # Operation
-    _opcode: int
-
-    # Useless atm
-    _NOOP: int
-
-    # Register addresses (raw values provided to instruction)
-    _regA: int # Param 1 of instruction
-    _regB: int # Param 2 of instruction
-    _regC: int # Param 3 of instruction (most likely immediate value)
-
-    # Operands (values loaded assuming register addresses in regA,regB,regC)
-    # If regA-regC are not register addresses, ignore these vars
-    _opA: int # Value retrieved from reg A
-    _opB: int # Value retrieved from reg B
-    _opC: int # Value retrieved from reg C
-
-    # Result for addition instructions, or loaded value if a load instruction
-    _computed: None
-
-    # Determine whether opB is immediate
-    # Currently obsolete
-    _immediate: int
-
-    # Raw instructions
-    _encoded = int
-
-    def __init__(self, encoded: int):
-        self._encoded = encoded
-        self._computed = None
-        self._immediate = 0
-        self._opcode = -1
-        self._regA = -1
-        self._regB = -1
-        self._regC = -1
-
-    def decode(self):
-        self._opcode = self._encoded >> 26
-        self._regA = (self._encoded >> 2 * EISA.GP_NUM_FIELD_BITS) & EISA.GP_REGS_BITS
-        self._regB = (self._encoded >> EISA.GP_NUM_FIELD_BITS) & EISA.GP_REGS_BITS
-        self._regC = self._encoded & EISA.GP_REGS_BITS
-        self._immediate = (self._encoded >> 15) & 1
-
-    def __str__(self):
-        encoded_string = format(self._encoded, "#034b")[2:]
-        out = "BEGIN INSTRUCTION\n"
-        out += f"Encoded: {encoded_string}\n"
-        out += f"Opcode: {self._opcode}\n"
-        out += f"Param 1: {encoded_string[17:22]}:{self._regA}\n"
-        out += f"Param 2: {encoded_string[22:27]}:{self._regB}\n"
-        out += f"Param 3: {encoded_string[27:]}:{self._regC}\n"
-        out += "END INSTRUCTION\n"
-        return out
-
+from instructions import *
 
 class PipeLine:
     # TODO - Use dict later to get funcs associated with opcodes

@@ -22,8 +22,8 @@ class BitVector:
     _fields: Dict[str, BitVectorField] = {}
     _unallocated: List[slice] = [slice(0, _size)]
 
-    def __init__(self):
-        self._bits = 0b0
+    def __init__(self, val: Optional[int]=0b0):
+        self._bits = val
 
     def __str__(self):
         new_line_char = '\n'
@@ -143,7 +143,37 @@ class BitVector:
         raise ValueError(f'Cannot create new field \'{field_name}\'. Bits {new_field.start} to {new_field.stop} are already used by another field.')
 
     @classmethod
-    def create_subtype(cls, name: str, size: Optional[int]=None) -> type:
+    def remove_field(cls, field_name: str) -> Type[BitVector]:
+        # remove the old field
+        field = cls._fields.pop(field_name)
+
+        # add to unallocated space
+        cls._unallocated.append(slice(field.start, field.stop))
+
+        # sorts the list
+        cls._unallocated.sort(key=lambda cur_slice: cur_slice.start)
+
+        # merges the list
+        i = len(cls._unallocated) - 1
+        while i >= 0:
+            if cls._unallocated[i].stop == cls._unallocated[i + 1].start:
+                cls._unallocated[i].stop = cls._unallocated.pop(i + 1).stop
+
+            i -= 1
+
+        return cls
+
+    @classmethod
+    def rename_field(cls, old_field_name: str, new_field_name) -> Type[BitVector]:
+        if new_field_name in cls._fields:
+            raise ValueError(f'Cannot rename field \'{old_field_name}\' to \'{new_field_name}\', \'{new_field_name}\' already exists.')
+        
+        cls._fields[new_field_name] = cls._fields.pop(old_field_name)
+
+        return cls
+
+    @classmethod
+    def create_subtype(cls, name: str, size: Optional[int]=None):
         """creates a new class with the passed name, which inherits from this class
 
         Parameters
