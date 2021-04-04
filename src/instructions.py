@@ -10,6 +10,7 @@ class InstructionType:
     and function calls within the various pipeline stages
     """
 
+    #region Instruction Encodings
     # NOOP
     Encoding = BitVector.create_subtype('InstructionEncoding', 32)
     Encoding.add_field('opcode', 26, 6)
@@ -38,6 +39,7 @@ class InstructionType:
     .add_field('N', 25, 1)
     
     # TODO: Push, Pop, and all AES instructions
+    #endregion Instruction Encodings
 
     mnemonic: str
     encoding: Type[BitVector]
@@ -167,6 +169,10 @@ class Instruction:
     _encoded: int
     _decoded: Union[BitVector, None] # will be none, until the instruction has been decoded
 
+    # values for dependencies, defaults to None if there are no dependencies
+    output: Union[int, None] # register that the instruction writes to
+    inputs: Union[List[int], None] # list of registers that the instruction reads from
+
     _opcode: int
     _instruction_type: InstructionType
     def __init__(self, encoded: int):
@@ -180,6 +186,9 @@ class Instruction:
         self._encoded = encoded
         self._decoded = None
 
+        self.output = None
+        self.inputs = None
+
     def decode(self):
         """helper function which decodes the instruction
         """
@@ -190,6 +199,8 @@ class Instruction:
                 
         #  parse the rest of the encoded information according to the specific encoding pattern of the instruction type
         self._decoded = self._instruction_type.encoding(self._encoded)
+
+        # TODO add function to update the instruction's dependencies 
 
     def __str__(self):
         out = ''
