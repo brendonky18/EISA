@@ -22,7 +22,7 @@ class BitVector:
     _fields: Dict[str, BitVectorField] = {}
     _unallocated: List[slice] = [slice(0, _size)]
 
-    def __init__(self, val: Optional[int]=0b0):
+    def __init__(self, val: int=0b0):
         self._bits = val
 
     def __str__(self):
@@ -32,7 +32,7 @@ class BitVector:
         
         return s
 
-    def __getitem__(self, field: str) -> Optional[int]:
+    def __getitem__(self, field: str) -> int:
         """gets the value stored at the specified field
 
         Parameters
@@ -50,12 +50,10 @@ class BitVector:
         target_field = None
         try:
             target_field = self._fields[field]
-        except KeyError:
-            print(f'\'{field}\' is not a field in type \'{type(self).__name__}\'')
+        except KeyError: # override the error message
+            raise KeyError(f'\'{field}\' is not a field in type \'{type(self).__name__}\'') 
         else:
             return (self._bits >> target_field.start) & target_field.mask
-
-        return None
     
     def __setitem__(self, field: str, value: int) -> None:
         """assigns the passed value to the passed field
