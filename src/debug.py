@@ -6,6 +6,8 @@ from clock import Clock
 from threading import Lock
 from pipeline import PipeLine
 from pipeline import Instruction
+from PyQt5.QtCore import QThread
+
 
 print_lock: Lock = Lock()
 
@@ -20,7 +22,7 @@ def terminal_print(print_string: str):
         print(terminal_name, end='$ ', flush=True)
 
 
-if __name__ == '__main__':
+def main(memory: MemorySubsystem, pipeline: PipeLine):
     arg_parser = argparse.ArgumentParser()
 
     arg_parser.add_argument('-cs', action='store', type=int,
@@ -34,6 +36,8 @@ if __name__ == '__main__':
 
     memory = MemorySubsystem(EISA.ADDRESS_SIZE, args.cs, 1, 1, args.rs, 2, 2)
     pipeline = PipeLine(0, [0] * 32, memory)
+
+
 
     cmd_parser = CommandParser('dbg' if args.n is None else args.n)
     terminal_name = args.n
@@ -122,6 +126,12 @@ if __name__ == '__main__':
     def view_registers():
         print(f'{pipeline._registers}')
 
+    '''
+    @commandparse_cb
+    def build_ui():
+        dialog = Dialog(memory, pipeline)
+        dialog.build_ui()
+    '''
 
     cmd_parser.add_command('read', [int], cache_read)
     cmd_parser.add_command('write', [int, int], cache_write)
@@ -135,5 +145,7 @@ if __name__ == '__main__':
     cmd_parser.add_command('cycle', [int], run_pipeline)
     cmd_parser.add_command('show-pipeline', [], view_piepline)
     cmd_parser.add_command('show-registers', [], view_registers)
+    #cmd_parser.add_command('build-ui', [], build_ui)
 
     cmd_parser.start()
+
