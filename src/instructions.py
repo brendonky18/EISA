@@ -75,8 +75,8 @@ class InstructionType:
 class ALU_InstructionType(InstructionType):
     # ADD, SUB, CMP, MULT, DIV, MOD, LSL, LSR, ASR, AND, XOR, ORR, NOT
     ALU_Encoding = InstructionType.Encoding.create_subtype('ALU_Encoding') 
-    ALU_Encoding.add_field('immediate', 0, 10)\
-    .add_field('op2', 10, 5)\
+    ALU_Encoding.add_field('immediate', 0, 15, overlap=True)\
+    .add_field('op2', 10, 5, overlap=True)\
     .add_field('imm', 15, 1)\
     .add_field('op1', 16, 5)\
     .add_field('dest', 21, 5)
