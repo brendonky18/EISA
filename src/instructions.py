@@ -1,131 +1,151 @@
+from __future__ import annotations
 from enum import Enum
 from bit_vectors import BitVector
-from typing import Type
+from typing import Type, Union, Dict, Callable, List
+from eisa import EISA
 
-class OpCodes(Enum):
-    NOOP     = 0b000000
-    LSL      = 0b000001
-    LSR      = 0b000010
-    ASR      = 0b000011
-    MOV      = 0b000100
-    ADD      = 0b000101
-    SUB      = 0b000110
-    CMP      = 0b000111
-    MULT     = 0b001000
-    DIV      = 0b001001
-    MOD      = 0b001010
-    AND      = 0b001011
-    XOR      = 0b001100
-    ORR      = 0b001101
-    MVN      = 0b001110
-    LDR      = 0b001111
-    STR      = 0b010000
-    PUSH     = 0b010001
-    POP      = 0b010010
-    MOVAK    = 0b010011
-    LDRAK    = 0b010100
-    STRAK    = 0b010101
-    PUSAK    = 0b010110
-    POPAK    = 0b010111
-    AESE     = 0b011000
-    AESD     = 0b011001
-    AESMC    = 0b011010
-    AESIC    = 0b011011
-    AESSR    = 0b011100
-    AESIR    = 0b011101
-    AESGE    = 0b011110
-    AESDE    = 0b011111
-    B        = 0b100000
-    BL       = 0b100001
-    END      = 0b100010
+class InstructionType:
+    """Wrapper class for an instruction type (add, subtract, load, store, etc.), 
+    it's associated encoding, 
+    and function calls within the various pipeline stages
+    """
 
-    @staticmethod
-    def format(opcode: OpCodes):
-        # NOOP
-        BVInstruction = BitVector.create_subtype('BVInstruction', 32)
-        BVInstruction.add_field('opcode', 26, 6)
+    # NOOP
+    Encoding = BitVector.create_subtype('InstructionEncoding', 32)
+    Encoding.add_field('opcode', 26, 6)
+    
+    # LDR, STR
+    MEM_Encoding = Encoding.create_subtype('MEM_Encoding')
+    MEM_Encoding.add_field('offset', 0, 10)\
+    .add_field('reg', 10, 5)
+
+    # LDR
+    LDR_Encoding = MEM_Encoding.create_subtype('LDR_Encoding')
+    LDR_Encoding.add_field('dest', 21, 5)
+
+    # STR
+    STR_Encoding = MEM_Encoding.create_subtype('STR_Encoding')
+    STR_Encoding.add_field('src', 21, 5)
+
+    # B, BL
+    B_Encoding = MEM_Encoding.create_subtype('B_Encoding')
+    B_Encoding.add_field('offset', 0, 10)\
+    .add_field('reg', 10, 5)\
+    .add_field('imm', 15, 1)\
+    .add_field('V', 22, 1)\
+    .add_field('C', 23, 1)\
+    .add_field('Z', 24, 1)\
+    .add_field('N', 25, 1)
+    
+    # TODO: Push, Pop, and all AES instructions
+
+    mnemonic: str
+    encoding: Type[BitVector]
         
-        # ADD, SUB, CMP, MULT, DIV, MOD, LSL, LSR, ASR, AND, XOR, ORR, MVN
-        ALUInstruction = BVInstruction.create_subtype('ALUInstruction') 
-        ALUInstruction.add_field('immediate', 0, 10)\
-        .add_field('op2', 10, 5)\
-        .add_field('imm', 15, 1)\
-        .add_field('op1', 16, 5)\
-        .add_field('dest', 21, 5)
+    def __init__(self, mnemonic: str, e_func: Callable[[Instruction], None], m_func: Callable[[Instruction], None], w_func: Callable[[Instruction], None]):
+        """creates a new InstructionType
 
-        # MOV
-        MOVInstruction = ALUInstruction.create_subtype('MOVInstruction')
-        MOVInstruction.rename_field('op1', 'src')\
-        .remove_field('imm')\
-        .remove_field('op2')\
-        .remove_field('immediate')
+        Parameters
+        ----------
+        mnemonic : str
+            the mnemonic correspondin to the opcode
+        e_func : Callable[[Instruction], None]
+            the function to be called an instruction of this type reaches the execute stage
+        m_func : Callable[[Instruction], None]
+            the function to be called an instruction of this type reaches the memory
+        w_func : Callable[[Instruction], None]
+            the function to be called when an instruction of this type reaches the writeback stage
+        """
+        self.mnemonic = mnemonic
+        self.encoding = InstructionType.Encoding
+        self.execute_stage_cb = e_func
+        self.memory_stage_cb = m_func
+        self.writeback_stage_cb = w_func
 
-        # LDR, STR
-        MEMInstruction = BVInstruction.create_subtype('MEMInstruction')
-        MEMInstruction.add_field('offset', 0, 10)\
-        .add_field('reg', 10, 5)
-
-        # LDR
-        LDRInstruction = BVInstruction.create_subtype('LDRInstruction')
-        LDRInstruction.add_field('dest', 21, 5)
-
-        # STR
-        STRInstruction = BVInstruction.create_subtype('STRInstruction')
-        STRInstruction.add_field('src', 21, 5)
-
-        # B, BL
-        BInstruction = BVInstruction.create_subtype('BInstruction')
-        BInstruction.add_field('offset', 0, 10)\
-        .add_field('reg', 10, 5)\
-        .add_field('imm', 15, 1)\
-        .add_field('V', 22, 1)\
-        .add_field('C', 23, 1)\
-        .add_field('Z', 24, 1)\
-        .add_field('N', 25, 1)
+    def execute_stage_func(self, instruction: Instruction) -> None:
+        self.execute_stage_cb(instruction)
         
-        # TODO: Push, Pop, and all AES instructions
 
-        format_map = {
-            OpCodes.NOOP  : BVInstruction,      
-            OpCodes.MOV   : MOVInstruction,  
-            OpCodes.ADD   : ALUInstruction,  
-            OpCodes.SUB   : ALUInstruction,  
-            OpCodes.CMP   : ALUInstruction,  
-            OpCodes.MULT  : ALUInstruction,      
-            OpCodes.DIV   : ALUInstruction,  
-            OpCodes.MOD   : ALUInstruction,  
-            OpCodes.LSL   : ALUInstruction,  
-            OpCodes.LSR   : ALUInstruction,  
-            OpCodes.ASR   : ALUInstruction,  
-            OpCodes.AND   : ALUInstruction,  
-            OpCodes.XOR   : ALUInstruction,  
-            OpCodes.ORR   : ALUInstruction,  
-            OpCodes.MVN   : ALUInstruction,  
-            OpCodes.LDR   : LDRInstruction,  
-            OpCodes.STR   : STRInstruction,  
-            OpCodes.PUSH  : None,      
-            OpCodes.POP   : None,  
-            OpCodes.MOVAK : None,      
-            OpCodes.LDRAK : None,      
-            OpCodes.STRAK : None,      
-            OpCodes.PUSAK : None,      
-            OpCodes.POPAK : None,      
-            OpCodes.AESE  : None,      
-            OpCodes.AESD  : None,      
-            OpCodes.AESMC : None,      
-            OpCodes.AESIC : None,      
-            OpCodes.AESSR : None,      
-            OpCodes.AESIR : None,      
-            OpCodes.AESGE : None,      
-            OpCodes.AESDE : None,      
-            OpCodes.B     : BInstruction,  
-            OpCodes.BL    : BInstruction
-        }
+    def memory_stage_func(self, instruction: Instruction) -> None:
+        self.memory_stage_cb(instruction)
 
-        return format_map[opcode]
+    def writeback_stage_func(self, instruction: Instruction) -> None:
+        self.writeback_stage_cb(instruction)
 
+class ALU_InstructionType(InstructionType):
+    # ADD, SUB, CMP, MULT, DIV, MOD, LSL, LSR, ASR, AND, XOR, ORR, NOT
+    ALU_Encoding = InstructionType.Encoding.create_subtype('ALU_Encoding') 
+    ALU_Encoding.add_field('immediate', 0, 10)\
+    .add_field('op2', 10, 5)\
+    .add_field('imm', 15, 1)\
+    .add_field('op1', 16, 5)\
+    .add_field('dest', 21, 5)
+
+    def __init__(self, mnemonic: str, e_func_cb: Callable[[int, int], int]):
+        def e_func(instruction: Instruction) -> None:
+            instruction.computed = e_func_cb(instruction['op1'], instruction['op2'])
+
+        def m_func(instruction: Instruction) -> None:
+            pass # TODO implement what should be done at the memory stage
+
+        def w_func(instruction: Instruction) -> None:
+            pass # TODO implement what sbould be done at the writeback stage
+
+        super().__init__(mnemonic, e_func, m_func, w_func)
+
+        self.encoding = InstructionType.Encoding
+
+# dictionary mapping the opcode number to an instruction type
+# this is where each of the instruction types and their behaviors are defined
+OpCode_InstructionType_lookup: List[InstructionType] = [
+    InstructionType('NOOP', lambda _: None, lambda _: None, lambda _: None),
+    ALU_InstructionType('ADD', lambda op1, op2: op1 + op2),
+    ALU_InstructionType('SUB', lambda op1, op2: op1 - op2),
+    ALU_InstructionType('MULT', lambda op1, op2: op1 * op2),
+    ALU_InstructionType('DIV', lambda op1, op2: op1 // op2),
+    ALU_InstructionType('MOD', lambda op1, op2: op1 % op2),
+    ALU_InstructionType('LSL', lambda op1, op2: op1 << op2),
+    ALU_InstructionType('LSR', lambda op1, op2: (op1 & EISA.WORD_MASK) >> op2),
+    ALU_InstructionType('ASR', lambda op1, op2: op1 >> op2),
+    ALU_InstructionType('AND', lambda op1, op2: op1 & op2),
+    ALU_InstructionType('XOR', lambda op1, op2: op1 ^ op2),
+    ALU_InstructionType('ORR', lambda op1, op2: op1 | op2),
+    # TODO implement the rest of the instructions
+    #LDR
+    #STR
+    #PUSH
+    #POP
+    #MOVAK
+    #LDRAK
+    #STRAK
+    #PUSAK
+    #POPAK
+    #AESE
+    #AESD
+    #AESMC
+    #AESIC
+    #AESSR
+    #AESIR
+    #AESGE
+    #AESDE
+    #CMP
+    #B
+    #BL
+    #END
+]
+
+class DecodeError(Exception):
+    message: str
+    def __init__(self, message: str='Instruction has not been decoded yet'):
+        self.message = message
+
+    def __str__(self):
+        return self.message
 
 class Instruction:
+    """class for an instance of an instruction, containing the raw encoded bits of the instruction, as well as helper functions for processing the instruction at the different pipeline stages
+    """
+
     # Register addresses (raw values provided to instruction)
     _regA: int # Param 1 of instruction
     _regB: int # Param 2 of instruction
@@ -138,41 +158,69 @@ class Instruction:
     _opC: int # Value retrieved from reg C
 
     # Result for addition instructions, or loaded value if a load instruction
-    _computed: None
+    computed: Union[int, None] # will be none unless set by the pipeline
 
     # Determine whether opB is immediate
     # Currently obsolete
     _immediate: int
 
-    _encoded: BitVector
+    _encoded: int
+    _decoded: Union[BitVector, None] # will be none, until the instruction has been decoded
 
-    _opcode: OpCodes
+    _opcode: int
+    _instruction_type: InstructionType
     def __init__(self, encoded: int):
-        self._encoded = BitVector()
-        self._computed = None
-        self._immediate = 0
-        self._opcode = OpCodes.NOOP
-        self._regA = -1
-        self._regB = -1
-        self._regC = -1
+        """creates a new instance of an instruction
+
+        Parameters
+        ----------
+        encoded : int
+            the encoded bits corresponding to the instruction
+        """
+        self._encoded = encoded
+        self._decoded = None
 
     def decode(self):
-        if self._opcode == OpCodes.NOOP:
-            return
-        
-        self._opcode = self._encoded = OpCodes.format(self._opcode)
-        # self._regA = (self._encoded >> 2 * EISA.GP_NUM_FIELD_BITS) & EISA.GP_REGS_BITS
-        # self._regB = (self._encoded >> EISA.GP_NUM_FIELD_BITS) & EISA.GP_REGS_BITS
-        # self._regC = self._encoded & EISA.GP_REGS_BITS
-        # self._immediate = (self._encoded >> 15) & 1
+        """helper function which decodes the instruction
+        """
+
+        # encodes the instruction in order to get the opcode
+        self._decoded = InstructionType.Encoding(self._encoded)
+        self._opcode = self._decoded['opcode']
+                
+        #  parse the rest of the encoded information according to the specific encoding pattern of the instruction type
+        self._decoded = self._instruction_type.encoding(self._encoded)
 
     def __str__(self):
-        encoded_string = format(self._encoded, "#034b")[2:]
-        out = "BEGIN INSTRUCTION\n"
-        out += f"Encoded: {encoded_string}\n"
-        out += f"Opcode: {self._opcode}\n"
-        out += f"Param 1: {encoded_string[17:22]}:{self._regA}\n"
-        out += f"Param 2: {encoded_string[22:27]}:{self._regB}\n"
-        out += f"Param 3: {encoded_string[27:]}:{self._regC}\n"
-        out += "END INSTRUCTION\n"
+        out = ''
+        nl = '\n'
+        if self._decoded is None:
+            out = f'raw bits: {self._encoded:0{2+32}b}{nl}instruction has not been decoded yet'
+        else:
+            out = str(self._decoded)
+
         return out
+
+    def __getitem__(self, field: str) -> int:
+        """gets the value of the specified field
+
+        Parameters
+        ----------
+        field : str
+            the field name
+
+        Returns
+        -------
+        int, None
+            the value of the field, or None if the field does not exist (possibly because the instruction has not been decoded yet)
+        """
+        if self._decoded is None:
+            raise DecodeError
+        else:
+            return self._decoded[field]
+
+    def __setitem__(self, field: str, value: int) -> None:
+        if self._decoded is None:
+            raise DecodeError
+        else:
+            self._decoded[field] = value
