@@ -5,6 +5,16 @@ from typing import Union, Callable, Any, List
 from functools import reduce
 from eisa import EISA
 from clock import Clock
+from threading import Thread
+
+class PipelineStall(Exception):
+    def __init__(self, stage: str, message='The pipeline has stalled'):
+        self.stage = stage
+        self.message = message
+
+    def __str__(self):
+        return f'The pipeline has stalled due to \'{self.stage}\''
+
 
 class MemorySubsystem:
     _cache: Cache
@@ -25,29 +35,48 @@ class MemorySubsystem:
     # read
     def __getitem__(self, address: int) -> int: # TODO write docstring
         val = 0
-        if self._cache.check_hit(address):
-            # cache hit
-            val = self._cache[address]
-        else:
-            # cache miss
 
-            # get a slice corresponding to the block of words stored in each cache way
-            address_block = self._cache.offset_align(address)
-            # load the value from RAM into cache
-            self._cache.replace(address_block, self._RAM[address_block]) # TODO: make the read from RAM use RAM's read policy rather than reading directly
+        # run this section in a detached thread
+        def get_func():
+            if not self._cache.check_hit(address):
+                # cache miss
+
+                # get a slice corresponding to the block of words stored in each cache way
+                address_block = self._cache.offset_align(address)
+                # load the value from RAM into cache
+                self._cache.replace(address_block, self._RAM[address_block]) # TODO: make the read from RAM use RAM's read policy rather than reading directly
+            
             val = self._cache[address]
         
-        return val
+        get_thread = Thread(target=get_func, name='memory get thread')
+        get_thread.start()
+
+        if get_thread.is_alive():
+            # return none if the read is still occuring
+            raise PipelineStall('memory read')
+        else:
+            # join the thread and return the value
+            get_thread.join()
+            return val
 
     # write
     def __setitem__(self, address: int, value: int) -> None: # TODO write docstring
-        
-        if self._cache.check_hit(address):
-            # cache hit
-            self._cache[address] = value
-            self._RAM[address] = value
+        def set_func():
+            if self._cache.check_hit(address):
+                # cache hit
+                self._cache[address] = value
+                self._RAM[address] = value
+            else:
+                # cache miss
+                self._RAM[address] = value
+
+        set_thread = Thread(target=set_func, name='memory write')
+        set_thread.start()
+
+        if set_thread.is_alive():
+            raise PipelineStall('memory write')
         else:
-            # cache miss
-            self._RAM[address] = value
+            set_thread.join()
+
         
             
