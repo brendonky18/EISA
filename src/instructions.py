@@ -5,7 +5,7 @@ from typing import Type, Union, Dict, Callable, List
 from eisa import EISA
 
 class InstructionType:
-    """Wrapper class for an instruction type (add, subtract, load, store, etc.), 
+    """Wrapper class for a generic instruction type (add, subtract, load, store, etc.), 
     it's associated encoding, 
     and function calls within the various pipeline stages
     """
@@ -27,16 +27,6 @@ class InstructionType:
     # STR
     STR_Encoding = MEM_Encoding.create_subtype('STR_Encoding')
     STR_Encoding.add_field('src', 21, 5)
-
-    # B, BL
-    B_Encoding = MEM_Encoding.create_subtype('B_Encoding')
-    B_Encoding.add_field('offset', 0, 10)\
-    .add_field('reg', 10, 5)\
-    .add_field('imm', 15, 1)\
-    .add_field('V', 22, 1)\
-    .add_field('C', 23, 1)\
-    .add_field('Z', 24, 1)\
-    .add_field('N', 25, 1)
     
     # TODO: Push, Pop, and all AES instructions
     #endregion Instruction Encodings
@@ -75,7 +65,9 @@ class InstructionType:
         self.writeback_stage_cb(instruction)
 
 class ALU_InstructionType(InstructionType):
-    # ADD, SUB, CMP, MULT, DIV, MOD, LSL, LSR, ASR, AND, XOR, ORR, NOT
+    """Wrapper class for the ALU instructions:
+        ADD, SUB, CMP, MULT, DIV, MOD, LSL, LSR, ASR, AND, XOR, ORR, NOT
+    """
     ALU_Encoding = InstructionType.Encoding.create_subtype('ALU_Encoding') 
     ALU_Encoding.add_field('immediate', 0, 15, overlap=True)\
     .add_field('op2', 10, 5, overlap=True)\
@@ -83,9 +75,18 @@ class ALU_InstructionType(InstructionType):
     .add_field('op1', 16, 5)\
     .add_field('dest', 21, 5)
 
-    def __init__(self, mnemonic: str, e_func_cb: Callable[[int, int], int]):
+    def __init__(self, mnemonic: str, ALU_func: Callable[[int, int], int]):
+        """creates a new ALU instruction type
+
+        Parameters
+        ----------
+        mnemonic : str
+            the mnemonic corresponding to the opcode
+        ALU_func : Callable[[int, int], int]
+            the ALU operation to be performed in the execute stage
+        """
         def e_func(instruction: Instruction) -> None:
-            instruction.computed = e_func_cb(instruction['op1'], instruction['op2'])
+            instruction.computed = ALU_func(instruction['op1'], instruction['op2'])
 
         def m_func(instruction: Instruction) -> None:
             pass # TODO implement what should be done at the memory stage
@@ -96,6 +97,41 @@ class ALU_InstructionType(InstructionType):
         super().__init__(mnemonic, e_func, m_func, w_func)
 
         self.encoding = InstructionType.Encoding
+
+class B_InstructionType(InstructionType):
+    """wrapper class for the branch instructions:
+        B{cond}, BL{cond}
+    """
+    # B, BL
+    B_Encoding = InstructionType.Encoding.create_subtype('B_Encoding')
+    B_Encoding.add_field('offset', 0, 10)\
+    .add_field('base', 10, 5)\
+    .add_field('immediate', 0, 15, overlap=True)\
+    .add_field('imm', 15, 1)\
+    .add_field('V', 22, 1)\
+    .add_field('C', 23, 1)\
+    .add_field('Z', 24, 1)\
+    .add_field('N', 25, 1)
+
+    def __init__(self, mnemonic: str, on_branch: Callable[[], None]):
+        """creates a new branch instruction type
+
+        Parameters
+        ----------
+        mnemonic : str
+            the mnemonic corresponding to the opcode
+        on_branch : Callable[[], None]
+            callback determining what happens when a branch occurs, 
+            i.e. whether the link register should be updated
+        """
+        # TODO: define behavior for branch instruction
+        def e_func(instruction: Instruction):
+            pass
+        def m_func(instruction: Instruction):
+            pass
+        def w_func(instruction: Instruction):
+            pass
+        super().__init__(mnemonic, e_func, m_func, w_func)
 
 # dictionary mapping the opcode number to an instruction type
 # this is where each of the instruction types and their behaviors are defined
@@ -131,8 +167,8 @@ OpCode_InstructionType_lookup: List[InstructionType] = [
     #AESGE
     #AESDE
     #CMP
-    #B
-    #BL
+    B_InstructionType('B', None), # TODO implement branch behavior
+    B_InstructionType('BL', None)
     #END
 ]
 
