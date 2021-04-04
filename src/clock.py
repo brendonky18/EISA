@@ -120,8 +120,8 @@ class Clock:
         Any
             returns whatever the passed function returns
         """
+        from debug import terminal_print
         if not (Clock.run_clock or Clock.step_clock):
-            from __main__ import terminal_print
             terminal_print('Warning: Clock not running. Commands will not be executed')
             
         self._waiting = True
@@ -138,7 +138,7 @@ class Clock:
         while self._waiting:
             sleep(0.001)
 
-        from __main__ import terminal_print
+        #from __main__ import terminal_print
         terminal_print(f'{"Command" if wait_event_name is None else wait_event_name} took {my_event.counter} cycle{"s" if my_event.counter > 1 else ""} to complete')
 
         # trigger the event function if one was passes

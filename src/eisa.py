@@ -29,7 +29,16 @@ class EISA_properties(object):
     @const
     def RAM_SIZE(self): return 8  # the number of addressable bits used by RAM
 
-    # wrappers
+    @const
+    def NUM_GP_REGS(self): return 32 # number of 32-bit general purpose registers
+
+    @const
+    def GP_REGS_BITS(self): return 0b11111 # bits to mask register address
+
+    @const
+    def GP_NUM_FIELD_BITS(self): return 5 # number of bits to shift to each field in instructions
+
+# wrappers
     @const
     def ADDRESS_SPACE(self): return 2 ** self.ADDRESS_SIZE  # the number of valid addresses
 

@@ -4,39 +4,55 @@ from memory_subsystem import MemorySubsystem
 from eisa import EISA
 from clock import Clock
 from threading import Lock
+from pipeline import PipeLine
+from pipeline import Instruction
+from PyQt5.QtCore import QThread
+
 
 print_lock: Lock = Lock()
 
+global terminal_name
+
+terminal_name = ''
 
 
+def terminal_print(print_string: str):
+    with print_lock:
+        print(f'\r{print_string}')
+        print(terminal_name, end='$ ', flush=True)
 
-if __name__ == '__main__':
+
+def main(memory: MemorySubsystem, pipeline: PipeLine):
     arg_parser = argparse.ArgumentParser()
-    
-    arg_parser.add_argument('-cs', action='store', type=int, help='the size of the cache, in words') # arg to get cache size
-    arg_parser.add_argument('-rs', action='store', type=int, help='the size of the RAM, in words') # arg to get memory size
-    arg_parser.add_argument('-n', action='store', type=str, help='the size of the RAM, in words') # arg to get memory size
+
+    arg_parser.add_argument('-cs', action='store', type=int,
+                            help='the size of the cache, in words')  # arg to get cache size
+    arg_parser.add_argument('-rs', action='store', type=int,
+                            help='the size of the RAM, in words')  # arg to get memory size
+    arg_parser.add_argument('-n', action='store', type=str,
+                            help='the size of the RAM, in words')  # arg to get memory size
 
     args = arg_parser.parse_args()
 
     memory = MemorySubsystem(EISA.ADDRESS_SIZE, args.cs, 1, 1, args.rs, 2, 2)
+    pipeline = PipeLine(0, [0] * 32, memory)
+
+
 
     cmd_parser = CommandParser('dbg' if args.n is None else args.n)
     terminal_name = args.n
 
-    def terminal_print(print_string:str):
-        with print_lock:
-            print(f'\r{print_string}')
-            print(terminal_name, end='$ ', flush=True)
 
     @commandparse_cb
     def cache_read(addr: int):
         terminal_print(f'Reading from address {addr}\n{addr:#0{4}x}: {memory[addr]}')
 
+
     @commandparse_cb
     def cache_write(addr: int, val: int):
         terminal_print(f'writing {val} to address {addr}')
         memory[addr] = val
+
 
     @commandparse_cb
     def view(device: str, start: int, size: int):
@@ -47,10 +63,12 @@ if __name__ == '__main__':
         else:
             terminal_print(f'<{device}> is not a valid memory device')
 
+
     @commandparse_cb
     def view_way(index: int):
         address = index << 2
         print(str(memory._cache.get_cacheway(address)))
+
 
     @commandparse_cb
     def clock(mode: str):
@@ -60,38 +78,74 @@ if __name__ == '__main__':
             terminal_print('Clock started')
         elif mode == 'stop':
             Clock.stop()
-            terminal_print('Clock stopped')  
+            terminal_print('Clock stopped')
         else:
             terminal_print(f'<{mode}> is not a valid option, please enter start/stop')
+
+
     @commandparse_cb
     def step_clock(steps: int):
         terminal_print(f'Clock stepping {steps} iterations')
         Clock.step(steps)
 
+
     @commandparse_cb
     def load_program(file_path: str, start_addr: int):
         # read instructions from the file
         with open(file_path, 'r') as f:
-            program_instructions = [int(line.rstrip(), 2) for line in f] # 2 indicates converting from a base 2 string
+            program_instructions = [int(line.rstrip().split('#', maxsplit=1)[0], 2) for line in f]  # 2 indicates converting from a base 2 string
+
+
 
         # load them into RAM
         stop_addr = start_addr + len(program_instructions)
         if stop_addr > memory._RAM._local_addr_space:
-            raise ValueError(f'Program requires {len(program_instructions)*4}b and is too large to be loaded starting at address {start_addr}')
-        
+            raise ValueError(
+                f'Program requires {len(program_instructions) * 4}b and is too large to be loaded starting at address {start_addr}')
+
         for dest_addr, cur_instruction in zip(range(start_addr, stop_addr), program_instructions):
             memory[dest_addr] = cur_instruction
+            instruction = Instruction(cur_instruction)
+            instruction.decode()
+            print(str(instruction))
 
 
+
+    @commandparse_cb
+    def run_pipeline(cycle_count: int):
+        pipeline.cycle(cycle_count)
+        terminal_print('pipeline ran')
+
+
+    @commandparse_cb
+    def view_piepline():
+        print(str(pipeline))
+
+
+    @commandparse_cb
+    def view_registers():
+        print(f'{pipeline._registers}')
+
+    '''
+    @commandparse_cb
+    def build_ui():
+        dialog = Dialog(memory, pipeline)
+        dialog.build_ui()
+    '''
 
     cmd_parser.add_command('read', [int], cache_read)
     cmd_parser.add_command('write', [int, int], cache_write)
     cmd_parser.add_command('view', [str, int, int], view)
-    cmd_parser.add_command('show', [str, int, int], view) # alias for the view command
+    cmd_parser.add_command('show', [str, int, int], view)  # alias for the view command
     cmd_parser.add_command('view-way', [int], view_way)
-    cmd_parser.add_command('show-way', [int], view_way) # alias
+    cmd_parser.add_command('show-way', [int], view_way)  # alias
     cmd_parser.add_command('clock', [str], clock)
     cmd_parser.add_command('step', [int], step_clock)
     cmd_parser.add_command('load', [str, int], load_program)
+    cmd_parser.add_command('cycle', [int], run_pipeline)
+    cmd_parser.add_command('show-pipeline', [], view_piepline)
+    cmd_parser.add_command('show-registers', [], view_registers)
+    #cmd_parser.add_command('build-ui', [], build_ui)
 
     cmd_parser.start()
+
