@@ -10,7 +10,7 @@ class BitVectorField:
     def __init__(self, start, size):
         self.start = start
         self.size = size
-        self.stop = start + size
+        self.stop = start + size - 1
         self.mask = 2**size - 1
 
 
@@ -166,7 +166,7 @@ class BitVector:
         """
         return type(name, (cls,), {
             '_size'         : size if size is not None else cls._size,
-            'add_field'     : cls.add_field
+            '_fields'       : cls._fields.copy()
         })
 
 # if __name__ == '__main__':
