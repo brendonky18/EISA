@@ -1,7 +1,8 @@
-from typing import Callable, Any, List, Optional, Type
-from threading import Thread, Lock
-from time import sleep, perf_counter_ns
 from dataclasses import dataclass
+from threading import Thread, Lock
+from time import sleep
+from typing import Callable, Any, List, Optional
+
 
 @dataclass
 class ClockEvent:

@@ -1,8 +1,9 @@
-from ast import literal_eval
-from typing import Callable, Any, Optional, List
+from typing import Callable, Any, List
+from threading import Thread
+from typing import Callable, Any, List
 from dataclasses import dataclass
 from clock import Clock
-from threading import Thread, Lock
+
 
 @dataclass
 class Command:

@@ -1,13 +1,10 @@
 import argparse
-from commandparse import CommandParser, commandparse_cb
-from memory_subsystem import MemorySubsystem
-from eisa import EISA
-from clock import Clock
 from threading import Lock
+from memory_subsystem import MemorySubsystem
+from clock import Clock
+from commandparse import CommandParser, commandparse_cb
+from main import *
 from pipeline import PipeLine
-from pipeline import Instruction
-from PyQt5.QtCore import QThread
-
 
 print_lock: Lock = Lock()
 
@@ -33,11 +30,6 @@ def main(memory: MemorySubsystem, pipeline: PipeLine):
                             help='the size of the RAM, in words')  # arg to get memory size
 
     args = arg_parser.parse_args()
-
-    memory = MemorySubsystem(EISA.ADDRESS_SIZE, args.cs, 1, 1, args.rs, 2, 2)
-    pipeline = PipeLine(0, [0] * 32, memory)
-
-
 
     cmd_parser = CommandParser('dbg' if args.n is None else args.n)
     terminal_name = args.n

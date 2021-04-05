@@ -1,11 +1,16 @@
 import sys
+
 from PyQt5.QtWidgets import *
-from memory_subsystem import *
-from pipeline import *
+
+from memory_subsystem import MemorySubsystem
+from pipeline import PipeLine, Instruction
+
 from clock import Clock
-from debug import *
-from PyQt5.QtCore import QThread
-from debug import main
+
+from eisa import EISA
+
+#from debug import *
+#from main import *
 
 
 class StageGroup:
@@ -107,7 +112,7 @@ class Dialog(QDialog):
         self.stages[stage].op1.setText(f"Op1: {self._pipeline._pipeline[stage]._opA}")
         self.stages[stage].op2.setText(f"Op2: {self._pipeline._pipeline[stage]._opB}")
         self.stages[stage].op3.setText(f"Op3: {self._pipeline._pipeline[stage]._opC}")
-        self.stages[stage].computed.setText(f"Computed: {self._pipeline._pipeline[stage]._computed}")
+        self.stages[stage].computed.setText(f"Computed: {self._pipeline._pipeline[stage].computed}")
 
     def load_stages(self):
         for i in range(5):
@@ -117,10 +122,8 @@ class Dialog(QDialog):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
 
-    app.setStyle('Windows')
-
     memory = MemorySubsystem(EISA.ADDRESS_SIZE, EISA.CACHE_SIZE, 1, 1, EISA.RAM_SIZE, 2, 2)
-    pipeline = PipeLine(0, [0 for i in range(32)], memory)
+    pipeline = PipeLine(0, [0] * 32, memory)
 
     Clock.start()
 

@@ -1,6 +1,9 @@
-from __future__ import annotations # must be first import, allows type hinting of next_device to be the enclosing class
-from typing import Dict, List, Type, Optional
+from __future__ import annotations  # must be first import, allows type hinting of next_device to be the enclosing class
+
+from typing import Dict, Type, Optional
+
 from eisa import EISA
+
 
 class BitVectorField:
     _start: int

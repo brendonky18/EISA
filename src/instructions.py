@@ -1,9 +1,24 @@
 from __future__ import annotations
-from enum import Enum
-from bit_vectors import BitVector
-from typing import Type, Union, Dict, Callable, List
-from eisa import EISA
 
+from typing import Type, Union, Callable, List
+from bit_vectors import BitVector
+from eisa import EISA
+from pipeline import PipeLine
+
+
+# dictionary mapping the opcode number to an instruction type
+# this is where each of the instruction types and their behaviors are defined
+
+
+class DecodeError(Exception):
+    message: str
+    def __init__(self, message: str='Instruction has not been decoded yet'):
+        self.message = message
+
+    def __str__(self):
+        return self.message
+
+#region Instruction Types
 class InstructionType:
     """Wrapper class for a generic instruction type (add, subtract, load, store, etc.), 
     it's associated encoding, 
@@ -34,7 +49,7 @@ class InstructionType:
     mnemonic: str
     encoding: Type[BitVector]
         
-    def __init__(self, mnemonic: str, e_func: Callable[[Instruction], None], m_func: Callable[[Instruction], None], w_func: Callable[[Instruction], None]):
+    def __init__(self, mnemonic: str, e_func: Callable[[Instruction, PipeLine], None]=lambda _: None, m_func: Callable[[Instruction, PipeLine], None]=lambda _: None, w_func: Callable[[Instruction, PipeLine], None]=lambda _: None):
         """creates a new InstructionType
 
         Parameters
@@ -54,14 +69,14 @@ class InstructionType:
         self.memory_stage_cb = m_func
         self.writeback_stage_cb = w_func
 
-    def execute_stage_func(self, instruction: Instruction) -> None:
-        self.execute_stage_cb(instruction)
+    def execute_stage_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
+        self.execute_stage_cb(instruction, pipeline)
 
-    def memory_stage_func(self, instruction: Instruction) -> None:
-        self.memory_stage_cb(instruction)
+    def memory_stage_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
+        self.memory_stage_cb(instruction, pipeline)
 
-    def writeback_stage_func(self, instruction: Instruction) -> None:
-        self.writeback_stage_cb(instruction)
+    def writeback_stage_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
+        self.writeback_stage_cb(instruction, pipeline)
 
 class ALU_InstructionType(InstructionType):
     """Wrapper class for the ALU instructions:
@@ -84,18 +99,47 @@ class ALU_InstructionType(InstructionType):
         ALU_func : Callable[[int, int], int]
             the ALU operation to be performed in the execute stage
         """
-        def e_func(instruction: Instruction) -> None:
-            instruction.computed = ALU_func(instruction['op1'], instruction['op2'])
 
-        def m_func(instruction: Instruction) -> None:
-            pass # TODO implement what should be done at the memory stage
-
-        def w_func(instruction: Instruction) -> None:
-            pass # TODO implement what sbould be done at the writeback stage
-
-        super().__init__(mnemonic, e_func, m_func, w_func)
+        super().__init__(mnemonic, self._e_func, self._m_func, self._w_func)
 
         self.encoding = InstructionType.Encoding
+        self._ALU_func = ALU_func
+
+    def _e_func(self, instruction: Instruction, pipeline: Pipeline) -> None:
+        instruction.computed = self._ALU_func(instruction['op1'], instruction['op2'])
+
+    def _m_func(self, instruction: Instruction, pipeline: Pipeline) -> None:
+        pass # TODO implement what should be done at the memory stage
+
+    def _w_func(self, instruction: Instruction, pipeline: Pipeline) -> None:
+        pass # TODO implement what sbould be done at the writeback stage
+
+class CMP_InstructionType(ALU_InstructionType):
+    """wrapper class for the CMP instruction
+    """
+    
+    def __init__(self, mnemonic: str, CMP_func: Callable[[int, int], int]):
+        self.mnemonic = mnemonic
+        self._CMP_func = CMP_func
+
+    def _e_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
+        res = self._CMP_func(instruction['op1'], instruction['op2'])
+
+        # unsigned 32 bit number, stores negative numbers in 2's complement form
+        # u32_res = (res + 2**(EISA.WORD_SIZE - 1)) & (2**(EISA.WORD_SIZE - 1) - 1) | (int(res < 0) << (EISA.WORD_SIZE - 1))
+
+        pipeline['n'] = bool(res & (0b1 << (EISA.WORD_SIZE - 1))) # gets the sign bit (bit 31)
+        pipeline['z'] = res == 0
+        pipeline['c'] = res >= EISA.WORD_SPACE
+        
+        # I know this isn't very ~boolean zen~ but it's more readable so stfu
+        signed_overflow = False
+        if res <= -2**(EISA.WORD_SIZE - 1): # less than the minimum signed value
+            signed_overflow = True
+        elif res >= 2**(EISA.WORD_SIZE - 1):
+            signed_overflow = True
+
+        pipeline['v'] = signed_overflow
 
 class B_InstructionType(InstructionType):
     """wrapper class for the branch instructions:
@@ -105,14 +149,13 @@ class B_InstructionType(InstructionType):
     B_Encoding = InstructionType.Encoding.create_subtype('B_Encoding')
     B_Encoding.add_field('offset', 0, 10)\
     .add_field('base', 10, 5)\
-    .add_field('immediate', 0, 15, overlap=True)\
     .add_field('imm', 15, 1)\
     .add_field('V', 22, 1)\
     .add_field('C', 23, 1)\
     .add_field('Z', 24, 1)\
     .add_field('N', 25, 1)
 
-    def __init__(self, mnemonic: str, on_branch: Callable[[], None]):
+    def __init__(self, mnemonic: str, on_branch: Callable[[], None]=lambda: None):
         """creates a new branch instruction type
 
         Parameters
@@ -124,60 +167,35 @@ class B_InstructionType(InstructionType):
             i.e. whether the link register should be updated
         """
         # TODO: define behavior for branch instruction
-        def e_func(instruction: Instruction):
-            pass
+        def e_func(instruction: Instruction, pipeline: PipeLine):
+            take_branch = instruction['n'] == pipeline.condition_flags['n'] and \
+                          instruction['z'] == pipeline.condition_flags['z'] and \
+                          instruction['c'] == pipeline.condition_flags['c'] and \
+                          instruction['v'] == pipeline.condition_flags['v']
+                         
+            # squash the pipeline
+            pipeline.squash()
+
+            # perform the other behavior (ie. update the link register)
+            on_branch()
+
+            # calculate the new target address
+            target_address = 0b0
+            if instruction['imm']: # immediate value used, PC relative
+                target_address = instruction['offset'] + pipeline._pc
+            else: # no immediate, register indirect used
+                base_reg = instruction['base']
+                target_address = instruction['offset'] + pipeline._registers[base_reg]
+
+            # update the program counter
+            pipeline._pc = target_address
+
         def m_func(instruction: Instruction):
             pass
         def w_func(instruction: Instruction):
             pass
         super().__init__(mnemonic, e_func, m_func, w_func)
-
-# dictionary mapping the opcode number to an instruction type
-# this is where each of the instruction types and their behaviors are defined
-OpCode_InstructionType_lookup: List[InstructionType] = [
-    InstructionType('NOOP', lambda _: None, lambda _: None, lambda _: None),
-    ALU_InstructionType('ADD', lambda op1, op2: op1 + op2),
-    ALU_InstructionType('SUB', lambda op1, op2: op1 - op2),
-    ALU_InstructionType('MULT', lambda op1, op2: op1 * op2),
-    ALU_InstructionType('DIV', lambda op1, op2: op1 // op2),
-    ALU_InstructionType('MOD', lambda op1, op2: op1 % op2),
-    ALU_InstructionType('LSL', lambda op1, op2: op1 << op2),
-    ALU_InstructionType('LSR', lambda op1, op2: (op1 & EISA.WORD_MASK) >> op2),
-    ALU_InstructionType('ASR', lambda op1, op2: op1 >> op2),
-    ALU_InstructionType('AND', lambda op1, op2: op1 & op2),
-    ALU_InstructionType('XOR', lambda op1, op2: op1 ^ op2),
-    ALU_InstructionType('ORR', lambda op1, op2: op1 | op2),
-    # TODO implement the rest of the instructions
-    #LDR
-    #STR
-    #PUSH
-    #POP
-    #MOVAK
-    #LDRAK
-    #STRAK
-    #PUSAK
-    #POPAK
-    #AESE
-    #AESD
-    #AESMC
-    #AESIC
-    #AESSR
-    #AESIR
-    #AESGE
-    #AESDE
-    #CMP
-    B_InstructionType('B', None), # TODO implement branch behavior
-    B_InstructionType('BL', None)
-    #END
-]
-
-class DecodeError(Exception):
-    message: str
-    def __init__(self, message: str='Instruction has not been decoded yet'):
-        self.message = message
-
-    def __str__(self):
-        return self.message
+#endregion Instruction Types
 
 class Instruction:
     """class for an instance of an instruction, containing the raw encoded bits of the instruction, as well as helper functions for processing the instruction at the different pipeline stages
@@ -210,6 +228,12 @@ class Instruction:
 
     _opcode: int
     _instruction_type: InstructionType
+
+    # value assigned by scoreboard indicating what row this instruction is present in
+    #   in the scoreboard
+    _scoreboard_index: int
+
+    _pipeline: PipeLine
     def __init__(self, encoded: int):
         """creates a new instance of an instruction
 
@@ -218,11 +242,24 @@ class Instruction:
         encoded : int
             the encoded bits corresponding to the instruction
         """
+        self._scoreboard_index = -1
+        
         self._encoded = encoded
         self._decoded = None
 
         self.output = None
         self.inputs = None
+
+        # init values required by ui.py
+        self._opcode = -1
+        self._regA = -1
+        self._regB = -1
+        self._regC = -1
+        self._opA = -1
+        self._opB = -1
+        self._opC = -1
+        self.computed = -1
+        
 
     def decode(self):
         """helper function which decodes the instruction
@@ -270,3 +307,40 @@ class Instruction:
             raise DecodeError
         else:
             self._decoded[field] = value
+
+OpCode_InstructionType_lookup: List[InstructionType] = [
+    InstructionType('NOOP'),
+    ALU_InstructionType('ADD', lambda op1, op2: op1 + op2),
+    ALU_InstructionType('SUB', lambda op1, op2: op1 - op2),
+    CMP_InstructionType('CMP', lambda op1, op2: op1 - op2),
+    ALU_InstructionType('MULT', lambda op1, op2: op1 * op2),
+    ALU_InstructionType('DIV', lambda op1, op2: op1 // op2),
+    ALU_InstructionType('MOD', lambda op1, op2: op1 % op2),
+    ALU_InstructionType('LSL', lambda op1, op2: op1 << op2),
+    ALU_InstructionType('LSR', lambda op1, op2: (op1 & EISA.WORD_MASK) >> op2),
+    ALU_InstructionType('ASR', lambda op1, op2: op1 >> op2),
+    ALU_InstructionType('AND', lambda op1, op2: op1 & op2),
+    ALU_InstructionType('XOR', lambda op1, op2: op1 ^ op2),
+    ALU_InstructionType('ORR', lambda op1, op2: op1 | op2),
+    # TODO implement the rest of the instructions, implemented as NOOPs currently
+    InstructionType('LDR'),
+    InstructionType('STR'),
+    InstructionType('PUSH'),
+    InstructionType('POP'),
+    InstructionType('MOVAK'),
+    InstructionType('LDRAK'),
+    InstructionType('STRAK'),
+    InstructionType('PUSAK'),
+    InstructionType('POPAK'),
+    InstructionType('AESE'),
+    InstructionType('AESD'),
+    InstructionType('AESMC'),
+    InstructionType('AESIC'),
+    InstructionType('AESSR'),
+    InstructionType('AESIR'),
+    InstructionType('AESGE'),
+    InstructionType('AESDE'),
+    B_InstructionType('B'),
+    InstructionType('BL'), # TODO implement
+    InstructionType('END')
+]

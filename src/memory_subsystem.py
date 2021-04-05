@@ -1,11 +1,9 @@
-from __future__ import annotations # must be first import
-from tabulate import tabulate  # pip install tabulate
-from memory_devices import *
-from typing import Union, Callable, Any, List   
-from functools import reduce
-from eisa import EISA
-from clock import Clock
+from __future__ import annotations  # must be first import
+
 from threading import Thread
+
+from memory_devices import *
+
 
 class PipelineStall(Exception):
     def __init__(self, stage: str, message='The pipeline has stalled'):

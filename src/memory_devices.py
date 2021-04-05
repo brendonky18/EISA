@@ -1,11 +1,14 @@
-from __future__ import annotations # must be first import, allows type hinting of next_device to be the enclosing class
-from abc import ABC, abstractmethod # Abstract Base Class
-from tabulate import tabulate  # pip install tabulate
+from __future__ import annotations  # must be first import, allows type hinting of next_device to be the enclosing class
+
+from abc import ABC, abstractmethod  # Abstract Base Class
 from functools import reduce
-from typing import Union, Optional, Callable, Any, List
-from eisa import EISA
-from constant import const
+from typing import Union, Optional, Callable, Any
+
+from tabulate import tabulate  # pip install tabulate
+
 from clock import Clock
+from eisa import EISA
+
 
 class MemoryMissError(ValueError):
     # raised on a cache miss

@@ -38,6 +38,12 @@ class EISA_properties(object):
     @const
     def GP_NUM_FIELD_BITS(self) -> int: return 5 # number of bits to shift to each field in instructions
 
+    @const
+    def NUM_SCOREBOARD_ROWS(self) -> int: return 4 # number of rows present in pipeline scoreboard
+
+    @const
+    def NUM_INSTR_Q_ROWS(self) -> int: return 8 # max size of instruction queue in scoreboard
+
 # wrappers
     @const
     def ADDRESS_SPACE(self) -> int: return 2 ** self.ADDRESS_SIZE  # the number of valid addresses

@@ -1,8 +1,9 @@
 import unittest
-from pipeline import *
-from eisa import EISA
+
 from clock import *
+from eisa import EISA
 from memory_subsystem import MemorySubsystem
+from pipeline import *
 
 
 class UnittestPipeline(unittest.TestCase):
