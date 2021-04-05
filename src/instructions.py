@@ -18,7 +18,7 @@ class InstructionType:
     # LDR, STR
     MEM_Encoding = Encoding.create_subtype('MEM_Encoding')
     MEM_Encoding.add_field('offset', 0, 10)\
-    .add_field('reg', 10, 5)
+    .add_field('base', 10, 5)
 
     # LDR
     LDR_Encoding = MEM_Encoding.create_subtype('LDR_Encoding')
@@ -56,7 +56,6 @@ class InstructionType:
 
     def execute_stage_func(self, instruction: Instruction) -> None:
         self.execute_stage_cb(instruction)
-        
 
     def memory_stage_func(self, instruction: Instruction) -> None:
         self.memory_stage_cb(instruction)
