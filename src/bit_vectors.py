@@ -20,9 +20,8 @@ class BitVector:
     # static variables
     _size: int = EISA.WORD_SIZE
     _fields: Dict[str, BitVectorField] = {}
-    _unallocated: List[slice] = [slice(0, _size)]
 
-    def __init__(self, val: Optional[int]=0b0):
+    def __init__(self, val: int=0b0):
         self._bits = val
 
     def __str__(self):
@@ -32,7 +31,7 @@ class BitVector:
         
         return s
 
-    def __getitem__(self, field: str) -> Optional[int]:
+    def __getitem__(self, field: str) -> int:
         """gets the value stored at the specified field
 
         Parameters
@@ -50,12 +49,10 @@ class BitVector:
         target_field = None
         try:
             target_field = self._fields[field]
-        except KeyError:
-            print(f'\'{field}\' is not a field in type \'{type(self).__name__}\'')
+        except KeyError: # override the error message
+            raise KeyError(f'\'{field}\' is not a field in type \'{type(self).__name__}\'') 
         else:
             return (self._bits >> target_field.start) & target_field.mask
-
-        return None
     
     def __setitem__(self, field: str, value: int) -> None:
         """assigns the passed value to the passed field
@@ -88,7 +85,7 @@ class BitVector:
             self._bits |= value << target_field.start
 
     @classmethod
-    def add_field(cls, field_name: str, field_start: int, field_size: int) -> Type[BitVector]:
+    def add_field(cls, field_name: str, field_start: int, field_size: int, overlap: bool=False) -> Type[BitVector]:
         """creates a new field starting at the passed value, and of the passed size
 
         Parameters
@@ -122,45 +119,23 @@ class BitVector:
         if cls._size < new_field.stop:
             raise(ValueError('Cannot create a field which extends beyond the bit vector'))
 
-        for i in range(len(cls._unallocated)):
-            slot = cls._unallocated[i]
-            if slot.start <= new_field.start and new_field.stop <= slot.stop:
-                new_unallocated = cls._unallocated[:i]
+        # checks if we're trying to allocate where something has already been allocated
+        if not overlap:
+            for cur_field_name in cls._fields:
+                cur_field = cls._fields[cur_field_name]
 
-                if slot.start < new_field.start:
-                    new_unallocated.append(slice(slot.start, new_field.start))
+                if new_field.start <= cur_field.stop and cur_field.start <= new_field.stop:
+                    raise ValueError(f'Cannot create new field \'{field_name}\'. Overlaps with {cur_field_name}.')
 
-                if new_field.stop < slot.stop:
-                    new_unallocated.append(slice(slot.stop, new_field.stop))
-
-                new_unallocated += cls._unallocated[i + 1:]
-
-                cls._unallocated = new_unallocated
-
-            cls._fields[field_name] = new_field
-            return cls
+        cls._fields[field_name] = new_field
+        return cls
         
-        raise ValueError(f'Cannot create new field \'{field_name}\'. Bits {new_field.start} to {new_field.stop} are already used by another field.')
+        
 
     @classmethod
     def remove_field(cls, field_name: str) -> Type[BitVector]:
         # remove the old field
-        field = cls._fields.pop(field_name)
-
-        # add to unallocated space
-        cls._unallocated.append(slice(field.start, field.stop))
-
-        # sorts the list
-        cls._unallocated.sort(key=lambda cur_slice: cur_slice.start)
-
-        # merges the list
-        i = len(cls._unallocated) - 1
-        while i >= 0:
-            if cls._unallocated[i].stop == cls._unallocated[i + 1].start:
-                cls._unallocated[i].stop = cls._unallocated.pop(i + 1).stop
-
-            i -= 1
-
+        del cls._fields[field_name]
         return cls
 
     @classmethod
