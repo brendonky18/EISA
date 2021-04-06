@@ -4,7 +4,7 @@ from memory_subsystem import MemorySubsystem
 from clock import Clock
 from commandparse import CommandParser, commandparse_cb
 from main import *
-from pipeline import PipeLine
+from pipeline import PipeLine, Instruction
 
 print_lock: Lock = Lock()
 
