@@ -50,6 +50,7 @@ class PipeLine:
     #region registers
     # general purpose registers
     _registers: list[int] # TODO refactor '_registers' to 'registers'
+    _active_registers: list[bool]
 
     # AES registers
         # TODO
@@ -88,7 +89,51 @@ class PipeLine:
             'z': 0,
             'c': 0,
             'v': 0
-        }
+    }
+
+    # region dependencies
+    def check_dependency(self, reg_addr:int) -> bool:
+        """function that will tell the decode stage if a register is in use.
+        If so the register should pass a NoOp forward until the register is released.
+
+        Parameters
+        ----------
+        reg_addr : int
+            the register to check the status of
+
+        Returns
+        -------
+        bool
+            True if the register can be used,
+            False if the register is used by another instruction
+        """
+        return self._active_registers[reg_addr]
+
+    def claim_dependency(self, reg_addr: int) -> None:
+        """function that claims a register as a dependency so that it cannot be used by other instructions
+
+        Parameters
+        ----------
+        reg_addr : int
+            the register to claim
+        """
+        if self._active_registers[reg_addr]:
+            raise ValueError(f'Cannot claim register {reg_addr} as a dependency, it has already been claimed by another instruction')
+
+        self._active_registers[reg_addr] = True
+
+    def free_dependency(self, reg_addr: int) -> None:
+        """function that frees a register so that it can be used by other instructions
+
+        Parameters
+        ----------
+        reg_addr : int
+            the register to free
+        """
+
+        self._active_registers[reg_addr] = False
+
+    # endregion dependencies
 
     # Destination of new program counter
     def squash(self, newPC: int):
@@ -511,8 +556,8 @@ class Instruction:
     _decoded: BitVector # will be none, until the instruction has been decoded
 
     # values for dependencies, defaults to None if there are no dependencies
-    output: int # register that the instruction writes to
-    inputs: List[int] # list of registers that the instruction reads from
+    output_reg: int # register that the instruction writes to
+    input_regs: List[int] # list of registers that the instruction reads from
 
     # value assigned by scoreboard indicating what row this instruction is present in
     #   in the scoreboard
@@ -533,8 +578,9 @@ class Instruction:
         self._encoded = 0b0 if encoded is None else encoded # sets instruction to NOOP if encoded value is not specified
         self._decoded = None # type: ignore
 
-        self.output = None # type: ignore
-        self.inputs = None # type: ignore
+        # the instruction's dependencies
+        self.output_reg = None # type: ignore
+        self.input_regs = [] # type: ignore
 
     def decode(self):
         """helper function which decodes the instruction
@@ -543,16 +589,38 @@ class Instruction:
         # encodes the instruction in order to get the opcode
         self._decoded = InstructionType.Encoding(self._encoded)
                 
-        #  parse the rest of the encoded information according to the specific encoding pattern of the instruction type
-        self._decoded = OpCode_InstructionType_lookup[self._decoded['opcode']]
+        # parse the rest of the encoded information according to the specific encoding pattern of the instruction type
+        encoding = OpCode_InstructionType_lookup[self._decoded['opcode']]
+        self._decoded = encoding(self._encoded)
 
-        # TODO add function to update the instruction's dependencies 
+        # update the instruction's output dependencies
+        self.output_reg = self.try_get('dest')
 
-    def try_get(self, field: str):
+        # update the instruction's input dependencies
+        self.input_regs.append(src) if (src := self.try_get('src')) is not None else None # append src to input_regs if the field exists
+        self.input_regs.append(op1) if (src := self.try_get('op1')) is not None else None
+        self.input_regs.append(op2) if (src := self.try_get('op2')) is not None else None
+
+    def dependencies(self) -> List[int]:
+        """returns a list instance containing all of the instruction's depenedencies, both input and output dependencies
+
+        Returns
+        -------
+        List[int]
+            the list of registers that the instruction will read/write 
+        """
+        
+        d_regs = self.input_regs.copy()
+        d_regs.append(self.output_reg) if self.output_reg is not None else None
+
+        return d_regs
+
+    def try_get(self, field: str) -> int:
+
         try:
             return self[field]
         except KeyError:
-            return -1
+            return None # type: ignore
 
     def __str__(self):
         out = ''
