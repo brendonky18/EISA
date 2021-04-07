@@ -105,15 +105,32 @@ class Dialog(QDialog):
 
     def load_stage(self, stage: int):
         self.stages[stage].encoded.setText(f"Encoded: {self._pipeline._pipeline[stage]._encoded}")
+        self.stages[stage].opcode.setText(f"Opcode: {self._pipeline._pipeline[stage].try_get('opcode')}")
+
+        dest = self._pipeline._pipeline[stage].try_get('dest')
+        src1 = self._pipeline._pipeline[stage].try_get('op1')
+        src2 = self._pipeline._pipeline[stage].try_get('op2')
+
+        self.stages[stage].reg1.setText(f"Dest: {dest}")
+        self.stages[stage].reg2.setText(f"Src1: {src1}")
+        self.stages[stage].reg3.setText(f"Src2: {src2}")
+
+        self.stages[stage].op1.setText(f"DestVal: {self._pipeline._registers[dest]}")
+        self.stages[stage].op2.setText(f"Op1: {self._pipeline._registers[src1]}")
+        self.stages[stage].op3.setText(f"Op2: {self._pipeline._registers[src2]}")
+
+        #self.stages[stage].computed.setText(f"Computed: {self._pipeline._pipeline[stage]._computed}")
+        '''
+        self.stages[stage].encoded.setText(f"Encoded: {self._pipeline._pipeline[stage]._encoded}")
         self.stages[stage].opcode.setText(f"Opcode: {self._pipeline._pipeline[stage]._opcode}")
-        self.stages[stage].reg1.setText(f"Reg1: {self._pipeline._pipeline[stage]._regA}")
+        self.stages[stage].reg1.setText(f"Reg1: {self._pipeline._pipeline[stage].try_get('dest')}")
         self.stages[stage].reg2.setText(f"Reg2: {self._pipeline._pipeline[stage]._regB}")
         self.stages[stage].reg3.setText(f"Reg3: {self._pipeline._pipeline[stage]._regC}")
         self.stages[stage].op1.setText(f"Op1: {self._pipeline._pipeline[stage]._opA}")
         self.stages[stage].op2.setText(f"Op2: {self._pipeline._pipeline[stage]._opB}")
         self.stages[stage].op3.setText(f"Op3: {self._pipeline._pipeline[stage]._opC}")
         self.stages[stage].computed.setText(f"Computed: {self._pipeline._pipeline[stage].computed}")
-
+        '''
     def load_stages(self):
         for i in range(5):
             self.load_stage(i)

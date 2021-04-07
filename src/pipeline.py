@@ -1,11 +1,28 @@
 from __future__ import annotations
-from queue import *
+#from queue import *
+from collections import deque
 from typing import Dict, Type, Union, Callable, List, Optional
 from eisa import EISA
 from bit_vectors import BitVector
 from eisa import EISA
 from memory_subsystem import MemorySubsystem, PipelineStall
 from clock import Clock
+
+class Queue(deque):
+
+    def __init__(self, maxsize):
+        super().__init__([], maxsize)
+
+    def put(self, object):
+        self.append(object)
+
+    def get(self):
+        return self.popleft()
+
+    def peek(self):
+        if len(self) == 0:
+            return None
+        return self[0]
 
 class DecodeError(Exception):
     message: str
@@ -50,6 +67,9 @@ class func_unit():
 
         self._instruction = instruction
         self._instruction._scoreboard_index = scoreboard_row
+
+        # FIXME - ONLY RELY ON self._instruction._scoreboard_index
+        self._scoreboard_row = scoreboard_row
 
         self._destination = instruction.try_get('dest')
         self._src1 = instruction.try_get('op1')
@@ -151,9 +171,12 @@ class ScoreBoard():
         self.rrd = [-1 for i in range(rrd_size)]
         self._function_index = 0
         self._isempty = 1
+        self._last_valid = -1
 
     # Enqueue an instruction to be placed on the scoreboard
     def enqueue_instruction(self, instruction: Instruction):
+
+        # TODO - Fix overwrite issue involving _function_index
 
         incoming_unit = func_unit(instruction, self._function_index)
 
@@ -170,8 +193,8 @@ class ScoreBoard():
     # Place a func unit directly on the scoreboard
     def put(self, incoming_unit: func_unit):
 
-        self.func_units[self._function_index] = incoming_unit
-        self.active[self._function_index] = incoming_unit._instruction
+        self.func_units[incoming_unit._instruction._scoreboard_index] = incoming_unit
+        self.active[incoming_unit._instruction._scoreboard_index] = incoming_unit._instruction
 
         if incoming_unit._destination != -1:
             self.rrd[incoming_unit._destination] = self._function_index
@@ -193,13 +216,17 @@ class ScoreBoard():
     def advance_instruction_queue(self):
 
         # Peek top element of instruction queue
-        peeked = self.waiting[0]
+        peeked = self.waiting.peek()
 
-        if peeked._no_active_exec and self._isempty:
+        if peeked == None:
+
+            return
+
+        elif peeked._no_active_exec and self._isempty:
 
             self.put(self.waiting.get())
 
-        elif self.func_units[peeked._scoreboard_row] == -1 and self.rrd[peeked._destination] == -1:
+        elif self.func_units[peeked._scoreboard_row] == None and self.rrd[peeked._destination] == -1:
 
             self.put(self.waiting.get())
 
@@ -210,6 +237,9 @@ class ScoreBoard():
     def remove(self, scoreboard_index: int):
 
         toRemove = self.func_units[scoreboard_index]
+
+        if scoreboard_index == -1:
+            return
 
         self.rrd[toRemove._destination] = -1
 
@@ -226,11 +256,14 @@ class ScoreBoard():
 
         # Just return a NOOP if the scoreboard is empty.
         #   Advancing the queue is an abuse of code in the simulator
-        if self._isempty:
+        if self._isempty or self.func_units[self._last_valid] == None:
             return Instruction()
 
-        while self.func_units[self._last_valid] != -1:
+        while self._last_valid != -1 and self.func_units[self._last_valid] != -1:
             self._last_valid += 1
+
+            if self._last_valid == len(self.func_units):
+                self._last_valid = 0
 
         return self.func_units[self._last_valid]._instruction
 
@@ -252,6 +285,8 @@ class PipeLine:
     # TODO - Use dict later to get funcs associated with opcodes
     # TODO - Implement branching and branch squashing
     # TODO - implement no-ops and stalls
+
+    _clock: Clock
 
     _memory: MemorySubsystem
     _pipeline: list[Instruction]
@@ -289,6 +324,7 @@ class PipeLine:
     _scoreboard: ScoreBoard
 
     def __init__(self, pc: int, registers: list[int], memory: MemorySubsystem):
+        self._clock = Clock()
         self._registers = registers
         self._pc = pc
         self._memory = memory
@@ -419,7 +455,8 @@ class PipeLine:
         self.stage_execute()
         self.stage_decode()
         self.stage_fetch()
-        self._scoreboard.update_scoreboard(self._pipeline[4]._scoreboard_index)
+        if not(self._scoreboard._isempty):
+            self._scoreboard.update_scoreboard(self._pipeline[4]._scoreboard_index)
         self._cycles += 1
         self.cycle_stage_regs()
         self._pc += 1
@@ -427,12 +464,12 @@ class PipeLine:
     def cycle(self, x):
         for i in range(x):
             self.cycle_pipeline()
-            Clock.wait(1, wait_event_name='pipeline cycle')
+            self._clock.wait(1, wait_event_name='pipeline cycle')
 
     def __str__(self):
         nl = '\n'
 
-        out = f"PC: {self.pc}\n"
+        out = f"PC: {self._pc}\n"
 
         out += f"Regs: {self._registers}\n"
 
