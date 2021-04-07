@@ -1,10 +1,11 @@
 from __future__ import annotations
 from queue import *
 from typing import Dict, Type, Union, Callable, List, Optional
-from memory_subsystem import MemorySubsystem
 from eisa import EISA
 from bit_vectors import BitVector
 from eisa import EISA
+from memory_subsystem import MemorySubsystem, PipelineStall
+from clock import Clock
 
 class DecodeError(Exception):
     message: str
@@ -45,52 +46,57 @@ class func_unit():
 
     def __init__(self, instruction: Instruction, scoreboard_row: int):
 
-        opcode = instruction._opcode
+        opcode = instruction['opcode']
 
         self._instruction = instruction
         self._instruction._scoreboard_index = scoreboard_row
 
+        self._destination = instruction.try_get('dest')
+        self._src1 = instruction.try_get('op1')
+        self._src2 = instruction.try_get('op2')
+        self._no_active_exec = 0
+
         # ALU Ops
-        if opcode > 0 or opcode < 0b001101:
-            # OpCode_InstructionType_lookup["""opcode number"""].execute/memory/writeback_stage_func
+        # if opcode > 0 or opcode < 0b001101:
+        #     # OpCode_InstructionType_lookup["""opcode number"""].execute/memory/writeback_stage_func
 
-            self._destination = instruction._opA
-            self._src1 = instruction._opB
-            self._src2 = instruction._opC
-            self._no_active_exec = 0
+            
+        #     self._destination = instruction['dest']
+        #     self._src1 = instruction['op1']
+        #     self._src2 = instruction['op2']
+        #     self._no_active_exec = 0
 
-        # ***NAIVE*** Assuming otherwise it's a load, store, or branch for demo 4/5/2021
-        # TODO - Implement a proper opcode switch statement
+        # # ***NAIVE*** Assuming otherwise it's a load, store, or branch for demo 4/5/2021
+        # # TODO - Implement a proper opcode switch statement
 
-        # NOTE: For loads and stores, we are assuming that the memory is superfluous to dependencies.
-        # TODO - Write unit test to ensure that memory is superfluous to dependencies
+        # # NOTE: For loads and stores, we are assuming that the memory is superfluous to dependencies.
+        # # TODO - Write unit test to ensure that memory is superfluous to dependencies
 
-        # Load Op
-        elif opcode == 0b001101:
+        # # Load Op
+        # elif opcode == 0b001101:
 
-            self._destination = instruction._opA
-            self._src1 = -1
-            self._src2 = -1
-            self._no_active_exec = 0
+        #     self._destination = instruction._opA
+        #     self._src1 = -1
+        #     self._src2 = -1
+        #     self._no_active_exec = 0
 
-        # Store Op
-        elif opcode == 0b001110:
+        # # Store Op
+        # elif opcode == 0b001110:
 
-            self._src1 = instruction._opA
-            self._src2 = -1
-            self._destination = -1
-            self._no_active_exec = 0
+        #     self._src1 = instruction._opA
+        #     self._src2 = -1
+        #     self._destination = -1
+        #     self._no_active_exec = 0
 
-        # Branches, END Ops --> Ensure that active list is empty before these execute
-        elif opcode >= 0b011110:
-
-            self._src1 = -1
-            self._src2 = -1
-            self._destination = -1
+        # # Branches, END Ops --> Ensure that active list is empty before these execute
+        # elif opcode >= 0b011110:
+        if 0b011110 <= opcode <= 0b100000: # TODO use non-hardcoded value
+            # self._src1 = -1
+            # self._src2 = -1
+            # self._destination = -1
             self._no_active_exec = 1
-
-        else:
-
+        
+        if 0b100000 < opcode:
             raise Exception("Invalid Opcode Incurred on Scoreboard")
 
         def valid_to_execute():
@@ -170,22 +176,15 @@ class ScoreBoard():
         if incoming_unit._destination != -1:
             self.rrd[incoming_unit._destination] = self._function_index
 
-        # Set valid bits
         if self.rrd[incoming_unit._src1] > -1:
-
-            self.rrd._src1_valid = 0 # FIXME rrd is a list of integers, what is this trying to do?
-
+            incoming_unit._src1_valid = 0
         else:
+            incoming_unit._src1_valid = 1
 
-            self.rrd._src1_valid = 1
-
-        if self.rdd[incoming_unit._src2] > -1:
-
-            self.rrd._src2_valid = 0
-
+        if self.rrd[incoming_unit._src2] > -1:
+            incoming_unit._src2_valid = 0
         else:
-
-            self.rrd._src2_valid = 1
+            incoming_unit._src2_valid = 1
 
         self._isempty = 0
 
@@ -210,11 +209,11 @@ class ScoreBoard():
 
     def remove(self, scoreboard_index: int):
 
-        toRemove = self._func_units[scoreboard_index]
+        toRemove = self.func_units[scoreboard_index]
 
         self.rrd[toRemove._destination] = -1
 
-        self._func_units[scoreboard_index] = -1
+        self.func_units[scoreboard_index] = None # type: ignore
 
     def update_scoreboard(self, scoreboard_index: int):
 
@@ -228,7 +227,7 @@ class ScoreBoard():
         # Just return a NOOP if the scoreboard is empty.
         #   Advancing the queue is an abuse of code in the simulator
         if self._isempty:
-            return Instruction(-1)
+            return Instruction()
 
         while self.func_units[self._last_valid] != -1:
             self._last_valid += 1
@@ -287,23 +286,17 @@ class PipeLine:
     _mw_reg: list[Instruction] # Memory/Writeback reg
     #endregion registers
 
-    # Begion Scoreboard
-
-    # Scoreboard rows object
-
-
     _scoreboard: ScoreBoard
-
 
     def __init__(self, pc: int, registers: list[int], memory: MemorySubsystem):
         self._registers = registers
         self._pc = pc
         self._memory = memory
-        self._pipeline = [Instruction(-1) for i in range(5)]
-        self._fd_reg = [Instruction(-1), Instruction(-1)]
-        self._de_reg = [Instruction(-1), Instruction(-1)]
-        self._em_reg = [Instruction(-1), Instruction(-1)]
-        self._mw_reg = [Instruction(-1), Instruction(-1)]
+        self._pipeline = [Instruction() for i in range(5)]
+        self._fd_reg = [Instruction(), Instruction()]
+        self._de_reg = [Instruction(), Instruction()]
+        self._em_reg = [Instruction(), Instruction()]
+        self._mw_reg = [Instruction(), Instruction()]
         self._cycles = 0
         self._condition_flags = {
             'n': 0,
@@ -325,7 +318,11 @@ class PipeLine:
 
     def stage_fetch(self):
         # Load instruction in MEMORY at the address the PC is pointing to
-        instruction = Instruction(self._memory[self._pc])
+        try:
+            instruction = Instruction(self._memory[self._pc])
+        except PipelineStall:
+            instruction = Instruction() # send noop forward on a pipeline stall
+
         self._pipeline[0] = instruction
 
         # increment PC by 1 word
@@ -375,10 +372,13 @@ class PipeLine:
         instruction_type = OpCode_InstructionType_lookup[instruction['opcode']]
         
         # run the memory stage
-        instruction_type.memory_stage_func(instruction, self)
-
-        # Push edited instruction into the adjacent queue
-        self._mw_reg[0] = instruction
+        try:
+            instruction_type.memory_stage_func(instruction, self)
+        except PipelineStall:
+            self._mw_reg = Instruction() # send a NOOP forward
+        else:
+            # Push edited instruction into the adjacent queue
+            self._mw_reg[0] = instruction
 
     def stage_writeback(self):
 
@@ -396,7 +396,7 @@ class PipeLine:
     def cycle_stage_regs(self):
 
         # TODO - Test whether putting no ops into 0th elements provides same results
-        self._fd_reg = [Instruction(-1), self._fd_reg[0]]
+        self._fd_reg = [Instruction(), self._fd_reg[0]]
         self._de_reg = [self._fd_reg[1], self._de_reg[0]]
         self._em_reg = [self._de_reg[1], self._em_reg[0]]
         self._mw_reg = [self._em_reg[1], self._mw_reg[0]]
@@ -422,23 +422,22 @@ class PipeLine:
         self._scoreboard.update_scoreboard(self._pipeline[4]._scoreboard_index)
         self._cycles += 1
         self.cycle_stage_regs()
-        print(str(self))
-
+        self._pc += 1
 
     def cycle(self, x):
         for i in range(x):
             self.cycle_pipeline()
+            Clock.wait(1, wait_event_name='pipeline cycle')
 
     def __str__(self):
+        nl = '\n'
 
-        out = "******BEGIN PIPELINE*******\n"
+        out = f"PC: {self.pc}\n"
 
         out += f"Regs: {self._registers}\n"
 
         for i in range(len(self._pipeline)):
-            out += f"Stage {i}:\n {str(self._pipeline[i])}"
-
-        out += "*******END PIPELINE*******\n"
+            out += f"Stage {i}:\n {str(self._pipeline[i])}{nl}"
 
         return out
         '''
@@ -460,19 +459,6 @@ class InstructionType:
     # NOOP
     Encoding = BitVector.create_subtype('InstructionEncoding', 32)
     Encoding.add_field('opcode', 26, 6)
-    
-    # LDR, STR
-    MEM_Encoding = Encoding.create_subtype('MEM_Encoding')
-    MEM_Encoding.add_field('offset', 0, 10)\
-    .add_field('base', 10, 5)
-
-    # LDR
-    LDR_Encoding = MEM_Encoding.create_subtype('LDR_Encoding')
-    LDR_Encoding.add_field('dest', 21, 5)
-
-    # STR
-    STR_Encoding = MEM_Encoding.create_subtype('STR_Encoding')
-    STR_Encoding.add_field('src', 21, 5)
     
     # TODO: Push, Pop, and all AES instructions
     #endregion Instruction Encodings
@@ -535,7 +521,8 @@ class ALU_InstructionType(InstructionType):
 
         self.encoding = ALU_InstructionType.ALU_Encoding
         self._ALU_func = ALU_func
-
+    # TODO you can just override the function execute/memory/writeback_func, 
+    # you don't need to pass it in the constructor you dumdum
     def _e_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
         instruction.computed = self._ALU_func(instruction['op1'], instruction['op2'])
 
@@ -604,9 +591,6 @@ class B_InstructionType(InstructionType):
                           instruction['c'] == pipeline.condition_flags['c'] and \
                           instruction['v'] == pipeline.condition_flags['v']
                          
-            # squash the pipeline
-            pipeline.squash()
-
             # perform the other behavior (ie. update the link register)
             on_branch()
 
@@ -618,14 +602,64 @@ class B_InstructionType(InstructionType):
                 base_reg = instruction['base']
                 target_address = instruction['offset'] + pipeline._registers[base_reg]
 
-            # update the program counter
-            pipeline._pc = target_address
+            # squash the pipeline
+            pipeline.squash(target_address)
 
         def m_func(instruction: Instruction, pipeline: PipeLine):
             pass
         def w_func(instruction: Instruction, pipeline: PipeLine):
             pass
         super().__init__(mnemonic, e_func, m_func, w_func)
+
+class MEM_InstructionType(InstructionType):
+    # LDR, STR
+    MEM_Encoding = InstructionType.Encoding.create_subtype('MEM_Encoding')
+    MEM_Encoding.add_field('offset', 0, 10)\
+    .add_field('base', 10, 5)
+
+class LDR_InstructionType(MEM_InstructionType):
+    # LDR
+    LDR_Encoding = MEM_InstructionType.MEM_Encoding.create_subtype('LDR_Encoding')
+    LDR_Encoding.add_field('literal', 0, 15, overlap=True)\
+                .add_field('lit', 15, 1)\
+                .add_field('dest', 21, 5)
+
+    def __init__(self, mnemonic: str):
+        self.mnemonic = mnemonic
+
+    def memory_stage_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
+        if instruction['l'] == 1: # contains a literal value
+            instruction.computed = instruction['literal']
+        else: # uses register direct + offset
+            # calculate the address
+            base_addr_reg = instruction['base']
+            src_addr = pipeline._registers[base_addr_reg] + instruction['offset']
+
+            # read from that address
+            instruction.computed = pipeline._memory[src_addr]
+
+    def writeback_stage_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
+        pipeline._registers[instruction['dest']] = instruction.computed
+
+class STR_InstructionType(MEM_InstructionType):
+    # STR
+    STR_Encoding = MEM_InstructionType.MEM_Encoding.create_subtype('STR_Encoding')
+    STR_Encoding.add_field('src', 21, 5)
+
+    def __init__(self, mnemonic: str):
+        self.mnemonic = mnemonic
+
+    def memory_stage_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
+        # calculate the address
+        base_addr_reg = instruction['base']
+        dest_addr = pipeline._registers[base_addr_reg] + instruction['offset']
+
+        # get the value to write
+        src_val = pipeline._registers[instruction['src']]
+
+        # write to that address
+        pipeline._memory[dest_addr] = src_val
+
 
 # dictionary mapping the opcode number to an instruction type
 # this is where each of the instruction types and their behaviors are defined
@@ -726,9 +760,15 @@ class Instruction:
         self._decoded = InstructionType.Encoding(self._encoded)
                 
         #  parse the rest of the encoded information according to the specific encoding pattern of the instruction type
-        self._decoded = OpCode_InstructionType_lookup[self._opcode]
+        self._decoded = OpCode_InstructionType_lookup[self._decoded['opcode']]
 
         # TODO add function to update the instruction's dependencies 
+
+    def try_get(self, field: str):
+        try:
+            return self[field]
+        except KeyError:
+            return -1
 
     def __str__(self):
         out = ''
@@ -753,8 +793,12 @@ class Instruction:
         int, None
             the value of the field, or None if the field does not exist (possibly because the instruction has not been decoded yet)
         """
-        if self._decoded is None:
-            raise DecodeError
+
+        
+        if InstructionType.Encoding(self._encoded)['opcode'] == 0b0: # ignore that noops are not decoded
+            return 0
+        elif self._decoded is None: 
+            raise DecodeError(f'{self._encoded} has not been decoded yet')
         else:
             return self._decoded[field]
 

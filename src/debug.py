@@ -1,49 +1,47 @@
 import argparse
+import sys
+from typing import List
 from threading import Lock
-from memory_subsystem import MemorySubsystem
+from memory_subsystem import MemorySubsystem, PipelineStall
 from clock import Clock
 from commandparse import CommandParser, commandparse_cb
-from main import *
 from pipeline import PipeLine, Instruction
-
-print_lock: Lock = Lock()
-
-global terminal_name
-
-terminal_name = ''
-
-
-def terminal_print(print_string: str):
-    with print_lock:
-        print(f'\r{print_string}')
-        print(terminal_name, end='$ ', flush=True)
-
+from eisa import EISA
+from time import sleep
 
 def main(memory: MemorySubsystem, pipeline: PipeLine):
-    arg_parser = argparse.ArgumentParser()
-
-    arg_parser.add_argument('-cs', action='store', type=int,
-                            help='the size of the cache, in words')  # arg to get cache size
-    arg_parser.add_argument('-rs', action='store', type=int,
-                            help='the size of the RAM, in words')  # arg to get memory size
-    arg_parser.add_argument('-n', action='store', type=str,
-                            help='the size of the RAM, in words')  # arg to get memory size
-
-    args = arg_parser.parse_args()
-
-    cmd_parser = CommandParser('dbg' if args.n is None else args.n)
-    terminal_name = args.n
-
+    if __name__ != 'debug':
+        from debug import terminal_print
 
     @commandparse_cb
     def cache_read(addr: int):
-        terminal_print(f'Reading from address {addr}\n{addr:#0{4}x}: {memory[addr]}')
+
+        stalled = True
+        while stalled:
+            try:
+                ret = memory[addr]
+            except PipelineStall:
+                sleep(0.001)
+            else: 
+                stalled = False
+
+        terminal_print(f'Reading from address {addr}\n{addr:#0{4}x}: {ret}')
 
 
     @commandparse_cb
     def cache_write(addr: int, val: int):
-        terminal_print(f'writing {val} to address {addr}')
-        memory[addr] = val
+        stalled = True
+        while stalled:
+            try:
+                memory[addr] = val
+            except PipelineStall:
+                sleep(0.001)
+            else: 
+                stalled = False
+
+        terminal_print(f'Wrote {val} to address {addr}')
+
+        
 
 
     @commandparse_cb
@@ -85,23 +83,32 @@ def main(memory: MemorySubsystem, pipeline: PipeLine):
     def load_program(file_path: str, start_addr: int):
         # read instructions from the file
         with open(file_path, 'r') as f:
-            program_instructions = [int(line.rstrip().split('#', maxsplit=1)[0], 2) for line in f]  # 2 indicates converting from a base 2 string
+            program_instructions: List[int] = []  # 2 indicates converting from a base 2 string
+            for line in f:
+                val = line.rstrip().split('#', maxsplit=1)[0]
+                
+                try:
+                    conv = int(val, 2)
+                except ValueError:
+                    pass
+                else:
+                    program_instructions.append(conv)
 
-
-
-        # load them into RAM
+        # load them into memory
         stop_addr = start_addr + len(program_instructions)
         if stop_addr > memory._RAM._local_addr_space:
             raise ValueError(
-                f'Program requires {len(program_instructions) * 4}b and is too large to be loaded starting at address {start_addr}')
+                f'Program requires {len(program_instructions) * 4} bytes and is too large to be loaded starting at address {start_addr}')
 
         for dest_addr, cur_instruction in zip(range(start_addr, stop_addr), program_instructions):
-            memory[dest_addr] = cur_instruction
-            instruction = Instruction(cur_instruction)
-            instruction.decode()
-            print(str(instruction))
-
-
+            stalled = True
+            while stalled:
+                try:
+                    memory[dest_addr] = cur_instruction
+                except PipelineStall:
+                    sleep(0.001)
+                else: 
+                    stalled = False
 
     @commandparse_cb
     def run_pipeline(cycle_count: int):
@@ -141,3 +148,44 @@ def main(memory: MemorySubsystem, pipeline: PipeLine):
 
     cmd_parser.start()
 
+    return
+
+print_lock: Lock = Lock()
+
+def terminal_print(print_string: str):
+    global terminal_name
+    with print_lock:
+        print(f'\r{print_string}')
+
+        print(terminal_name, end='$ ', flush=True)
+
+    return
+
+def set_terminal_name(name: str):
+    global terminal_name
+    terminal_name = name
+
+if __name__ == '__main__':
+    arg_parser = argparse.ArgumentParser()
+
+    # add command line arguments
+    arg_parser.add_argument('-cs', action='store', type=int,
+                            help='the size of the cache, in words')  # arg to get cache size
+    arg_parser.add_argument('-rs', action='store', type=int,
+                            help='the size of the RAM, in words')  # arg to get memory size
+    arg_parser.add_argument('-n', action='store', type=str,
+                            help='the size of the RAM, in words')  # arg to get memory size
+
+    args = arg_parser.parse_args()
+
+    cmd_parser = CommandParser('dbg' if args.n is None else args.n)
+
+    terminal_name = None
+    
+    import debug
+
+    debug.set_terminal_name(args.n)
+
+    memory = MemorySubsystem(EISA.ADDRESS_SIZE, args.cs, 1, 1, args.rs, 2, 2)
+    pipeline = PipeLine(0, [0] * 32, memory)
+    main(memory, pipeline)
