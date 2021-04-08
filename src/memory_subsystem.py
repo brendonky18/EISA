@@ -42,7 +42,7 @@ class MemorySubsystem:
         self._io_executor = ThreadPoolExecutor(1, 'memory')
 
     # read
-    def __getitem__(self, address: int) -> int: # TODO write docstring
+    def __getitem__(self, address: int) -> int:
         # run this section in a detached thread
         def get_func():
             if not self._cache.check_hit(address):
@@ -68,7 +68,7 @@ class MemorySubsystem:
             return self._future_read.result()
 
     # write
-    def __setitem__(self, address: int, value: int) -> None: # TODO write docstring
+    def __setitem__(self, address: int, value: int) -> None:
         def set_func():
             if self._cache.check_hit(address):
                 # cache hit
