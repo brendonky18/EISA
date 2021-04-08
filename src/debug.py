@@ -4,7 +4,7 @@ from typing import List
 from threading import Lock
 from memory_subsystem import MemorySubsystem, PipelineStall
 from clock import Clock
-from commandparse import CommandParser, commandparse_cb
+from commandparse import CommandParser, commandparse_cb, InputError
 from pipeline import PipeLine, Instruction
 from eisa import EISA
 from time import sleep
@@ -82,17 +82,20 @@ def main(memory: MemorySubsystem, pipeline: PipeLine):
     @commandparse_cb
     def load_program(file_path: str, start_addr: int):
         # read instructions from the file
-        with open(file_path, 'r') as f:
-            program_instructions: List[int] = []  # 2 indicates converting from a base 2 string
-            for line in f:
-                val = line.rstrip().split('#', maxsplit=1)[0]
-                
-                try:
-                    conv = int(val, 2)
-                except ValueError:
-                    pass
-                else:
-                    program_instructions.append(conv)
+        try:
+            with open(file_path, 'r') as f:
+                program_instructions: List[int] = []  # 2 indicates converting from a base 2 string
+                for line in f:
+                    val = line.rstrip().split('#', maxsplit=1)[0]
+                    
+                    try:
+                        conv = int(val, 2)
+                    except ValueError:
+                        pass
+                    else:
+                        program_instructions.append(conv)
+        except FileNotFoundError:
+            raise InputError(f'File \'{file_path}\' not found. No such file exitst')
 
         # load them into memory
         stop_addr = start_addr + len(program_instructions)

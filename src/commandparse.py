@@ -4,6 +4,8 @@ from typing import Callable, Any, List
 from dataclasses import dataclass
 from clock import Clock
 
+class InputError(ValueError):
+    pass
 
 @dataclass
 class Command:
@@ -95,9 +97,15 @@ class CommandParser:
                         # invokes the designated callback, and passes the provided arguments as strings
                         cur_cmd = self.valid_commands[cur_input.command]
                         cur_cmd.callback(*cur_input.args, arg_types=cur_cmd.arg_types)
-                    except (TypeError, ValueError) as e: # will error on anything that isn't a literal, including strings
+                    except InputError as e: # will error on anything that isn't a literal, including strings
                         num_args = len(self.valid_commands[cur_input.command].arg_types)
-                        terminal_print(str(e))
+                        err_msg = (f'{str(e)}, '
+                            f'{cur_input.command} requires {num_args} argument{"s" if num_args > 1 else ""} of type{"s" if num_args > 1 else ""} '
+                            f'{", ".join([f"<{t.__name__}>" for t in self.valid_commands[cur_input.command].arg_types])}. '
+                            f'You entered {cur_input.args}')
+                        
+                        terminal_print(err_msg)
+                        
                     return
 
                 new_thread = Thread(target=command_thread, name=f'Command thread - {cur_input.command}: {cur_input.args}')
@@ -109,11 +117,13 @@ class CommandParser:
 def commandparse_cb(func) -> Callable[..., Any]: 
     def commandparse_cb_wrapper(*args, arg_types: list[type]=[int], **kwargs):
         if not len(args) == len(arg_types):
-            raise ValueError("lists do not match")
+            raise InputError("Number of parameters do not match")
         
         # casted_args = [any] * len(args)
-        casted_args = list(map(lambda arg_type, arg: arg_type(arg), arg_types, args))
-
+        try:
+            casted_args = list(map(lambda arg_type, arg: arg_type(arg), arg_types, args))
+        except (ValueError, TypeError):
+            raise InputError('Could not cast inputs')
         # for i in range(len(args)):
         #     casted_args[i] = arg_types[i](args[i])
 
