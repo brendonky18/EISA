@@ -86,7 +86,6 @@ class CommandParser:
                 for t in CommandParser.command_threads:
                     t.join()
                 
-            
             # checks if the user entered a valid command
             elif cur_input.command not in self.valid_commands:
                 print(f'\'{cur_input.command}\' is not recognized as a command')
