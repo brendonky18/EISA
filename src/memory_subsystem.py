@@ -1,5 +1,5 @@
 from __future__ import annotations  # must be first import
-from threading import Thread
+from concurrent.futures import ThreadPoolExecutor, Future
 from memory_devices import *
 
 class PipelineStall(Exception):
@@ -17,8 +17,10 @@ class MemorySubsystem:
     _is_reading: bool
     _is_writing: bool
 
-    _get_thread: Thread
-    _set_thread: Thread
+    _io_executor: ThreadPoolExecutor
+
+    _future_read: Future
+    _future_write: Future
 
     def cache_evict_cb(self):
         return None
@@ -35,13 +37,12 @@ class MemorySubsystem:
         self._is_reading = False
         self._is_writing = False
 
-        self._get_thread = None # type: ignore
-        self._set_thread = None # type: ignore
+        self._future_read = None # type: ignore
+        self._future_write = None # type: ignore
+        self._io_executor = ThreadPoolExecutor(1, 'memory')
 
     # read
     def __getitem__(self, address: int) -> int: # TODO write docstring
-        val = 0
-
         # run this section in a detached thread
         def get_func():
             if not self._cache.check_hit(address):
@@ -52,22 +53,19 @@ class MemorySubsystem:
                 # load the value from RAM into cache
                 self._cache.replace(address_block, self._RAM[address_block]) # TODO: make the read from RAM use RAM's read policy rather than reading directly
             
-            val = self._cache[address]
+            return self._cache[address]
 
         # only start a new read if there isnt one running already
         if not self._is_reading:
             self._is_reading = True
-            self._get_thread = Thread(target=get_func, name='memory get thread')
-            self._get_thread.start()
+            self._future_read = self._io_executor.submit(get_func)
 
-        if self._is_reading and self._get_thread.is_alive():
+        if self._is_reading and not self._future_read.done():
             # return none if the read is still occuring
             raise PipelineStall('memory read')
         else:
             self._is_reading = False
-            # join thread
-            self._get_thread.join()
-            return val
+            return self._future_read.result()
 
     # write
     def __setitem__(self, address: int, value: int) -> None: # TODO write docstring
@@ -83,14 +81,19 @@ class MemorySubsystem:
         # only start a new write if there isn't one running already
         if not self._is_writing:
             self._is_writing = True
-            self._set_thread = Thread(target=set_func, name='memory write')
-            self._set_thread.start()
+            self._future_write = self._io_executor.submit(set_func)
 
-        if self._is_writing and self._set_thread.is_alive():
+        if self._is_writing and not self._future_write.done():
+            # err if the write is still occuring
             raise PipelineStall('memory write')
         else:
             self._is_writing = False
-            # join thread
-            self._set_thread.join() 
-            # TODO, if the function is only called once then this thread will never join
-            # this is somewhat mitigated by the fact that the user will have to use a try-catch block, so there is already some infrastructure required
+
+    def __enter__(self):
+        pass
+
+    def __exit__(self):
+        """allows the memory subsystem to be used with 'with' statements,
+        and the executor will automatically be shutdown when done
+        """
+        self._io_executor.shutdown()
