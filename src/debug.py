@@ -57,7 +57,7 @@ def main(memory: MemorySubsystem, pipeline: PipeLine):
     @commandparse_cb
     def view_way(index: int):
         address = index << 2
-        print(str(memory._cache.get_cacheway(address)))
+        terminal_print(str(memory._cache.get_cacheway(address)))
 
 
     @commandparse_cb
@@ -121,12 +121,12 @@ def main(memory: MemorySubsystem, pipeline: PipeLine):
 
     @commandparse_cb
     def view_piepline():
-        print(str(pipeline))
+        terminal_print(str(pipeline))
 
 
     @commandparse_cb
     def view_registers():
-        print(f'{pipeline._registers}')
+        terminal_print(f'{pipeline._registers}')
 
     '''
     @commandparse_cb

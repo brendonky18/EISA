@@ -77,7 +77,7 @@ class BitVector:
         try:
             target_field = self._fields[field]
         except KeyError:
-            print(f'\'{field}\' is not a field in type \'{type(self).__name__}\'')
+            raise KeyError(f'\'{field}\' is not a field in type \'{type(self).__name__}\'')
         else:
             if value > target_field.mask:
                 raise ValueError(f'Cannot to assign {value} to \'{field}\'. Can be at most {target_field.mask}')

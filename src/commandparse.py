@@ -81,14 +81,14 @@ class CommandParser:
             if cur_input.command == 'exit': 
                 run = False
                 if Clock.run_clock:
-                    print('Warning: Clock not stopped, stopping now')
+                    terminal_print('Warning: Clock not stopped, stopping now')
                     Clock.stop()
                 for t in CommandParser.command_threads:
                     t.join()
                 
             # checks if the user entered a valid command
             elif cur_input.command not in self.valid_commands:
-                print(f'\'{cur_input.command}\' is not recognized as a command')
+                terminal_print(f'\'{cur_input.command}\' is not recognized as a command')
             else:
                 # thread so we don't wait for something to return
                 def command_thread():
