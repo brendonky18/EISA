@@ -47,7 +47,6 @@ class Clock:
         """class method to stop the program clock
         """
         Clock.run_clock = False
-        # cls.clock_thread.shutdown(wait=True)
     
     @classmethod
     def step(cls, count: int=1):
@@ -57,7 +56,6 @@ class Clock:
                     cls.resolve_pending_calls()
         
             cls.clock_thread_task = cls.clock_thread.submit(run)
-            # cls.clock_thread.shutdown(wait=True)
         else:
             raise RuntimeError('Cannot have multiple instances of clock running')
 
@@ -72,6 +70,16 @@ class Clock:
                                             
             # remove events that have been called
             cls.pending_calls = [cur_event for cur_event in cls.pending_calls if cur_event.counter < cur_event.delay]
+
+    @classmethod
+    def __enter__(cls):
+        cls.start()
+        return cls
+
+    @classmethod
+    def __exit__(cls):
+        cls.stop()
+        cls.clock_thread.shutdown(wait=True)
 
     def wait(
         self, 
