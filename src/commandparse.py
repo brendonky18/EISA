@@ -1,5 +1,5 @@
 from typing import Callable, Any, List
-from threading import Thread
+from concurrent.futures import Executor, ThreadPoolExecutor, Future
 from typing import Callable, Any, List
 from dataclasses import dataclass
 from clock import Clock
@@ -9,7 +9,7 @@ class InputError(ValueError):
 
 @dataclass
 class Command:
-    arg_types: list[type ]
+    arg_types: list[type]
     callback: Callable[[str], Any]
 
 class UserInput:
@@ -21,7 +21,7 @@ class UserInput:
         self.args = arg_string.split()
 
 class CommandParser:
-    command_threads: List[Thread] = []
+    _command_executor: Executor
 
     def __init__(self, name=""):
         """Constructor
@@ -33,6 +33,9 @@ class CommandParser:
         """
         self.name = name
         self.valid_commands = {}
+
+        self._command_executor = ThreadPoolExecutor(thread_name_prefix='command_thread')
+        self._command_tasks = []
 
     def add_command(self, cmd: str, arg_types: list[type], callback: Callable[..., Any]) -> bool:
         """add a command which the terminal will recognize
@@ -83,8 +86,6 @@ class CommandParser:
                 if Clock.run_clock:
                     terminal_print('Warning: Clock not stopped, stopping now')
                     Clock.stop()
-                for t in CommandParser.command_threads:
-                    t.join()
                 
             # checks if the user entered a valid command
             elif cur_input.command not in self.valid_commands:
@@ -107,11 +108,8 @@ class CommandParser:
                         
                     return
 
-                new_thread = Thread(target=command_thread, name=f'Command thread - {cur_input.command}: {cur_input.args}')
-                new_thread.start()
-                self.command_threads.append(new_thread)
+                self._command_executor.submit(command_thread)
                 
-
 
 def commandparse_cb(func) -> Callable[..., Any]: 
     def commandparse_cb_wrapper(*args, arg_types: list[type]=[int], **kwargs):
