@@ -357,3 +357,9 @@ test.py
 # Project Files
 prog/
 src/*.txt
+.idea/.gitignore
+.idea/EISA.iml
+.idea/misc.xml
+.idea/modules.xml
+.idea/vcs.xml
+.idea/inspectionProfiles/profiles_settings.xml
