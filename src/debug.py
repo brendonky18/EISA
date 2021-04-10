@@ -8,6 +8,7 @@ from commandparse import CommandParser, commandparse_cb, InputError
 from pipeline import PipeLine, Instruction
 from eisa import EISA
 from time import sleep
+from termcolor import cprint
 
 def init_commands(memory: MemorySubsystem, pipeline: PipeLine) -> List[Tuple[str, List, Callable[..., None]]]:
     if __name__ != 'debug':
@@ -141,8 +142,8 @@ def terminal_print(print_string: str):
     global terminal_name
     with print_lock:
         print(f'\r{print_string}')
-
-        print(terminal_name, end='$ ', flush=True)
+        if terminal_name is not None:
+            cprint(f'{terminal_name}', end=f'$ ', color='blue')
 
     return
 
