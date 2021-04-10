@@ -1,6 +1,6 @@
 import argparse
 import sys
-from typing import List
+from typing import List, Tuple, Callable
 from threading import Lock
 from memory_subsystem import MemorySubsystem, PipelineStall
 from clock import Clock
@@ -9,12 +9,12 @@ from pipeline import PipeLine, Instruction
 from eisa import EISA
 from time import sleep
 
-def main(memory: MemorySubsystem, pipeline: PipeLine):
+def init_commands(memory: MemorySubsystem, pipeline: PipeLine) -> List[Tuple[str, List, Callable[..., None]]]:
     if __name__ != 'debug':
         from debug import terminal_print
 
     @commandparse_cb
-    def cache_read(addr: int):
+    def cache_read(addr: int) -> None:
 
         stalled = True
         while stalled:
@@ -27,9 +27,8 @@ def main(memory: MemorySubsystem, pipeline: PipeLine):
 
         terminal_print(f'Reading from address {addr}\n{addr:#0{4}x}: {ret}')
 
-
     @commandparse_cb
-    def cache_write(addr: int, val: int):
+    def cache_write(addr: int, val: int) -> None:
         stalled = True
         while stalled:
             try:
@@ -41,11 +40,8 @@ def main(memory: MemorySubsystem, pipeline: PipeLine):
 
         terminal_print(f'Wrote {val} to address {addr}')
 
-        
-
-
     @commandparse_cb
-    def view(device: str, start: int, size: int):
+    def view(device: str, start: int, size: int) -> None:
         if device.lower() == 'ram':
             terminal_print(memory._RAM.__str__(start, size))
         elif device.lower() == 'cache':
@@ -53,15 +49,13 @@ def main(memory: MemorySubsystem, pipeline: PipeLine):
         else:
             terminal_print(f'<{device}> is not a valid memory device')
 
-
     @commandparse_cb
-    def view_way(index: int):
+    def view_way(index: int) -> None:
         address = index << 2
         terminal_print(str(memory._cache.get_cacheway(address)))
 
-
     @commandparse_cb
-    def clock(mode: str):
+    def clock(mode: str) -> None:
         mode = mode.lower()
         if mode == 'start':
             Clock.start()
@@ -72,15 +66,13 @@ def main(memory: MemorySubsystem, pipeline: PipeLine):
         else:
             terminal_print(f'<{mode}> is not a valid option, please enter start/stop')
 
-
     @commandparse_cb
-    def step_clock(steps: int):
+    def step_clock(steps: int) -> None:
         terminal_print(f'Clock stepping {steps} iterations')
         Clock.step(steps)
 
-
     @commandparse_cb
-    def load_program(file_path: str, start_addr: int):
+    def load_program(file_path: str, start_addr: int) -> None:
         # read instructions from the file
         try:
             with open(file_path, 'r') as f:
@@ -114,44 +106,34 @@ def main(memory: MemorySubsystem, pipeline: PipeLine):
                     stalled = False
 
     @commandparse_cb
-    def run_pipeline(cycle_count: int):
+    def run_pipeline(cycle_count: int) -> None:
         pipeline.cycle(cycle_count)
         terminal_print('pipeline ran')
 
-
     @commandparse_cb
-    def view_piepline():
+    def view_piepline() -> None:
         terminal_print(str(pipeline))
 
-
     @commandparse_cb
-    def view_registers():
+    def view_registers() -> None:
         terminal_print(f'{pipeline._registers}')
+    
+    commands = [ 
+        ('read', [int], cache_read)
+      , ('write', [int, int], cache_write)
+      , ('view', [str, int, int], view)
+      , ('show', [str, int, int], view)  # alias for the view command
+      , ('view-way', [int], view_way)
+      , ('show-way', [int], view_way)  # alias
+      , ('clock', [str], clock)
+      , ('step', [int], step_clock)
+      , ('load', [str, int], load_program)
+      , ('cycle', [int], run_pipeline)
+      , ('show-pipeline', [], view_piepline)
+      , ('show-registers', [], view_registers)
+    ] # type: List[Tuple[str, List, Callable[..., None]]]
 
-    '''
-    @commandparse_cb
-    def build_ui():
-        dialog = Dialog(memory, pipeline)
-        dialog.build_ui()
-    '''
-
-    cmd_parser.add_command('read', [int], cache_read)
-    cmd_parser.add_command('write', [int, int], cache_write)
-    cmd_parser.add_command('view', [str, int, int], view)
-    cmd_parser.add_command('show', [str, int, int], view)  # alias for the view command
-    cmd_parser.add_command('view-way', [int], view_way)
-    cmd_parser.add_command('show-way', [int], view_way)  # alias
-    cmd_parser.add_command('clock', [str], clock)
-    cmd_parser.add_command('step', [int], step_clock)
-    cmd_parser.add_command('load', [str, int], load_program)
-    cmd_parser.add_command('cycle', [int], run_pipeline)
-    cmd_parser.add_command('show-pipeline', [], view_piepline)
-    cmd_parser.add_command('show-registers', [], view_registers)
-    #cmd_parser.add_command('build-ui', [], build_ui)
-
-    cmd_parser.start()
-
-    return
+    return commands
 
 print_lock: Lock = Lock()
 
@@ -191,4 +173,8 @@ if __name__ == '__main__':
 
     memory = MemorySubsystem(EISA.ADDRESS_SIZE, args.cs, 1, 1, args.rs, 2, 2)
     pipeline = PipeLine(0, [0] * 32, memory)
-    main(memory, pipeline)
+
+    commands = init_commands(memory, pipeline)
+
+    with Clock() as c, CommandParser(name=args.n, commands=commands) as command_parser:
+        command_parser.start()

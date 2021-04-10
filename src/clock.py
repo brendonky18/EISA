@@ -2,7 +2,8 @@ from dataclasses import dataclass
 from threading import Lock
 from concurrent.futures import ThreadPoolExecutor, Future
 from time import sleep
-from typing import Callable, Any, List, Optional
+from typing import Callable, Any, List, Optional, Type
+from types import TracebackType
 
 
 @dataclass
@@ -71,15 +72,19 @@ class Clock:
             # remove events that have been called
             cls.pending_calls = [cur_event for cur_event in cls.pending_calls if cur_event.counter < cur_event.delay]
 
-    @classmethod
-    def __enter__(cls):
-        cls.start()
-        return cls
+    def __enter__(self):
+        Clock.start()
+        return self
 
-    @classmethod
-    def __exit__(cls):
-        cls.stop()
-        cls.clock_thread.shutdown(wait=True)
+    def __exit__(
+            self,
+            exc_type: Optional[Type[BaseException]],
+            exc_val: Optional[BaseException],
+            exc_tb: Optional[TracebackType]
+        ):
+        Clock.stop()
+        Clock.clock_thread.shutdown(wait=True)
+        print('clock stopped')
 
     def wait(
         self, 

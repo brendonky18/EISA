@@ -1,6 +1,8 @@
+from __future__ import annotations
 from typing import Callable, Any, List
 from concurrent.futures import Executor, ThreadPoolExecutor, Future
-from typing import Callable, Any, List
+from types import TracebackType
+from typing import Callable, Any, List, Optional, Dict, Tuple, Type, Literal
 from dataclasses import dataclass
 
 class InputError(ValueError):
@@ -8,7 +10,7 @@ class InputError(ValueError):
 
 @dataclass
 class Command:
-    arg_types: list[type]
+    arg_types: List[Type]
     callback: Callable[[str], Any]
 
 class UserInput:
@@ -21,14 +23,19 @@ class UserInput:
 
 class CommandParser:
     _command_executor: Executor
+    _command_tasks: List[Future]
 
-    def __init__(self, name=""):
+    valid_commands: Dict
+
+    def __init__(self, name="", commands: List[Tuple[str, List[type], Callable[..., None]]]=[]):
         """Constructor
 
         Parameters
         ----------
         name : str, optional
             name of the terminal interface to be displayed, none by default
+        commands: List[Tuple[str, List[type], Callable[..., None]], optional
+            a list of commands to add
         """
         self.name = name
         self.valid_commands = {}
@@ -36,7 +43,43 @@ class CommandParser:
         self._command_executor = ThreadPoolExecutor(thread_name_prefix='command_thread')
         self._command_tasks = []
 
-    def add_command(self, cmd: str, arg_types: list[type], callback: Callable[..., Any]) -> bool:
+        for cur_command in commands:
+            # add all of the passed commands, raise an error when attempting to add duplicate commands
+            if not self.add_command(*cur_command):
+                raise ValueError(f'Command \'{cur_command[0]} already exists')
+
+    def __enter__(self) -> CommandParser:
+        """allows CommandParser to be used in 'with' syntax,
+        function is called on start
+
+        Returns
+        -------
+        commandparse
+            the reference to itself, 
+            is is called after the constructor so it is required to get a reference to the newly instantiated object
+        """
+        from debug import terminal_print
+        # initialize the terminal
+        terminal_print('')
+        return self
+
+    def __exit__(
+            self,
+            exc_type: Optional[Type[BaseException]],
+            exc_val: Optional[BaseException],
+            exc_tb: Optional[TracebackType]
+        ) -> Literal[False]:
+        """allows CommandParser to be used in 'with' syntax,
+        attempts to gracefully shut down the command parser
+        """
+        self._command_executor.shutdown(wait=True)
+        print(f'{self.name} closed')
+
+        # return false in order to get the error traceback if there was one
+        # return true to suppress the error message
+        return False
+
+    def add_command(self, cmd: str, arg_types: List[type], callback: Callable[..., None]) -> bool:
         """add a command which the terminal will recognize
 
         Parameters
@@ -73,7 +116,6 @@ class CommandParser:
         while run:
             # gets the user's input, splits it between the command and arguments, and puts it in a named tuple
             try:
-                terminal_print('')
                 cur_input = UserInput(*input().split(maxsplit=1))
                 
             except EOFError:
@@ -88,6 +130,7 @@ class CommandParser:
             else:
                 # thread so we don't wait for something to return
                 def command_thread():
+                    # invokes the designated callback, and passes the provided arguments as strings
                     try:
                         # invokes the designated callback, and passes the provided arguments as strings
                         cur_cmd = self.valid_commands[cur_input.command]
@@ -102,8 +145,16 @@ class CommandParser:
                         terminal_print(err_msg)
                         
                     return
+                
+                # back in the main thread
+                new_task = self._command_executor.submit(command_thread)
+                self._command_tasks.append(new_task)
 
-                self._command_executor.submit(command_thread)
+                for task in self._command_tasks:
+                    # check if the task raised any exceptions
+                    if task.done() and (task_exception := task.exception()) is not None:
+                        raise task_exception
+                    
                 
 
 def commandparse_cb(func) -> Callable[..., Any]: 
