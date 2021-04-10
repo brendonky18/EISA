@@ -2,7 +2,6 @@ from typing import Callable, Any, List
 from concurrent.futures import Executor, ThreadPoolExecutor, Future
 from typing import Callable, Any, List
 from dataclasses import dataclass
-from clock import Clock
 
 class InputError(ValueError):
     pass
@@ -70,7 +69,6 @@ class CommandParser:
         from debug import terminal_print
 
         run = True
-        Clock.start()
 
         while run:
             # gets the user's input, splits it between the command and arguments, and puts it in a named tuple
@@ -83,9 +81,6 @@ class CommandParser:
             # checks if the user wants to exit the interface
             if cur_input.command == 'exit': 
                 run = False
-                if Clock.run_clock:
-                    terminal_print('Warning: Clock not stopped, stopping now')
-                    Clock.stop()
                 
             # checks if the user entered a valid command
             elif cur_input.command not in self.valid_commands:
