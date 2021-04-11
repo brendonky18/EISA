@@ -47,6 +47,8 @@ class PipeLine:
     _pipeline: list[Instruction]
 
     _stalled: bool
+
+    _running: bool
     
     _cycles: int
     
@@ -101,17 +103,18 @@ class PipeLine:
         
         self._pipeline = [Instruction() for i in range(5)]
         self._stalled = False
+        self._running = False
 
         self._fd_reg = [Instruction(), Instruction()]
         self._de_reg = [Instruction(), Instruction()]
         self._em_reg = [Instruction(), Instruction()]
         self._mw_reg = [Instruction(), Instruction()]
         self._cycles = 0
-        self._condition_flags = {
-            'n': 0,
-            'z': 0,
-            'c': 0,
-            'v': 0
+        self.condition_flags = {
+            'n': False,
+            'z': False,
+            'c': False,
+            'v': False
         }
         
 
@@ -138,11 +141,12 @@ class PipeLine:
         else:
             reg_addr_list = reg_addr
 
-        if len(reg_addr_list) == 0:
-            # there are no active dependencied the instruction needs, if it doesn't have any in the first place
-            return False
-        else:
-            return reduce(lambda cur, acc: cur and acc, [self._active_registers[cur_reg_addr] for cur_reg_addr in reg_addr_list])
+        if len(reg_addr_list) != 0:
+            for reg in reg_addr_list:
+                if self._active_registers[reg]:
+                    return True
+        
+        return False
 
     def get_dependency(self, reg_addr: int) -> int:
         """function that will get the value stored in the dependent register so that it can be used in the execute stage
@@ -173,11 +177,12 @@ class PipeLine:
         else:
             reg_addr_list = reg_addr
 
-        for cur_reg_addr in reg_addr_list:
-            if self._active_registers[cur_reg_addr]:
-                raise ValueError(f'Cannot claim register {reg_addr} as a dependency, it has already been claimed by another instruction')
+        if reg_addr_list != []:
+            for cur_reg_addr in reg_addr_list:
+                if self._active_registers[cur_reg_addr]:
+                    raise RuntimeError(f'Cannot claim register {cur_reg_addr} as a dependency, it has already been claimed by another instruction')
 
-            self._active_registers[cur_reg_addr] = True
+                self._active_registers[cur_reg_addr] = True
 
     def free_dependency(self, reg_addr: Union[int, List[int]]) -> None:
         """function that frees a register so that it can be used by other instructions
@@ -192,8 +197,9 @@ class PipeLine:
         else:
             reg_addr_list = reg_addr
 
-        for cur_reg_addr in reg_addr_list:
-            self._active_registers[cur_reg_addr] = False
+        if reg_addr_list != []:
+            for cur_reg_addr in reg_addr_list:
+                self._active_registers[cur_reg_addr] = False
 
     # endregion dependencies
 
@@ -211,7 +217,10 @@ class PipeLine:
         self._fd_reg = [Instruction(), Instruction()]
         self._de_reg = [Instruction(), Instruction()]
         self._pc = newPC
-        self.cycle(2)
+        
+        active_regs = [i for i in range(len(self._active_registers)) if self._active_registers[i]]
+
+        self.free_dependency(active_regs)
 
     def stage_fetch(self) -> None:
         """function to run the fetch stage
@@ -505,19 +514,24 @@ class CMP_InstructionType(ALU_InstructionType):
 
         pipeline.condition_flags['v'] = signed_overflow
 
+    # override inherited function because CMP does not writeback it's result
+    def writeback_stage_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
+        pass
+
 class B_InstructionType(InstructionType):
     """wrapper class for the branch instructions:
         B{cond}, BL{cond}
     """
     # B, BL
     B_Encoding = InstructionType.Encoding.create_subtype('B_Encoding')
-    B_Encoding.add_field('offset', 0, 10)\
-    .add_field('base', 10, 5)\
+    B_Encoding.add_field('immediate', 0, 15, overlap=True)\
+    .add_field('offset', 0, 10, overlap=True)\
+    .add_field('base', 10, 5, overlap=True)\
     .add_field('imm', 15, 1)\
-    .add_field('V', 22, 1)\
-    .add_field('C', 23, 1)\
-    .add_field('Z', 24, 1)\
-    .add_field('N', 25, 1)
+    .add_field('v', 22, 1)\
+    .add_field('c', 23, 1)\
+    .add_field('z', 24, 1)\
+    .add_field('n', 25, 1)
 
     on_branch: Callable[[B_InstructionType], None]
 
@@ -725,6 +739,7 @@ class Instruction:
         # the instruction's dependencies
         self.output_reg = None # type: ignore
         self.input_regs = [] # type: ignore
+        self.computed = None # type: ignore
 
     def decode(self) -> None:
         """helper function which decodes the instruction
@@ -754,7 +769,7 @@ class Instruction:
         d_regs = self.input_regs.copy()
         d_regs.append(self.output_reg) if self.output_reg is not None else None
 
-        return d_regs
+        return list(set(d_regs))
 
     def try_get(self, field: str) -> int:
         """tries to get the value from the specified field
