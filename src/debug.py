@@ -142,8 +142,13 @@ def terminal_print(print_string: str):
     global terminal_name
     with print_lock:
         print(f'\r{print_string}')
-        if terminal_name is not None:
-            cprint(f'{terminal_name}', end=f'$ ', color='blue')
+
+        try:
+            if terminal_name is not None:
+                cprint(f'{terminal_name}', end=f'$ ', color='blue')
+        except NameError:
+            cprint('WARNING: terminal_name undefined', color='red')
+            cprint('', end=f'$ ', color='blue')
 
     return
 

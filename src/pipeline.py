@@ -7,6 +7,7 @@ from bit_vectors import BitVector
 from eisa import EISA
 from memory_subsystem import MemorySubsystem, PipelineStall
 from clock import Clock
+from clock import sleep
 from functools import reduce
 from threading import Lock
 
@@ -330,7 +331,7 @@ class PipeLine:
         self._mw_reg = [self._em_reg[1], self._mw_reg[0]]
 
     def cycle_pipeline(self):
-        """function to run a single cycle of the pipeline
+        """function to run a single cycle of the pipeline - NOT THREADSAFE -> Call cycle(int cycles) instead
         """
         self._stalled = False
         
@@ -356,10 +357,30 @@ class PipeLine:
         """
 
         # only allow the pipeline to be run in a single thread
+
         with self._pipeline_lock:
             for i in range(cycle_count):
-                self.cycle_pipeline()
                 self._clock.wait(1, wait_event_name='pipeline cycle')
+                self.cycle_pipeline()
+
+                '''
+                while 1:
+                    try:
+                        self._clock.start()
+                        break
+                    except RuntimeError:
+                        pass
+                '''
+
+                #sleep(1) # TODO - Implement a fix for wait() so we don't need sleep(1)
+                '''
+                while 1:
+                    try:
+                        self._clock.stop()
+                        break
+                    except RuntimeError:
+                        pass
+                '''
 
     def __str__(self) -> str:
         """pipeline to string function
