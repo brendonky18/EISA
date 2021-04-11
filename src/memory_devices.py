@@ -230,7 +230,7 @@ class CacheWay:
                 ['Dirty', f'{self.dirty():#0{2 + 1}x}'],
                 ['Tag', f'{self.tag():#0{2 + ceil(self._tag_bits / 4)}x}'],
                 ['Index', f'{self.index():#0{2 + ceil(self._index_bits / 4)}x}'],
-                ['Data', f'{self.data():#0{2 + ceil(self._data_bits / 4)}}']
+                ['Data', f'{self.data():#0{2 + ceil(self._data_bits / 4)}x}']
             ],
             headers=['Field', 'Value'],
             tablefmt='pretty',
@@ -299,7 +299,8 @@ class CacheWay:
         address >>= (self._index_bits + self._offset_bits)
         tag = address & (2**self._tag_bits - 1)
 
-        return tag == self.tag() and self.valid()
+        return (tag == self.tag()) and bool(self.valid())
+        
     # replace/evict
     def replace(self, address_block: slice, data: int):
         """performs a cache eviction by replacing the data in a cache way
@@ -531,7 +532,7 @@ class Cache(MemoryDevice):
         return s
 
     # read
-    def __getitem__(self, address: int) -> int:
+    def __getitem__(self, address: int) -> int: # type: ignore
         return self.get_cacheway(address)[address]
 
     # write
