@@ -154,8 +154,9 @@ class CommandParser:
                     # check if the task raised any exceptions
                     if task.done() and (task_exception := task.exception()) is not None:
                         raise task_exception
-                    
-                
+
+                # remove all the tasks that are done
+                self._command_tasks = list(filter(lambda cur_task: not cur_task.done(), self._command_tasks))
 
 def commandparse_cb(func) -> Callable[..., Any]: 
     def commandparse_cb_wrapper(*args, arg_types: list[type]=[int], **kwargs):

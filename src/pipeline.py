@@ -8,6 +8,7 @@ from eisa import EISA
 from memory_subsystem import MemorySubsystem, PipelineStall
 from clock import Clock
 from functools import reduce
+from threading import Lock
 
 class Queue(deque):
     """Custom implementation of a FIFO queue with push and pop functions since Python is stupid
@@ -45,10 +46,9 @@ class PipeLine:
 
     _memory: MemorySubsystem
     _pipeline: list[Instruction]
+    _pipeline_lock: Lock
 
     _stalled: bool
-
-    _running: bool
     
     _cycles: int
     
@@ -102,8 +102,9 @@ class PipeLine:
         self._memory = memory
         
         self._pipeline = [Instruction() for i in range(5)]
+        self._pipeline_lock = Lock()
+
         self._stalled = False
-        self._running = False
 
         self._fd_reg = [Instruction(), Instruction()]
         self._de_reg = [Instruction(), Instruction()]
@@ -353,9 +354,12 @@ class PipeLine:
         cycle_count : int
             the number of cycles to run for
         """
-        for i in range(cycle_count):
-            self.cycle_pipeline()
-            self._clock.wait(1, wait_event_name='pipeline cycle')
+
+        # only allow the pipeline to be run in a single thread
+        with self._pipeline_lock:
+            for i in range(cycle_count):
+                self.cycle_pipeline()
+                self._clock.wait(1, wait_event_name='pipeline cycle')
 
     def __str__(self) -> str:
         """pipeline to string function
