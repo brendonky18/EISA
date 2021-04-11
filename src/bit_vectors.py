@@ -29,7 +29,7 @@ class BitVector:
 
     def __str__(self):
         new_line_char = '\n'
-        s = f'raw bits: {self._bits:0{2 + self._size}b}{new_line_char}'
+        s = f'raw bits: {self._bits:0{self._size}b}{new_line_char}'
         s += f'{new_line_char.join([f"{cur_key}: {self[cur_key]}" for cur_key in self._fields.keys()])}'
         
         return s
