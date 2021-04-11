@@ -360,27 +360,11 @@ class PipeLine:
 
         with self._pipeline_lock:
             for i in range(cycle_count):
-                self._clock.wait(1, wait_event_name='pipeline cycle')
-                self.cycle_pipeline()
-
-                '''
-                while 1:
-                    try:
-                        self._clock.start()
-                        break
-                    except RuntimeError:
-                        pass
-                '''
-
-                #sleep(1) # TODO - Implement a fix for wait() so we don't need sleep(1)
-                '''
-                while 1:
-                    try:
-                        self._clock.stop()
-                        break
-                    except RuntimeError:
-                        pass
-                '''
+                self._clock.wait(
+                    1, 
+                    wait_event_name='pipeline cycle', 
+                    wait_event = self.cycle_pipeline
+                )
 
     def __str__(self) -> str:
         """pipeline to string function
