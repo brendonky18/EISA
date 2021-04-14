@@ -3,7 +3,7 @@ import sys
 from typing import List, Tuple, Callable
 from threading import Lock
 from memory_subsystem import MemorySubsystem, PipelineStall
-from clock import Clock
+# from clock import Clock
 from commandparse import CommandParser, commandparse_cb, InputError
 from pipeline import PipeLine, Instruction
 from eisa import EISA
@@ -55,6 +55,7 @@ def init_commands(memory: MemorySubsystem, pipeline: PipeLine) -> List[Tuple[str
         address = index << 2
         terminal_print(str(memory._cache.get_cacheway(address)))
 
+    '''
     @commandparse_cb
     def clock(mode: str) -> None:
         mode = mode.lower()
@@ -66,11 +67,14 @@ def init_commands(memory: MemorySubsystem, pipeline: PipeLine) -> List[Tuple[str
             terminal_print('Clock stopped')
         else:
             terminal_print(f'<{mode}> is not a valid option, please enter start/stop')
+    '''
 
+    '''
     @commandparse_cb
     def step_clock(steps: int) -> None:
         terminal_print(f'Clock stepping {steps} iterations')
         Clock.step(steps)
+    '''
 
     @commandparse_cb
     def load_program(file_path: str, start_addr: int) -> None:
@@ -126,8 +130,8 @@ def init_commands(memory: MemorySubsystem, pipeline: PipeLine) -> List[Tuple[str
       , ('show', [str, int, int], view)  # alias for the view command
       , ('view-way', [int], view_way)
       , ('show-way', [int], view_way)  # alias
-      , ('clock', [str], clock)
-      , ('step', [int], step_clock)
+      # , ('clock', [str], clock)
+      # , ('step', [int], step_clock)
       , ('load', [str, int], load_program)
       , ('cycle', [int], run_pipeline)
       , ('show-pipeline', [], view_piepline)
@@ -182,5 +186,6 @@ if __name__ == '__main__':
 
     commands = init_commands(memory, pipeline)
 
-    with Clock() as c, CommandParser(name=args.n, commands=commands) as command_parser:
-        command_parser.start()
+    # with Clock() as c, CommandParser(name=args.n, commands=commands) as command_parser:
+    command_parser = CommandParser(name=args.n, commands=commands)
+    command_parser.start()

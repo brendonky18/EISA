@@ -6,7 +6,7 @@ from typing import Union, Optional, Callable, Any
 
 from tabulate import tabulate  # pip install tabulate
 
-from clock import Clock
+#from clock import Clock
 from eisa import EISA
 from math import ceil
 
@@ -75,7 +75,7 @@ class MemoryDevice(ABC):
     _read_speed: int
     _write_speed: int
     _next_device: Union[MemoryDevice, None]
-    _clock: Clock = Clock()
+    # _clock: Clock = Clock()
     _policies: Policy
 
     def __init__(self, local_addr_size: int, next_device: Union[MemoryDevice, None], read_speed: int, write_speed: int): #TODO check if we need to specify read and write speeds seperately
@@ -188,7 +188,7 @@ class CacheWay:
     _tag: int
     _index: int
     _data: list[int] = [0, 0, 0, 0]
-    _clock: Clock = Clock()
+    # _clock: Clock = Clock()
     # </instance variables>
 
     def __init__(self, index_bits: int, offset_bits: int):
@@ -257,7 +257,8 @@ class CacheWay:
         if tag != self.tag() or not self.valid():
             raise MemoryMissError('Read miss')
 
-        self._clock.wait(1, wait_event_name='Cache read')
+        # self._clock.wait(1, wait_event_name='Cache read')
+
         return self._data[offset]
 
     # write
@@ -277,7 +278,7 @@ class CacheWay:
         if tag != self.tag():
             raise MemoryMissError('Write miss')
         
-        self._clock.wait(1, wait_event_name='Cache write')
+        # self._clock.wait(1, wait_event_name='Cache write')
         self._data[offset] = value
         self.valid(True)
 
@@ -594,7 +595,7 @@ class RAM(MemoryDevice):
         """
         validate_address(address)
 
-        self._clock.wait(self._read_speed, wait_event_name='RAM read')
+        # self._clock.wait(self._read_speed, wait_event_name='RAM read')
 
         if isinstance(address, int):
             return self._memory[address]
@@ -616,7 +617,7 @@ class RAM(MemoryDevice):
         """
         validate_address(address)
 
-        self._clock.wait(self._write_speed, wait_event_name='RAM write')
+        # self._clock.wait(self._write_speed, wait_event_name='RAM write')
 
         self._memory[address] = value
 

@@ -6,8 +6,8 @@ from eisa import EISA
 from bit_vectors import BitVector
 from eisa import EISA
 from memory_subsystem import MemorySubsystem, PipelineStall
-from clock import Clock
-from clock import sleep
+#from clock import Clock
+#from clock import sleep
 from functools import reduce
 from threading import Lock
 
@@ -43,7 +43,7 @@ class PipeLine:
     """
 
     # TODO - Implement branch squashing
-    _clock: Clock
+    #_clock: Clock
 
     _memory: MemorySubsystem
     _pipeline: list[Instruction]
@@ -94,7 +94,7 @@ class PipeLine:
         memory : MemorySubsystem
             a reference to the memory subsystem that the pipeline will read from/write to
         """
-        self._clock = Clock()
+        # self._clock = Clock()
         self._registers = registers
         self._active_registers = [False for i in range(len(registers))]
         
@@ -358,6 +358,7 @@ class PipeLine:
 
         # only allow the pipeline to be run in a single thread
 
+        '''
         with self._pipeline_lock:
             for i in range(cycle_count):
                 self._clock.wait(
@@ -365,6 +366,10 @@ class PipeLine:
                     wait_event_name='pipeline cycle', 
                     wait_event = self.cycle_pipeline
                 )
+        '''
+        for i in range(cycle_count):
+            self.cycle_pipeline()
+
 
     def __str__(self) -> str:
         """pipeline to string function

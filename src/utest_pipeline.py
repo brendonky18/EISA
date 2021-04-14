@@ -33,12 +33,8 @@ class UnittestPipeline(unittest.TestCase):
             instruction['op2'] = 0b00100
             instruction['imm'] = False
 
-            try:
-                my_pipe._memory[0] = instruction._bits  # 0b00000100011111110001000000000000
-            except PipelineStall:
-                # Ensure that the stall thread rejoins prior to running the test
-                sleep(2)
-                pass
+            # cook the pipe's memory
+            my_pipe._memory._RAM[0] = instruction._bits
 
             # A single add instruction should take no more than 5 cycles to fully execute,
             #   however, the instruction takes 6 cycles to fully exit the pipeline, which we
@@ -59,10 +55,10 @@ class UnittestPipeline(unittest.TestCase):
             my_pipe.cycle_pipeline()
             '''
 
-            # my_pipe.cycle(8)
+            my_pipe.cycle(7)
             #Clock.step(7)
 
-            my_pipe.cycle(7)
+            #my_pipe.cycle(7)
             #my_pipe.cycle_pipeline()
 
 
