@@ -49,7 +49,8 @@ class PipeLine:
     _pipeline: list[Instruction]
     _pipeline_lock: Lock
 
-    _stalled: bool
+    _stalled_fetch = False
+    _stalled_memory = False
     
     _cycles: int
     
@@ -105,7 +106,10 @@ class PipeLine:
         self._pipeline = [Instruction() for i in range(5)]
         self._pipeline_lock = Lock()
 
-        self._stalled = False
+        self._stalled_fetch = False
+        self._stalled_memory = False
+
+        self._is_finished = False
 
         self._fd_reg = [Instruction(), Instruction()]
         self._de_reg = [Instruction(), Instruction()]
@@ -227,19 +231,28 @@ class PipeLine:
     def stage_fetch(self) -> None:
         """function to run the fetch stage
         """
-        # Load instruction in MEMORY at the address the PC is pointing to
-        try:
-            instruction = Instruction(self._memory[self._pc])
-        except PipelineStall:
-            self._stalled = True
-            instruction = Instruction() # send noop forward on a pipeline stall
-        else:
-            self._stalled |= False
 
+        # TODO - Make it so that fetch retains the stalled instruction in pipeline[0]
+        #   (i.e.) prevent noops from showing up in pipeline[0]
+
+        instruction = Instruction()
+
+        # Load instruction in MEMORY at the address the PC is pointing to
+        if not self._is_finished and not self._stalled_memory:
+            try:
+                instruction = Instruction(self._memory[self._pc])
+            except PipelineStall:
+                self._stalled_fetch = True
+                # instruction = Instruction() # send noop forward on a pipeline stall
+            else:
+                self._stalled_fetch |= False
 
         self._pipeline[0] = instruction
 
         self._fd_reg[0] = instruction
+
+        if not self._stalled_fetch:
+            self._pc += 1
 
     def stage_decode(self) -> None:
         """function to run the decode stage
@@ -252,8 +265,13 @@ class PipeLine:
         # Decode the instruction
         instruction.decode()
 
-        dependencies = instruction.dependencies()
+        # if the instruction is END, flag the pipeline to tell it to not load anymore instructions
+        if instruction['opcode'] == 0b100000:
+            self._de_reg[0] = instruction
+            self._is_finished = True
+            return
 
+        dependencies = instruction.dependencies()
         if self.check_active_dependency(dependencies):
             # waiting for another instruction to release the dependency
             self._de_reg[0] = Instruction() # stall, pass forward NoOp
@@ -280,6 +298,7 @@ class PipeLine:
         instruction_type.execute_stage_func(instruction, self)
 
         # Push edited instruction into the adjacent queue
+
         self._em_reg[0] = instruction
 
     def stage_memory(self):
@@ -288,6 +307,8 @@ class PipeLine:
         # get executed instruction
         instruction = self._em_reg[1]
 
+        self._pipeline[3] = instruction
+
         # get the instruction type of the instruction
         instruction_type = OpCode_InstructionType_lookup[instruction.opcode]
         
@@ -295,14 +316,16 @@ class PipeLine:
         try:
             instruction_type.memory_stage_func(instruction, self)
         except PipelineStall:
-            self._stalled = True
-            instruction = Instruction() # send a NOOP forward
+            self._stalled_memory = True
+            # instruction = Instruction() # send a NOOP forward
+            self._mw_reg[0] = Instruction()
         else:
-            self._stalled |= False
+            self._mw_reg[0] = instruction
+
+            self._stalled_memory |= False
         
         # Push instruction into the adjacent queue
-        self._mw_reg[0] = instruction
-        self._pipeline[3] = instruction
+        #self._mw_reg[0] = instruction
 
     def stage_writeback(self):
         """function to run the writeback stage
@@ -325,27 +348,37 @@ class PipeLine:
         """function to advance the instructions within the dual registers between each pipeline stage
         """
         # TODO - Test whether putting no ops into 0th elements provides same results
-        self._fd_reg = [Instruction(), self._fd_reg[0]]
-        self._de_reg = [self._fd_reg[1], self._de_reg[0]]
-        self._em_reg = [self._de_reg[1], self._em_reg[0]]
         self._mw_reg = [self._em_reg[1], self._mw_reg[0]]
+        if not self._stalled_memory:
+            self._em_reg = [self._de_reg[1], self._em_reg[0]]
+            self._de_reg = [self._fd_reg[1], self._de_reg[0]]
+            self._fd_reg = [Instruction(), self._fd_reg[0]]
 
     def cycle_pipeline(self):
         """function to run a single cycle of the pipeline - NOT THREADSAFE -> Call cycle(int cycles) instead
         """
-        self._stalled = False
-        
+        self._stalled_fetch = False
+        self._stalled_memory = False
+
+        # self._mw_reg = [self._em_reg[1], self._mw_reg[0]]
         self.stage_writeback()
         self.stage_memory()
-        self.stage_execute()
-        self.stage_decode()
-        self.stage_fetch()
+
+        if not self._stalled_memory:
+
+            self.stage_execute()
+
+            # if not self._stalled:
+            #    self._em_reg = [self._de_reg[1], self._em_reg[0]]
+            self.stage_decode()
+            # if not self._stalled:
+            #    self._de_reg = [self._fd_reg[1], self._de_reg[0]]
+            self.stage_fetch()
+            # if not self._stalled:
+            #    self._fd_reg = [Instruction(), self._fd_reg[0]]
 
         self._cycles += 1
         self.cycle_stage_regs()
-
-        if not self._stalled:
-            self._pc += 1
 
     def cycle(self, cycle_count: int):
         """run the pipeline for a number of cycles

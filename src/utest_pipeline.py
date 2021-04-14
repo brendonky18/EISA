@@ -13,237 +13,139 @@ class UnittestPipeline(unittest.TestCase):
     def test_addition_simple(self):
 
         mem_sub = MemorySubsystem(EISA.ADDRESS_SIZE, 4, 1, 1, 8, 2, 2)
+        my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
 
-        with Clock():
-            my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
+        my_pipe._registers[31] = 10
+        my_pipe._registers[4] = 30
 
-            my_pipe._registers[31] = 10
-            my_pipe._registers[4] = 30
+        # Opcode: 000001 (ADD/MOV)
+        # Destination: 00011 (Register 3)
+        # Operand 1: 11111 (Register 31)
+        # Immediate Flg: 0
+        # Operand 2: 00100 (Register 4)
+        # PADDING: 0000000000 (Bits 9 - 0 are Irrelevant)
+        instruction = OpCode_InstructionType_lookup[0b000001].encoding()
+        instruction['opcode'] = 0b000001
+        instruction['dest'] = 0b00011
+        instruction['op1'] = 0b11111
+        instruction['op2'] = 0b00100
+        instruction['imm'] = False
 
-            # Opcode: 000001 (ADD/MOV)
-            # Destination: 00011 (Register 3)
-            # Operand 1: 11111 (Register 31)
-            # Immediate Flg: 0
-            # Operand 2: 00100 (Register 4)
-            # PADDING: 0000000000 (Bits 9 - 0 are Irrelevant)
-            instruction = OpCode_InstructionType_lookup[0b000001].encoding()
-            instruction['opcode'] = 0b000001
-            instruction['dest'] = 0b00011
-            instruction['op1'] = 0b11111
-            instruction['op2'] = 0b00100
-            instruction['imm'] = False
+        # cook END instruction to signal pipeline to end
+        end = OpCode_InstructionType_lookup[0b100000].encoding()
 
-            # cook the pipe's memory
-            my_pipe._memory._RAM[0] = instruction._bits
+        # cook the pipe's memory
+        my_pipe._memory._RAM[0] = instruction._bits
+        my_pipe._memory._RAM[1] = end._bits
 
-            # A single add instruction should take no more than 5 cycles to fully execute,
-            #   however, the instruction takes 6 cycles to fully exit the pipeline, which we
-            #   are not verifying.
-            #my_pipe.cycle(7)
-
-            # Instruction takes 6 cycles.
-            # 2 cycles for fetch to read from memory
-            # 4 cycles to get through all stages
-
-            '''
-            my_pipe.cycle_pipeline()
-            my_pipe.cycle_pipeline()
-            my_pipe.cycle_pipeline()
-            my_pipe.cycle_pipeline()
-            my_pipe.cycle_pipeline()
-            my_pipe.cycle_pipeline()
-            my_pipe.cycle_pipeline()
-            '''
-
-            my_pipe.cycle(7)
-            #Clock.step(7)
-
-            #my_pipe.cycle(7)
-            #my_pipe.cycle_pipeline()
-
-
-            # my_pipe.cycle(6)
-            # my_pipe.cycle_pipeline()
+        my_pipe.cycle(7)
 
         # Assert that the values in register 31 and register 4 equal the value in register 3
         # NOTE: REMEMBER REGISTERS ARE ALREADY 0 INDEXED - We refer to the first register as the 0th register
         self.assertEqual(my_pipe._registers[31] + my_pipe._registers[4], my_pipe._registers[3])
-        '''
-        while my_pipe._registers[31] + my_pipe._registers[4] is not my_pipe._registers[3]:
-            try:
-                self.assertEqual(my_pipe._registers[31] + my_pipe._registers[4], my_pipe._registers[3])
-                break
-            except AssertionError:
-                pass
-        '''
 
     # Load two operands from memory (on a cache hit). Confirm the cycles are correct and
     #   the registers contain the correct value
+    def test_load_1_operand(self):
+        mem_sub = MemorySubsystem(EISA.ADDRESS_SIZE, 4, 1, 1, 8, 2, 2)
+
+        my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
+
+        # Opcode: 001101 (LOAD)
+        instruction = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction['opcode'] = 0b001101
+        instruction['dest'] = 3
+        instruction['lit'] = False
+        instruction['base'] = 31
+        instruction['offset'] = 0
+
+        my_pipe._memory._RAM[0] = instruction._bits
+
+        # cook END instruction to signal pipeline to end
+        end = OpCode_InstructionType_lookup[0b100000].encoding()
+        end['opcode'] = 0b100000
+        my_pipe._memory._RAM[1] = end._bits
+
+        my_pipe._memory._RAM[12] = 72
+        my_pipe._registers[31] = 12
+
+        my_pipe.cycle(9)
+
+        self.assertEqual(my_pipe._memory._RAM[12], my_pipe._registers[3])
+
     def test_load_2_operands(self):
         mem_sub = MemorySubsystem(EISA.ADDRESS_SIZE, 4, 1, 1, 8, 2, 2)
 
-        with Clock():
-            my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
+        my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
 
-            # Opcode: 001101 (LOAD)
-            instruction = OpCode_InstructionType_lookup[0b001101].encoding()
-            instruction['opcode'] = 0b001101
-            instruction['dest'] = 3
-            instruction['lit'] = False
-            instruction['base'] = 31
-            instruction['offset'] = 0
+        # Opcode: 001101 (LOAD)
+        instruction = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction['opcode'] = 0b001101
+        instruction['dest'] = 3
+        instruction['lit'] = False
+        instruction['base'] = 31
 
-            try:
-                my_pipe._memory[0] = instruction._bits
-            except PipelineStall:
-                pass
+        # TODO - is the offset being treated as a register number or a literal?
+        instruction['offset'] = 0
 
-            # Set memory address 31 to a value of 72
-            try:
-                my_pipe._memory[31] = 72
-            except PipelineStall:
-                pass
+        my_pipe._memory._RAM[0] = instruction._bits
 
-            # A single load instruction should take no more than 5 cycles to fully execute,
-            #   however, the instruction takes 6 cycles to fully exit the pipeline, which we
-            #   are not verifying.
-            my_pipe.cycle(7)
+        my_pipe._memory._RAM[12] = 72
+        my_pipe._registers[31] = 12
 
-        # Assert that the value in register 3 is the value read from the value stored at address
-        #   31 in memory
-        A = None
-        while A is None:
-            try:
-                A = my_pipe._memory[31]
-            except PipelineStall:
-                pass
+        # Opcode: 001101 (LOAD)
+        instruction2 = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction2['opcode'] = 0b001101
+        instruction2['dest'] = 4
+        instruction2['lit'] = False
+        instruction2['base'] = 30
+        instruction2['offset'] = 0
 
-        self.assertEqual(A, my_pipe._registers[3])
+        my_pipe._memory._RAM[1] = instruction2._bits
+
+        my_pipe._memory._RAM[13] = 36
+        my_pipe._registers[30] = 13
+
+        # cook END instruction to signal pipeline to end
+        end = OpCode_InstructionType_lookup[0b100000].encoding()
+        end['opcode'] = 0b100000
+        my_pipe._memory._RAM[2] = end._bits
+
+        my_pipe.cycle(13)
+
+        self.assertEqual(my_pipe._memory._RAM[12], my_pipe._registers[3])
+        self.assertEqual(my_pipe._memory._RAM[13], my_pipe._registers[4])
 
     def test_store_simple(self):
         mem_sub = MemorySubsystem(EISA.ADDRESS_SIZE, 4, 1, 1, 8, 2, 2)
 
-        with Clock():
-            my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
+        my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
 
-            # Opcode: 001110 (STR)
-            # Src: 00011 (Register 3)
-            # PADDING: 00000 (Bits 20-16 are Irrelevant)
-            # Literal Flg: 0
-            # Base/Literal: 11111 (Address 31)
-            # Offset/Literal: 0000000000 (Offset 0)
+        # Opcode: 001110 (STR) Src: 00011 (Register 3) PADDING: 00000 (Bits 20-16 are Irrelevant) Base/Literal: 11111
+        # (Register 31) Offset/Literal: 0000000000 (Offset 0) TODO - is this a register number or a literal????
+        #  Assuming reg num for now
 
-            instruction = OpCode_InstructionType_lookup[0b001110].encoding()
-            instruction['src'] = 0b00011
-            instruction['base'] = 0b11111
-            instruction['offset'] = 0
+        instruction = OpCode_InstructionType_lookup[0b001110].encoding()
+        instruction['src'] = 3
+        instruction['base'] = 31
+        instruction['offset'] = 0
 
-            try:
-                my_pipe._memory[0] = instruction._bits  # 0b00111000011111110000000000000000
-            except PipelineStall:
-                pass
+        my_pipe._memory._RAM[0] = instruction._bits  # Set the 0th word in memory to this instruction, such that it's
+        # the first instruction the PC points to
 
-            my_pipe._registers[31] = 31
-            try:
-                my_pipe._memory[31] = 72
-            except PipelineStall:
-                pass
+        my_pipe._registers[31] = 18  # Storing to address 18 in memory
 
-            # A single store instruction should take no more than 5 cycles to fully execute,
-            #   however, the instruction takes 6 cycles to fully exit the pipeline, which we
-            #   are not verifying.
-            my_pipe.cycle(7)
-        
-        while True:
-            try:
-                res1 = my_pipe._registers[3]
-            except PipelineStall:
-                pass
-            else:
-                break
+        my_pipe._registers[3] = 256  # storing value in register 3
 
-        while True:
-            try:
-                res2 = my_pipe._memory[31]
-            except PipelineStall:
-                pass
-            else:
-                break
-        
-            self.assertEqual(res1, res2)
+        # cook END instruction to signal pipeline to end
+        end = OpCode_InstructionType_lookup[0b100000].encoding()
+        end['opcode'] = 0b100000
+        my_pipe._memory._RAM[1] = end._bits  # END is stored at address (word) 1 in memory
 
-    def test_load_store_alu(self):
+        my_pipe.cycle(9)
 
-        mem_sub = MemorySubsystem(EISA.ADDRESS_SIZE, 4, 1, 1, 8, 2, 2)
-        
-        with Clock():
-            my_pipe = PipeLine(0, [i for i in range(EISA.NUM_GP_REGS)], mem_sub)
-
-            # Load value into reg 31 from address 4 + 0 offset
-
-            # Opcode: 001101 (LOAD)
-            instruction = OpCode_InstructionType_lookup[0b001101].encoding()
-            instruction['dest'] = 31
-            instruction['base'] = 4
-            instruction['lit'] = False
-            instruction['offset'] = 0
-            try:
-                my_pipe._memory[0] = instruction._bits
-            except PipelineStall:
-                pass
-
-            # Add value in reg 31 with value in reg 4, store in reg 3
-
-            # Opcode: 000001 (ADD)
-            instruction = OpCode_InstructionType_lookup[0b000001].encoding()
-            instruction['dest'] = 3
-            instruction['op1'] = 31
-            instruction['imm'] = False
-            instruction['op2'] = 4
-
-            try:
-                my_pipe._memory[1] = instruction._bits
-            except PipelineStall:
-                pass
-
-            # Gets value to store from reg 3 (11111) (the value stored is 555)
-
-            # Attempts to store @ address 5 (00101) with offset 0 (00000)
-
-            # Opcode: 001110 (STR)
-            instruction = OpCode_InstructionType_lookup[0b001110].encoding()
-            instruction['base'] = 3
-            instruction['offset'] = 0
-            # instruction['op1'] = 31
-            instruction['base'] = 31
-            # instruction['imm'] = False
-            # instruction['op2'] = 4
-            try:
-                my_pipe._memory[2] = instruction._bits
-            except PipelineStall:
-                pass
-
-            # Value to be loaded in reg 31
-
-            try:
-                my_pipe._memory[4] = 555
-            except PipelineStall:
-                pass
-
-            # Value in reg 4 to add to the value stored in reg 31
-
-            my_pipe._registers[4] = 30
-
-            # Num instructions + num stages + 1
-
-            cycleCounter = 0
-
-        self.assertEqual(555, my_pipe._registers[31])
-        self.assertEqual(585, my_pipe._registers[3])
-        self.assertEqual(585, my_pipe._memory[5])
+        self.assertEqual(my_pipe._registers[3], my_pipe._memory._RAM[18])
 
 
 if __name__ == '__main__':
-    # Clock.start()
     unittest.main()
-    # Clock.stop()
