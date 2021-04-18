@@ -370,7 +370,7 @@ class Dialog(QDialog):
 
         for i in range(1, self.memory_group.ram_rows):
             for j in range(1, self.memory_group.ram_cols):
-                val = ram[((i-1)*(j-1)) + (j-1)]
+                val = ram[((i-1)*self.memory_group.ram_cols) + (j-1)]
                 self.memory_group.ram_table[i][j] = val
                 self.memory_group.ram_widget.item(i-1, j-1).setText(str(val))
 
@@ -379,7 +379,7 @@ class Dialog(QDialog):
 
         for i in range(1, self.memory_group.regs_rows):
             for j in range(1, self.memory_group.regs_cols):
-                val = regs[((i - 1) * (j - 1)) + (j - 1)]
+                val = regs[((i - 1) * self.memory_group.regs_cols) + (j - 1)]
                 self.memory_group.regs_table[i][j] = val
                 self.memory_group.regs_widget.item(i-1,j-1).setText(str(val))
 
