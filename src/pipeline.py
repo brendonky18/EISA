@@ -754,17 +754,6 @@ class Instruction:
     """class for an instance of an instruction, containing the raw encoded bits of the instruction, as well as helper functions for processing the instruction at the different pipeline stages
     """
     # region instance vars
-    # Register addresses (raw values provided to instruction)
-    _regA: int  # Param 1 of instruction
-    _regB: int  # Param 2 of instruction
-    _regC: int  # Param 3 of instruction (most likely immediate value)
-
-    # Operands (values loaded assuming register addresses in regA,regB,regC)
-    # If regA-regC are not register addresses, ignore these vars
-    _opA: int  # Value retrieved from reg A
-    _opB: int  # Value retrieved from reg B
-    _opC: int  # Value retrieved from reg C
-
     # Result for addition instructions, or loaded value if a load instruction
     computed: int  # will be none unless set by the pipeline
     opcode: int
@@ -779,10 +768,6 @@ class Instruction:
     # values for dependencies, defaults to None if there are no dependencies
     output_reg: int  # register that the instruction writes to
     input_regs: List[int]  # list of registers that the instruction reads from
-
-    # value assigned by scoreboard indicating what row this instruction is present in
-    #   in the scoreboard
-    _scoreboard_index: int
 
     _pipeline: PipeLine
 
@@ -890,6 +875,7 @@ class Instruction:
             the value of the field, or None if the field does not exist (possibly because the instruction has not been decoded yet)
         """
 
+        # Commented the error out for easier use with UI
         if self._decoded is None:
             raise DecodeError(f'{self._encoded} has not been decoded yet')
         else:

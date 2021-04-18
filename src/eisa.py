@@ -44,6 +44,9 @@ class EISA_properties(object):
     @const
     def NUM_INSTR_Q_ROWS(self) -> int: return 8 # max size of instruction queue in scoreboard
 
+    @const
+    def MAX_INSTRUCTION_FIELDS(self) -> int: return 7 # max number of fields in an instruction's dictionary. used for ui
+
 # wrappers
     @const
     def ADDRESS_SPACE(self) -> int: return 2 ** self.ADDRESS_SIZE  # the number of valid addresses
