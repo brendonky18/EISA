@@ -1,19 +1,21 @@
 from __future__ import annotations
-#from queue import *
+# from queue import *
 from collections import deque
 from typing import Dict, Type, Union, Callable, List, Optional
 from eisa import EISA
 from bit_vectors import BitVector
 from eisa import EISA
 from memory_subsystem import MemorySubsystem, PipelineStall
-#from clock import Clock
-#from clock import sleep
+# from clock import Clock
+# from clock import sleep
 from functools import reduce
 from threading import Lock
+
 
 class Queue(deque):
     """Custom implementation of a FIFO queue with push and pop functions since Python is stupid
     """
+
     def __init__(self, maxsize):
         super().__init__([], maxsize)
 
@@ -28,22 +30,25 @@ class Queue(deque):
             return None
         return self[0]
 
+
 class DecodeError(Exception):
     """Exception raised when attempting to access a field of an instruction that has not been decoded
     """
     message: str
-    def __init__(self, message: str='Instruction has not been decoded yet'):
+
+    def __init__(self, message: str = 'Instruction has not been decoded yet'):
         self.message = message
 
     def __str__(self):
         return self.message
+
 
 class PipeLine:
     """The pipeline for the simulation
     """
 
     # TODO - Implement branch squashing
-    #_clock: Clock
+    # _clock: Clock
 
     _memory: MemorySubsystem
     _pipeline: list[Instruction]
@@ -51,36 +56,37 @@ class PipeLine:
 
     _stalled_fetch = False
     _stalled_memory = False
-    
+
     _cycles: int
-    
+
     # N, Z, C, V flags
-    condition_flags: Dict[str, bool] 
+    condition_flags: Dict[str, bool]
 
     # region registers
     # general purpose registers
-    _registers: list[int] # TODO refactor '_registers' to 'registers'
+    _registers: list[int]  # TODO refactor '_registers' to 'registers'
     _active_registers: list[bool]
 
     # AES registers
-        # TODO
+    # TODO
 
     # Hash registers
-        # TODO
+    # TODO
 
     # special registers
     # program counter
-    _pc: int # TODO refactor '_pc' to 'pc' to make it a public variable
+    _pc: int  # TODO refactor '_pc' to 'pc' to make it a public variable
     # link register
     lr: int
     # ALU register
-    ar: int # TODO implement the ALU register with dependencies, rather than using the 'computed' field in 'Instruction'
+    ar: int  # TODO implement the ALU register with dependencies, rather than using the 'computed' field in 'Instruction'
 
     # Has to be size 2
-    _fd_reg: list[Instruction] # Fetch/Decode reg
-    _de_reg: list[Instruction] # Decode/Execute reg
-    _em_reg: list[Instruction] # Execute/Memory reg
-    _mw_reg: list[Instruction] # Memory/Writeback reg
+    _fd_reg: list[Instruction]  # Fetch/Decode reg
+    _de_reg: list[Instruction]  # Decode/Execute reg
+    _em_reg: list[Instruction]  # Execute/Memory reg
+    _mw_reg: list[Instruction]  # Memory/Writeback reg
+
     # endregion registers
 
     def __init__(self, pc: int, registers: list[int], memory: MemorySubsystem):
@@ -98,11 +104,11 @@ class PipeLine:
         # self._clock = Clock()
         self._registers = registers
         self._active_registers = [False for i in range(len(registers))]
-        
+
         self._pc = pc
-        
+
         self._memory = memory
-        
+
         self._pipeline = [Instruction() for i in range(5)]
         self._pipeline_lock = Lock()
 
@@ -122,7 +128,6 @@ class PipeLine:
             'c': False,
             'v': False
         }
-        
 
     # region dependencies
     def check_active_dependency(self, reg_addr: Union[int, List[int]]) -> bool:
@@ -151,7 +156,7 @@ class PipeLine:
             for reg in reg_addr_list:
                 if self._active_registers[reg]:
                     return True
-        
+
         return False
 
     def get_dependency(self, reg_addr: int) -> int:
@@ -186,7 +191,8 @@ class PipeLine:
         if reg_addr_list != []:
             for cur_reg_addr in reg_addr_list:
                 if self._active_registers[cur_reg_addr]:
-                    raise RuntimeError(f'Cannot claim register {cur_reg_addr} as a dependency, it has already been claimed by another instruction')
+                    raise RuntimeError(
+                        f'Cannot claim register {cur_reg_addr} as a dependency, it has already been claimed by another instruction')
 
                 self._active_registers[cur_reg_addr] = True
 
@@ -223,7 +229,7 @@ class PipeLine:
         self._fd_reg = [Instruction(), Instruction()]
         self._de_reg = [Instruction(), Instruction()]
         self._pc = newPC
-        
+
         active_regs = [i for i in range(len(self._active_registers)) if self._active_registers[i]]
 
         self.free_dependency(active_regs)
@@ -271,15 +277,24 @@ class PipeLine:
             self._is_finished = True
             return
 
-        dependencies = instruction.dependencies()
-        if self.check_active_dependency(dependencies):
-            # waiting for another instruction to release the dependency
-            self._de_reg[0] = Instruction() # stall, pass forward NoOp
-        else:
-            # can proceed
-            self.claim_dependency(dependencies)
-            self._de_reg[0] = instruction
-            
+        if self._de_reg[0].opcode == 0:  # TODO
+
+            # I put this if-statement in because instructions were being overwritten in the
+            # 0th slot of the de reg. For some reason, instructions sometimes get stuck
+            # in de_reg[0], and don't get cycled into de_reg[1], thus any op that gets
+            # passed forward from decode to execute got overwritten randomly. Need to
+            # fix this at some point, because there's likely a larger underlying issue
+            # here, but I am leaving it as is for now to work on the UI.
+
+            dependencies = instruction.dependencies()
+            if self.check_active_dependency(dependencies):
+                # waiting for another instruction to release the dependency
+                self._de_reg[0] = Instruction()  # stall, pass forward NoOp
+            else:
+                # can proceed
+                self.claim_dependency(dependencies)
+                self._de_reg[0] = instruction
+
     def stage_execute(self) -> None:
         """function to run the execute stage
         """
@@ -293,7 +308,7 @@ class PipeLine:
 
         # get the instruction type of the instruction
         instruction_type = OpCode_InstructionType_lookup[instruction.opcode]
-        
+
         # run the execute stage
         instruction_type.execute_stage_func(instruction, self)
 
@@ -311,7 +326,7 @@ class PipeLine:
 
         # get the instruction type of the instruction
         instruction_type = OpCode_InstructionType_lookup[instruction.opcode]
-        
+
         # run the memory stage
         try:
             instruction_type.memory_stage_func(instruction, self)
@@ -323,9 +338,9 @@ class PipeLine:
             self._mw_reg[0] = instruction
 
             self._stalled_memory |= False
-        
+
         # Push instruction into the adjacent queue
-        #self._mw_reg[0] = instruction
+        # self._mw_reg[0] = instruction
 
     def stage_writeback(self):
         """function to run the writeback stage
@@ -337,7 +352,7 @@ class PipeLine:
 
         # get the instruction type of the instruction
         instruction_type = OpCode_InstructionType_lookup[instruction.opcode]
-        
+
         # run the memory stage
         instruction_type.writeback_stage_func(instruction, self)
 
@@ -363,22 +378,20 @@ class PipeLine:
         # self._mw_reg = [self._em_reg[1], self._mw_reg[0]]
         self.stage_writeback()
         self.stage_memory()
+        self._mw_reg = [self._em_reg[1], self._mw_reg[0]]
 
         if not self._stalled_memory:
-
             self.stage_execute()
+            self._em_reg = [self._de_reg[1], self._em_reg[0]]
 
-            # if not self._stalled:
-            #    self._em_reg = [self._de_reg[1], self._em_reg[0]]
             self.stage_decode()
-            # if not self._stalled:
-            #    self._de_reg = [self._fd_reg[1], self._de_reg[0]]
+            self._de_reg = [self._fd_reg[1], self._de_reg[0]]
+
             self.stage_fetch()
-            # if not self._stalled:
-            #    self._fd_reg = [Instruction(), self._fd_reg[0]]
+            self._fd_reg = [Instruction(), self._fd_reg[0]]
 
         self._cycles += 1
-        self.cycle_stage_regs()
+        # self.cycle_stage_regs()
 
     def cycle(self, cycle_count: int):
         """run the pipeline for a number of cycles
@@ -403,7 +416,6 @@ class PipeLine:
         for i in range(cycle_count):
             self.cycle_pipeline()
 
-
     def __str__(self) -> str:
         """pipeline to string function
 
@@ -421,6 +433,7 @@ class PipeLine:
 
         return out
 
+
 # region Instruction Types
 class InstructionType:
     """Wrapper class for a generic instruction type (add, subtract, load, store, etc.), 
@@ -428,17 +441,17 @@ class InstructionType:
     and function calls within the various pipeline stages
     """
 
-    #region Instruction Encodings
+    # region Instruction Encodings
     # NOOP
     Encoding = BitVector.create_subtype('InstructionEncoding', 32)
     Encoding.add_field('opcode', 26, 6)
-    
+
     # TODO: Push, Pop, and all AES instructions
-    #endregion Instruction Encodings
+    # endregion Instruction Encodings
 
     mnemonic: str
     encoding: Type[BitVector]
-        
+
     def __init__(self, mnemonic: str):
         """creates a new InstructionType
 
@@ -485,16 +498,17 @@ class InstructionType:
         """
         pass
 
+
 class ALU_InstructionType(InstructionType):
     """Wrapper class for the ALU instructions:
         ADD, SUB, CMP, MULT, DIV, MOD, LSL, LSR, ASR, AND, XOR, ORR, NOT
     """
-    ALU_Encoding = InstructionType.Encoding.create_subtype('ALU_Encoding') 
-    ALU_Encoding.add_field('immediate', 0, 15, overlap=True)\
-    .add_field('op2', 10, 5, overlap=True)\
-    .add_field('imm', 15, 1)\
-    .add_field('op1', 16, 5)\
-    .add_field('dest', 21, 5)
+    ALU_Encoding = InstructionType.Encoding.create_subtype('ALU_Encoding')
+    ALU_Encoding.add_field('immediate', 0, 15, overlap=True) \
+        .add_field('op2', 10, 5, overlap=True) \
+        .add_field('imm', 15, 1) \
+        .add_field('op1', 16, 5) \
+        .add_field('dest', 21, 5)
 
     def __init__(self, mnemonic: str, ALU_func: Callable[[int, int], int]):
         """creates a new ALU instruction type
@@ -511,7 +525,7 @@ class ALU_InstructionType(InstructionType):
 
         self.encoding = ALU_InstructionType.ALU_Encoding
         self._ALU_func = ALU_func
-    
+
     def execute_stage_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
         """get's the two operands and performs the ALU operation
         """
@@ -523,7 +537,7 @@ class ALU_InstructionType(InstructionType):
         else:
             # register direct
             val2 = pipeline.get_dependency(instruction['op2'])
-        
+
         instruction.computed = self._ALU_func(val1, val2)
 
     def writeback_stage_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
@@ -531,13 +545,14 @@ class ALU_InstructionType(InstructionType):
         """
         pipeline._registers[instruction['dest']] = instruction.computed
 
+
 class CMP_InstructionType(ALU_InstructionType):
     """wrapper class for the CMP instruction
     """
 
     CMP_Encoding = ALU_InstructionType.ALU_Encoding.create_subtype('CMP_Encoding')
     CMP_Encoding.remove_field('dest')
-    
+
     def __init__(self, mnemonic: str, CMP_func: Callable[[int, int], int]):
         self.mnemonic = mnemonic
         self._CMP_func = CMP_func
@@ -548,15 +563,15 @@ class CMP_InstructionType(ALU_InstructionType):
         """
         res = self._CMP_func(instruction['op1'], instruction['op2'])
 
-        pipeline.condition_flags['n'] = bool(res & (0b1 << (EISA.WORD_SIZE - 1))) # gets the sign bit (bit 31)
+        pipeline.condition_flags['n'] = bool(res & (0b1 << (EISA.WORD_SIZE - 1)))  # gets the sign bit (bit 31)
         pipeline.condition_flags['z'] = res == 0
         pipeline.condition_flags['c'] = res >= EISA.WORD_SPACE
-        
+
         # I know this isn't very ~boolean zen~ but it's more readable so stfu
         signed_overflow = False
-        if res <= -2**(EISA.WORD_SIZE - 1): # less than the minimum signed value
+        if res <= -2 ** (EISA.WORD_SIZE - 1):  # less than the minimum signed value
             signed_overflow = True
-        elif res >= 2**(EISA.WORD_SIZE - 1): # greater than the maximum signed value
+        elif res >= 2 ** (EISA.WORD_SIZE - 1):  # greater than the maximum signed value
             signed_overflow = True
 
         pipeline.condition_flags['v'] = signed_overflow
@@ -565,24 +580,25 @@ class CMP_InstructionType(ALU_InstructionType):
     def writeback_stage_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
         pass
 
+
 class B_InstructionType(InstructionType):
     """wrapper class for the branch instructions:
         B{cond}, BL{cond}
     """
     # B, BL
     B_Encoding = InstructionType.Encoding.create_subtype('B_Encoding')
-    B_Encoding.add_field('immediate', 0, 15, overlap=True)\
-    .add_field('offset', 0, 10, overlap=True)\
-    .add_field('base', 10, 5, overlap=True)\
-    .add_field('imm', 15, 1)\
-    .add_field('v', 22, 1)\
-    .add_field('c', 23, 1)\
-    .add_field('z', 24, 1)\
-    .add_field('n', 25, 1)
+    B_Encoding.add_field('immediate', 0, 15, overlap=True) \
+        .add_field('offset', 0, 10, overlap=True) \
+        .add_field('base', 10, 5, overlap=True) \
+        .add_field('imm', 15, 1) \
+        .add_field('v', 22, 1) \
+        .add_field('c', 23, 1) \
+        .add_field('z', 24, 1) \
+        .add_field('n', 25, 1)
 
     on_branch: Callable[[B_InstructionType], None]
 
-    def __init__(self, mnemonic: str, on_branch: Callable[[], None]=lambda: None):
+    def __init__(self, mnemonic: str, on_branch: Callable[[], None] = lambda: None):
         """creates a new branch instruction type
 
         Parameters
@@ -595,7 +611,7 @@ class B_InstructionType(InstructionType):
         """
 
         super().__init__(mnemonic)
-        self.on_branch = on_branch # type: ignore
+        self.on_branch = on_branch  # type: ignore
         #  mypy just doesn't like assigning to Callable but it's fine
         self.encoding = B_InstructionType.B_Encoding
 
@@ -607,37 +623,39 @@ class B_InstructionType(InstructionType):
                       instruction['z'] == pipeline.condition_flags['z'] and \
                       instruction['c'] == pipeline.condition_flags['c'] and \
                       instruction['v'] == pipeline.condition_flags['v']
-                      
+
         # perform the other behavior (ie. update the link register)
         self.on_branch()
 
         # calculate the target address for the new program counter
         target_address = 0b0
-        if instruction['imm']: # immediate value used, PC relative
+        if instruction['imm']:  # immediate value used, PC relative
             target_address = instruction['offset'] + pipeline._pc
-        else: # no immediate, register indirect used
+        else:  # no immediate, register indirect used
             base_reg = instruction['base']
             target_address = instruction['offset'] + pipeline.get_dependency(base_reg)
 
         # squash the pipeline
-        pipeline.squash(target_address)      
+        pipeline.squash(target_address)
+
 
 class MEM_InstructionType(InstructionType):
     # LDR, STR
     MEM_Encoding = InstructionType.Encoding.create_subtype('MEM_Encoding')
-    MEM_Encoding.add_field('offset', 0, 10)\
-    .add_field('base', 10, 5)
+    MEM_Encoding.add_field('offset', 0, 10) \
+        .add_field('base', 10, 5)
 
     def __init__(self, mnemonic: str):
         super().__init__(mnemonic)
         self.encoding = MEM_InstructionType.MEM_Encoding
 
+
 class LDR_InstructionType(MEM_InstructionType):
     # LDR
     LDR_Encoding = MEM_InstructionType.MEM_Encoding.create_subtype('LDR_Encoding')
-    LDR_Encoding.add_field('literal', 0, 15, overlap=True)\
-                .add_field('lit', 15, 1)\
-                .add_field('dest', 21, 5)
+    LDR_Encoding.add_field('literal', 0, 15, overlap=True) \
+        .add_field('lit', 15, 1) \
+        .add_field('dest', 21, 5)
 
     def __init__(self, mnemonic: str):
         super().__init__(mnemonic)
@@ -648,9 +666,9 @@ class LDR_InstructionType(MEM_InstructionType):
         gets that value from memory
         """
 
-        if instruction['lit'] == 1: # contains a literal value
+        if instruction['lit'] == 1:  # contains a literal value
             instruction.computed = instruction['literal']
-        else: # uses register direct + offset
+        else:  # uses register direct + offset
             # calculate the address
             base_addr_reg = instruction['base']
             src_addr = pipeline._registers[base_addr_reg] + instruction['offset']
@@ -662,6 +680,7 @@ class LDR_InstructionType(MEM_InstructionType):
         """writes the value we got from memory into the specified register
         """
         pipeline._registers[instruction['dest']] = instruction.computed
+
 
 class STR_InstructionType(MEM_InstructionType):
     # STR
@@ -686,6 +705,7 @@ class STR_InstructionType(MEM_InstructionType):
 
         # write to that address
         pipeline._memory[dest_addr] = src_val
+
 
 # endregion Instruction Types
 
@@ -725,27 +745,28 @@ OpCode_InstructionType_lookup: List[InstructionType] = [
     InstructionType('AESGE'),
     InstructionType('AESDE'),
     B_InstructionType('B'),
-    B_InstructionType('BL'), # TODO implement
+    B_InstructionType('BL'),  # TODO implement
     InstructionType('END')
 ]
+
 
 class Instruction:
     """class for an instance of an instruction, containing the raw encoded bits of the instruction, as well as helper functions for processing the instruction at the different pipeline stages
     """
     # region instance vars
     # Register addresses (raw values provided to instruction)
-    _regA: int # Param 1 of instruction
-    _regB: int # Param 2 of instruction
-    _regC: int # Param 3 of instruction (most likely immediate value)
+    _regA: int  # Param 1 of instruction
+    _regB: int  # Param 2 of instruction
+    _regC: int  # Param 3 of instruction (most likely immediate value)
 
     # Operands (values loaded assuming register addresses in regA,regB,regC)
     # If regA-regC are not register addresses, ignore these vars
-    _opA: int # Value retrieved from reg A
-    _opB: int # Value retrieved from reg B
-    _opC: int # Value retrieved from reg C
+    _opA: int  # Value retrieved from reg A
+    _opB: int  # Value retrieved from reg B
+    _opC: int  # Value retrieved from reg C
 
     # Result for addition instructions, or loaded value if a load instruction
-    computed: int # will be none unless set by the pipeline
+    computed: int  # will be none unless set by the pipeline
     opcode: int
 
     # Determine whether opB is immediate
@@ -753,20 +774,21 @@ class Instruction:
     _immediate: int
 
     _encoded: int
-    _decoded: BitVector # will be none, until the instruction has been decoded
+    _decoded: BitVector  # will be none, until the instruction has been decoded
 
     # values for dependencies, defaults to None if there are no dependencies
-    output_reg: int # register that the instruction writes to
-    input_regs: List[int] # list of registers that the instruction reads from
+    output_reg: int  # register that the instruction writes to
+    input_regs: List[int]  # list of registers that the instruction reads from
 
     # value assigned by scoreboard indicating what row this instruction is present in
     #   in the scoreboard
     _scoreboard_index: int
 
     _pipeline: PipeLine
+
     # endregion instance vars
 
-    def __init__(self, encoded: Optional[int]=None):
+    def __init__(self, encoded: Optional[int] = None):
         """creates a new instance of an instruction
 
         Parameters
@@ -776,22 +798,22 @@ class Instruction:
             will default to 0b0 (No Op) if value is not assigned
         """
         self._scoreboard_index = -1
-        
-        self._encoded = 0b0 if encoded is None else encoded # sets instruction to NOOP if encoded value is not specified
-        self._decoded = None # type: ignore
+
+        self._encoded = 0b0 if encoded is None else encoded  # sets instruction to NOOP if encoded value is not specified
+        self._decoded = None  # type: ignore
 
         # calculate the opcode
         self.opcode = InstructionType.Encoding(self._encoded)['opcode']
 
         # the instruction's dependencies
-        self.output_reg = None # type: ignore
-        self.input_regs = [] # type: ignore
-        self.computed = None # type: ignore
+        self.output_reg = None  # type: ignore
+        self.input_regs = []  # type: ignore
+        self.computed = None  # type: ignore
 
     def decode(self) -> None:
         """helper function which decodes the instruction
         """
-                
+
         # parse the rest of the encoded information according to the specific encoding pattern of the instruction type
         instruction_encoding = OpCode_InstructionType_lookup[self.opcode].encoding
         self._decoded = instruction_encoding(self._encoded)
@@ -800,7 +822,8 @@ class Instruction:
         self.output_reg = self.try_get('dest')
 
         # update the instruction's input dependencies
-        self.input_regs.append(src) if (src := self.try_get('src')) is not None else None # append src to input_regs if the field exists
+        self.input_regs.append(src) if (src := self.try_get(
+            'src')) is not None else None  # append src to input_regs if the field exists
         self.input_regs.append(op1) if (op1 := self.try_get('op1')) is not None else None
         self.input_regs.append(op2) if (op2 := self.try_get('op2')) is not None else None
 
@@ -812,7 +835,7 @@ class Instruction:
         List[int]
             the list of registers that the instruction will read/write 
         """
-        
+
         d_regs = self.input_regs.copy()
         d_regs.append(self.output_reg) if self.output_reg is not None else None
 
@@ -836,13 +859,13 @@ class Instruction:
         try:
             return self[field]
         except KeyError:
-            return None # type: ignore
+            return None  # type: ignore
 
     def __str__(self) -> str:
         out = ''
         nl = '\n'
         if self._decoded is None:
-            out = f'raw bits: {self._encoded:0{2+32}b}{nl}instruction has not been decoded yet'
+            out = f'raw bits: {self._encoded:0{2 + 32}b}{nl}instruction has not been decoded yet'
         else:
             out = str(self._decoded)
 
@@ -867,7 +890,7 @@ class Instruction:
             the value of the field, or None if the field does not exist (possibly because the instruction has not been decoded yet)
         """
 
-        if self._decoded is None: 
+        if self._decoded is None:
             raise DecodeError(f'{self._encoded} has not been decoded yet')
         else:
             return self._decoded[field]
