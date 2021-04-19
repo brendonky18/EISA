@@ -257,16 +257,8 @@ class PipeLine:
                 instruction = Instruction(self._memory[self._pc])
             except PipelineStall:
                 # instruction = Instruction() # send noop forward on a pipeline stall
-                '''
-                if not self._stalled_fetch:
-                    self._start_fetch_stall = True
-                '''
                 self._stalled_fetch = True
             else:
-                '''
-                if self._stalled_fetch:
-                    self._finish_fetch_stall = True
-                '''
                 self._stalled_fetch = False
                 self._fetch_isWaiting = True
 
@@ -422,16 +414,6 @@ class PipeLine:
             self._stalled_memory = False
             self._stall_finished = False
 
-        '''
-        if self._start_fetch_stall:
-            self._stalled_fetch = True
-            self._start_fetch_stall = False
-
-        if self._finish_fetch_stall:
-            self._stalled_fetch = False
-            self._finish_fetch_stall = False
-        '''
-
         # if self._stalled_memory:
         #    self._stall_prior_stages = True
 
@@ -448,16 +430,6 @@ class PipeLine:
         """
 
         # only allow the pipeline to be run in a single thread
-
-        '''
-        with self._pipeline_lock:
-            for i in range(cycle_count):
-                self._clock.wait(
-                    1, 
-                    wait_event_name='pipeline cycle', 
-                    wait_event = self.cycle_pipeline
-                )
-        '''
         for i in range(cycle_count):
             self.cycle_pipeline()
 
