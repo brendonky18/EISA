@@ -207,27 +207,7 @@ class UnittestPipeline(unittest.TestCase):
         end['opcode'] = 0b100000
         my_pipe._memory._RAM[4] = end._bits  # END is stored at address (word) 1 in memory
 
-        # my_pipe.cycle(20)  # TODO - Acceptable number of cycles... I guess...
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
-        my_pipe.cycle_pipeline()
+        my_pipe.cycle(20)  # TODO - Acceptable number of cycles... I guess...
 
         self.assertEqual(my_pipe._memory._RAM[12] + my_pipe._memory._RAM[13], my_pipe._memory._RAM[8])
 
