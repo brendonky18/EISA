@@ -368,8 +368,8 @@ class Dialog(QDialog):
     def update_ram(self):
         ram = self._pipeline._memory._RAM
 
-        for i in range(1, self.memory_group.ram_rows):
-            for j in range(1, self.memory_group.ram_cols):
+        for i in range(1, self.memory_group.ram_rows+1):
+            for j in range(1, self.memory_group.ram_cols+1):
                 val = ram[((i-1)*self.memory_group.ram_cols) + (j-1)]
                 self.memory_group.ram_table[i][j] = val
                 self.memory_group.ram_widget.item(i-1, j-1).setText(str(val))
@@ -377,8 +377,8 @@ class Dialog(QDialog):
     def update_regs(self):
         regs = self._pipeline._registers
 
-        for i in range(1, self.memory_group.regs_rows):
-            for j in range(1, self.memory_group.regs_cols):
+        for i in range(1, self.memory_group.regs_rows+1):
+            for j in range(1, self.memory_group.regs_cols+1):
                 val = regs[((i - 1) * self.memory_group.regs_cols) + (j - 1)]
                 self.memory_group.regs_table[i][j] = val
                 self.memory_group.regs_widget.item(i-1, j-1).setText(str(val))
