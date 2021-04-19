@@ -110,6 +110,8 @@ class PipeLine:
         self._active_registers = [False for i in range(len(registers))]
 
         self._pc = pc
+        self.LR = 0
+        self.SP = 255
 
         self._memory = memory
 

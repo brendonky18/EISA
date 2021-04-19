@@ -99,13 +99,13 @@ class MemoryGroup:
         self.memory = memory_subsystem
 
         self.ram = self.memory._RAM
-        # self.cache = [self.memory._cache.] #TODO -  have brendon look at reading cache values
+        self.cache = self.memory._cache._cache  # NOTE - List of Cacheways #TODO -  have brendon look at reading cache values
         self.regs = regs
 
         self.load_memory()
 
         ramvbox.addWidget(self.ram_widget)
-        #cachevbox.addWidget(self.cache_widget)
+        cachevbox.addWidget(self.cache_widget)
         regsvbox.addWidget(self.regs_widget)
 
         ramvbox.setSpacing(0)
@@ -132,6 +132,12 @@ class MemoryGroup:
     def load_cache(self):
         self.cache_table, row_headers = set_headers(self.cache_rows, self.cache_cols,
                                        format_list_to_table(self.cache_rows, self.cache_cols, self.cache))
+        self.cache_widget = QTableWidget(self.cache_rows, self.cache_cols)
+        for i in range(1, self.cache_rows + 1):
+            for j in range(1, self.cache_cols + 1):
+                temp = QTableWidgetItem()
+                temp.setData(0, self.cache_table[i][j])
+                self.cache_widget.setItem(i - 1, j - 1, temp)
 
     def load_regs(self):
         self.regs_table, row_headers = set_headers(self.regs_rows, self.regs_cols,
@@ -148,7 +154,7 @@ class MemoryGroup:
 
     def load_memory(self):
         self.load_ram()
-        # self.load_cache()  # TODO - not loading cache for now. Need Brendon to look at reading cache vals
+        self.load_cache()  # TODO - not loading cache for now. Need Brendon to look at reading cache vals
         self.load_regs()
 
 
@@ -221,6 +227,7 @@ class Dialog(QDialog):
 
         self.setWindowTitle('Encryptinator')
         self.dlgLayout = QVBoxLayout()  # QVBoxLayout()
+        self.whole_layout = QHBoxLayout()
         self.build_stages()
         self.build_pipeline_layout()
         self.load_stages()
@@ -229,7 +236,12 @@ class Dialog(QDialog):
         self.memory_group = MemoryGroup(self._pipeline._registers, self._pipeline._memory)
         self.build_memory_layout()
 
-        self.setLayout(self.dlgLayout)
+
+
+        self.whole_layout.addLayout(self.dlgLayout)
+
+
+        self.setLayout(self.whole_layout)
 
     def build_ui(self):
         app = QApplication(sys.argv)
@@ -269,7 +281,9 @@ class Dialog(QDialog):
         self.cycle_button = QPushButton("Cycle")
         self.cycle_button.clicked.connect(self.cycle_ui)
         pipeline_layout.addWidget(self.cycle_button, 2, 5)
-        self.dlgLayout.addLayout(pipeline_layout)
+        pipeline_group = QGroupBox("Pipeline")
+        pipeline_group.setLayout(pipeline_layout)
+        self.dlgLayout.addWidget(pipeline_group)
         '''
         self.dlgLayout.addWidget(self.stage_fetch.stage, 1, 1)
         self.dlgLayout.addWidget(self.stage_decode.stage, 1, 2)
@@ -280,8 +294,10 @@ class Dialog(QDialog):
 
     def build_memory_layout(self):
         self.dlgLayout.addWidget(self.memory_group.regs_box)
-        #self.dlgLayout.addWidget(self.memory_group.cache_box, 4, 3)
-        self.dlgLayout.addWidget(self.memory_group.ram_box)
+        self.dlgLayout.addWidget(self.memory_group.cache_box)
+        self.whole_layout.addWidget(self.memory_group.ram_box)
+        #for i in range(self.memory_group.ram_cols):
+        #self.memory_group.ram_box.
 
     def destroy_fields(self):
         for i in self.stages:
@@ -383,9 +399,20 @@ class Dialog(QDialog):
                 self.memory_group.regs_table[i][j] = val
                 self.memory_group.regs_widget.item(i-1, j-1).setText(str(val))
 
+    def update_cache(self):
+        cache = self._pipeline._memory._cache._cache
+
+        for i in range(1, self.memory_group.cache_rows+1):
+            for j in range(1, self.memory_group.cache_cols+1):
+                val = cache[((i - 1) * self.memory_group.cache_cols) + (j - 1)]._data
+                self.memory_group.cache_table[i][j] = val
+                self.memory_group.cache_widget.item(i-1, j-1).setText(str(val))
+
     def update_memory(self):
         self.update_ram()
         self.update_regs()
+        self.update_cache()
+
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
