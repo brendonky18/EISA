@@ -381,7 +381,7 @@ class Dialog(QDialog):
             for j in range(1, self.memory_group.regs_cols):
                 val = regs[((i - 1) * self.memory_group.regs_cols) + (j - 1)]
                 self.memory_group.regs_table[i][j] = val
-                self.memory_group.regs_widget.item(i-1,j-1).setText(str(val))
+                self.memory_group.regs_widget.item(i-1, j-1).setText(str(val))
 
     def update_memory(self):
         self.update_ram()
@@ -393,6 +393,8 @@ if __name__ == '__main__':
     memory = MemorySubsystem(EISA.ADDRESS_SIZE, EISA.CACHE_SIZE, 1, 1, EISA.RAM_SIZE, 2, 2)
     my_pipe = PipeLine(0, [0] * 32, memory)
 
+    # Simple Add
+    '''
     my_pipe._registers[31] = 10
     my_pipe._registers[4] = 30
 
@@ -415,6 +417,127 @@ if __name__ == '__main__':
     # cook the pipe's memory
     my_pipe._memory._RAM[0] = instruction._bits
     my_pipe._memory._RAM[1] = end._bits
+    '''
+
+    # Load 2 operands
+    '''
+    # Opcode: 001101 (LOAD)
+    instruction = OpCode_InstructionType_lookup[0b001101].encoding()
+    instruction['opcode'] = 0b001101
+    instruction['dest'] = 3
+    instruction['lit'] = False
+    instruction['base'] = 31
+
+    # TODO - is the offset being treated as a register number or a literal?
+    instruction['offset'] = 0
+
+    my_pipe._memory._RAM[0] = instruction._bits
+
+    my_pipe._memory._RAM[12] = 72
+    my_pipe._registers[31] = 12
+
+    # Opcode: 001101 (LOAD)
+    instruction2 = OpCode_InstructionType_lookup[0b001101].encoding()
+    instruction2['opcode'] = 0b001101
+    instruction2['dest'] = 4
+    instruction2['lit'] = False
+    instruction2['base'] = 30
+    instruction2['offset'] = 0
+
+    my_pipe._memory._RAM[1] = instruction2._bits
+
+    my_pipe._memory._RAM[13] = 36
+    my_pipe._registers[30] = 13
+
+    # cook END instruction to signal pipeline to end
+    end = OpCode_InstructionType_lookup[0b100000].encoding()
+    end['opcode'] = 0b100000
+    my_pipe._memory._RAM[2] = end._bits
+    '''
+
+    # Simple Store
+    '''
+    # Opcode: 001110 (STR) Src: 00011 (Register 3) PADDING: 00000 (Bits 20-16 are Irrelevant) Base/Literal: 11111
+    # (Register 31) Offset/Literal: 0000000000 (Offset 0) TODO - is this a register number or a literal????
+    #  Assuming reg num for now
+
+    instruction = OpCode_InstructionType_lookup[0b001110].encoding()
+    instruction['opcode'] = 0b001110
+    instruction['src'] = 3
+    instruction['base'] = 31
+    instruction['offset'] = 0
+
+    my_pipe._memory._RAM[0] = instruction._bits  # Set the 0th word in memory to this instruction, such that it's
+    # the first instruction the PC points to
+
+    my_pipe._registers[31] = 18  # Storing to address 18 in memory
+
+    my_pipe._registers[3] = 256  # storing value in register 3
+
+    # cook END instruction to signal pipeline to end
+    end = OpCode_InstructionType_lookup[0b100000].encoding()
+    end['opcode'] = 0b100000
+    my_pipe._memory._RAM[1] = end._bits  # END is stored at address (word) 1 in memory
+    '''
+
+    # Moderate Complexity Test
+    # Load 2 operands -> Add Them -> Store Result
+
+    # Opcode: 001101 (LOAD)
+    instruction = OpCode_InstructionType_lookup[0b001101].encoding()
+    instruction['opcode'] = 0b001101
+    instruction['dest'] = 3
+    instruction['lit'] = False
+    instruction['base'] = 31
+
+    # TODO - is the offset being treated as a register number or a literal?
+    instruction['offset'] = 0
+
+    my_pipe._memory._RAM[0] = instruction._bits
+
+    my_pipe._memory._RAM[12] = 72
+    my_pipe._registers[31] = 12
+
+    # Opcode: 001101 (LOAD)
+    instruction2 = OpCode_InstructionType_lookup[0b001101].encoding()
+    instruction2['opcode'] = 0b001101
+    instruction2['dest'] = 4
+    instruction2['lit'] = False
+    instruction2['base'] = 30
+    instruction2['offset'] = 0
+
+    my_pipe._memory._RAM[1] = instruction2._bits
+
+    my_pipe._memory._RAM[13] = 36
+    my_pipe._registers[30] = 13
+
+    # Opcode: 000001 (ADD/MOV)
+    instruction3 = OpCode_InstructionType_lookup[0b000001].encoding()
+    instruction3['opcode'] = 0b000001
+    instruction3['dest'] = 24
+    instruction3['op1'] = 4  # Destination of the first load
+    instruction3['op2'] = 3  # Destination of the second load
+    instruction3['imm'] = False
+
+    my_pipe._memory._RAM[2] = instruction3._bits
+
+    # Opcode: 001110 (STR) Src: 00011 (Register 3) PADDING: 00000 (Bits 20-16 are Irrelevant) Base/Literal: 11111
+    # (Register 31) Offset/Literal: 0000000000 (Offset 0) TODO - is this a register number or a literal????
+    #  Assuming reg num for now
+
+    instruction4 = OpCode_InstructionType_lookup[0b001110].encoding()
+    instruction4['opcode'] = 0b001110
+    instruction4['src'] = 24  # Destination of the add op
+    instruction4['base'] = 16  # Register holding the address we want to store the result (Register 16)
+    instruction4['offset'] = 0
+
+    my_pipe._memory._RAM[3] = instruction4._bits
+    my_pipe._registers[16] = 8
+
+    # cook END instruction to signal pipeline to end
+    end = OpCode_InstructionType_lookup[0b100000].encoding()
+    end['opcode'] = 0b100000
+    my_pipe._memory._RAM[4] = end._bits  # END is stored at address (word) 1 in memory
 
     # Build UI dialog box
     dlg = Dialog(memory, my_pipe)
