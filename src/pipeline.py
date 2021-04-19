@@ -81,9 +81,11 @@ class PipeLine:
     # program counter
     _pc: int  # TODO refactor '_pc' to 'pc' to make it a public variable
     # link register
-    lr: int
+    LR: int
+    # Stack pointer
+    SP: int
     # ALU register
-    ar: int  # TODO implement the ALU register with dependencies, rather than using the 'computed' field in 'Instruction'
+    AR: int  # TODO implement the ALU register with dependencies, rather than using the 'computed' field in 'Instruction'
 
     # Has to be size 2
     _fd_reg: list[Instruction]  # Fetch/Decode reg
