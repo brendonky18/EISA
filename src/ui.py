@@ -329,11 +329,14 @@ class Dialog(QDialog):
 
         decoded_fields = decoded._fields
 
-        counter = 0
+        counter = 2
         for i in decoded_fields:
             key = str(i)
+            if key == 'opcode':
+                continue
             private_stage.fields[counter].setText(f"{key.capitalize()}: {str(decoded[key])}")
             counter += 1
+
 
         '''
         self.stages[stage].encoded.setText(f"Encoded: {self._pipeline._pipeline[stage]._encoded}")
