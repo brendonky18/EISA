@@ -255,6 +255,7 @@ class Dialog(QDialog):
         self._pipeline.cycle_pipeline()
         self.load_stages()
         self.update_memory()
+        self.pc_counter.setText(f"PC: {self._pipeline._pc}")
 
     '''
     def build_cycle_button(self):
@@ -269,6 +270,7 @@ class Dialog(QDialog):
         self.stage_execute = StageGroup("Execute")  # self.create_stage_group("Execute")
         self.stage_memory = StageGroup("Memory")  # self.create_stage_group("Memory")
         self.stage_writeback = StageGroup("Writeback")  # self.create_stage_group("Writeback")
+        self.pc_counter = QLabel(f"PC: {self._pipeline._pc}")
         self.stages = [self.stage_fetch, self.stage_decode, self.stage_execute, self.stage_memory, self.stage_writeback]
 
     def build_pipeline_layout(self):
@@ -281,6 +283,7 @@ class Dialog(QDialog):
         self.cycle_button = QPushButton("Cycle")
         self.cycle_button.clicked.connect(self.cycle_ui)
         pipeline_layout.addWidget(self.cycle_button, 2, 5)
+        pipeline_layout.addWidget(self.pc_counter, 2, 1)
         pipeline_group = QGroupBox("Pipeline")
         pipeline_group.setLayout(pipeline_layout)
         self.dlgLayout.addWidget(pipeline_group)
@@ -332,7 +335,7 @@ class Dialog(QDialog):
         counter = 2
         for i in decoded_fields:
             key = str(i)
-            if key == 'opcode':
+            if key == 'opcode' or len(key) == 1:
                 continue
             private_stage.fields[counter].setText(f"{key.capitalize()}: {str(decoded[key])}")
             counter += 1
@@ -513,6 +516,7 @@ if __name__ == '__main__':
     # Moderate Complexity Test
     # Load 2 operands -> Add Them -> Store Result
 
+    '''
     # Opcode: 001101 (LOAD)
     instruction = OpCode_InstructionType_lookup[0b001101].encoding()
     instruction['opcode'] = 0b001101
@@ -568,6 +572,86 @@ if __name__ == '__main__':
     end = OpCode_InstructionType_lookup[0b100000].encoding()
     end['opcode'] = 0b100000
     my_pipe._memory._RAM[4] = end._bits  # END is stored at address (word) 1 in memory
+    '''
+
+    # Unconditional Branching Test
+
+    # Registers in use: 3, 31, 4, 30, 24, 16, 12
+    # Memory in use: 0, 12, 1, 13, 8, 30, 31, 32
+
+    mem_sub = MemorySubsystem(EISA.ADDRESS_SIZE, 4, 1, 1, 8, 2, 2)
+
+    my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
+
+    # Opcode: 001101 (LOAD)
+    instruction = OpCode_InstructionType_lookup[0b001101].encoding()
+    instruction['opcode'] = 0b001101
+    instruction['dest'] = 3
+    instruction['lit'] = False
+    instruction['base'] = 31
+
+    # TODO - is the offset being treated as a register number or a literal?
+    instruction['offset'] = 0
+
+    my_pipe._memory._RAM[0] = instruction._bits
+
+    my_pipe._memory._RAM[12] = 72
+    my_pipe._registers[31] = 12
+
+    # Opcode: 001101 (LOAD)
+    instruction2 = OpCode_InstructionType_lookup[0b001101].encoding()
+    instruction2['opcode'] = 0b001101
+    instruction2['dest'] = 4
+    instruction2['lit'] = False
+    instruction2['base'] = 30
+    instruction2['offset'] = 0
+
+    my_pipe._memory._RAM[1] = instruction2._bits
+
+    my_pipe._memory._RAM[13] = 36
+    my_pipe._registers[30] = 13
+
+    # Opcode: 011110 (B)
+    instructionB = OpCode_InstructionType_lookup[0b011110].encoding()
+    instructionB['opcode'] = 0b011110
+    instructionB['n'] = 0  # TODO - verify with brendon that these are supposed to be 0 and not False
+    instructionB['z'] = 0
+    instructionB['c'] = 0
+    instructionB['v'] = 0
+    instructionB['imm'] = False
+    instructionB['base'] = 12
+    instructionB['offset'] = 0
+
+    my_pipe._registers[12] = 30
+    my_pipe._memory._RAM[2] = instructionB._bits
+
+    # Opcode: 000001 (ADD/MOV)
+    instruction3 = OpCode_InstructionType_lookup[0b000001].encoding()
+    instruction3['opcode'] = 0b000001
+    instruction3['dest'] = 24
+    instruction3['op1'] = 4  # Destination of the first load
+    instruction3['op2'] = 3  # Destination of the second load
+    instruction3['imm'] = False
+
+    my_pipe._memory._RAM[30] = instruction3._bits
+
+    # Opcode: 001110 (STR) Src: 00011 (Register 3) PADDING: 00000 (Bits 20-16 are Irrelevant) Base/Literal: 11111
+    # (Register 31) Offset/Literal: 0000000000 (Offset 0) TODO - is this a register number or a literal????
+    #  Assuming reg num for now
+
+    instruction4 = OpCode_InstructionType_lookup[0b001110].encoding()
+    instruction4['opcode'] = 0b001110
+    instruction4['src'] = 24  # Destination of the add op
+    instruction4['base'] = 16  # Register holding the address we want to store the result (Register 16)
+    instruction4['offset'] = 0
+
+    my_pipe._memory._RAM[31] = instruction4._bits
+    my_pipe._registers[16] = 8
+
+    # cook END instruction to signal pipeline to end
+    end = OpCode_InstructionType_lookup[0b100000].encoding()
+    end['opcode'] = 0b100000
+    my_pipe._memory._RAM[32] = end._bits  # END is stored at address (word) 1 in memory
 
     # Build UI dialog box
     dlg = Dialog(memory, my_pipe)

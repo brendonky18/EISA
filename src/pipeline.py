@@ -240,7 +240,8 @@ class PipeLine:
         self._pipeline[1] = Instruction()
         self._fd_reg = [Instruction(), Instruction()]
         self._de_reg = [Instruction(), Instruction()]
-        self._pc = newPC
+        self._pc = newPC - 1  # NOTE - Max added -1 here because fetch increments the PC at the end of the cycle, so
+                              #   so the -1 prevents ending up 1 word past where we're supposed to branch to
 
         active_regs = [i for i in range(len(self._active_registers)) if self._active_registers[i]]
 
@@ -256,7 +257,7 @@ class PipeLine:
             instruction = self._pipeline[0]
 
         # Load instruction in MEMORY at the address the PC is pointing to
-        if not self._is_finished  and not self._fetch_isWaiting:
+        if not self._is_finished and not self._fetch_isWaiting:
             try:
                 instruction = Instruction(self._memory[self._pc])
             except PipelineStall:
@@ -269,7 +270,6 @@ class PipeLine:
         self._pipeline[0] = instruction
 
         if not self._stalled_fetch and not self._stalled_memory and not self._dependency_stall:
-
             self._fd_reg[0] = instruction
             self._pc += 1
             self._fetch_isWaiting = False
@@ -380,10 +380,11 @@ class PipeLine:
         """function to advance the instructions within the dual registers between each pipeline stage
         """
         self._mw_reg = [self._em_reg[1], self._mw_reg[0]]
-        self._em_reg = [self._de_reg[1], self._em_reg[0]]
-        self._de_reg = [self._fd_reg[1], self._de_reg[0]]
-        #if not self._stalled_memory and not self._dependency_stall:
-        self._fd_reg = [Instruction(), self._fd_reg[0]]
+        if not self._stalled_memory:
+            self._em_reg = [self._de_reg[1], self._em_reg[0]]
+            self._de_reg = [self._fd_reg[1], self._de_reg[0]]
+            # if not self._stalled_memory and not self._dependency_stall:
+            self._fd_reg = [Instruction(), self._fd_reg[0]]
 
     def cycle_pipeline(self):
         """function to run a single cycle of the pipeline - NOT THREADSAFE -> Call cycle(int cycles) instead
