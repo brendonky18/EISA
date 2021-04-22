@@ -269,7 +269,7 @@ class PipeLine:
 
         self._pipeline[0] = instruction
 
-        if not self._stalled_fetch and not self._stalled_memory and not self._dependency_stall:
+        if not self._stalled_fetch and not self._stalled_memory and not self._dependency_stall and not self._is_finished:
             self._fd_reg[0] = instruction
             self._pc += 1
             self._fetch_isWaiting = False
@@ -585,7 +585,7 @@ class CMP_InstructionType(ALU_InstructionType):
         """
         res = self._CMP_func(instruction['op1'], instruction['op2'])
 
-        pipeline.condition_flags['n'] = bool(res & (0b1 << (EISA.WORD_SIZE - 1)))  # gets the sign bit (bit 31)
+        pipeline.condition_flags['n'] = res < 0  # gets the sign bit (bit 31)
         pipeline.condition_flags['z'] = res == 0
         pipeline.condition_flags['c'] = res >= EISA.WORD_SPACE
 
@@ -641,24 +641,27 @@ class B_InstructionType(InstructionType):
         """compares the branch's condition code to that of the pipeline to determine if the branch should be taken.
         Squashes the pipeline if the branch is taken
         """
-        take_branch = instruction['n'] == pipeline.condition_flags['n'] and \
-                      instruction['z'] == pipeline.condition_flags['z'] and \
-                      instruction['c'] == pipeline.condition_flags['c'] and \
+        take_branch = instruction['n'] == pipeline.condition_flags['n'] or \
+                      instruction['z'] == pipeline.condition_flags['z'] or \
+                      instruction['c'] == pipeline.condition_flags['c'] or \
                       instruction['v'] == pipeline.condition_flags['v']
 
-        # perform the other behavior (ie. update the link register)
-        self.on_branch()
+        if take_branch:
+            # perform the other behavior (ie. update the link register)
+            self.on_branch()
 
-        # calculate the target address for the new program counter
-        target_address = 0b0
-        if instruction['imm']:  # immediate value used, PC relative
-            target_address = instruction['offset'] + pipeline._pc
-        else:  # no immediate, register indirect used
-            base_reg = instruction['base']
-            target_address = instruction['offset'] + pipeline.get_dependency(base_reg)
 
-        # squash the pipeline
-        pipeline.squash(target_address)
+
+            # calculate the target address for the new program counter
+            target_address = 0b0
+            if instruction['imm']:  # immediate value used, PC relative
+                target_address = instruction['offset'] + pipeline._pc
+            else:  # no immediate, register indirect used
+                base_reg = instruction['base']
+                target_address = instruction['offset'] + pipeline.get_dependency(base_reg)
+
+            # squash the pipeline
+            pipeline.squash(target_address)
 
 
 class MEM_InstructionType(InstructionType):
@@ -830,9 +833,12 @@ class Instruction:
 
         # update the instruction's input dependencies
         self.input_regs.append(src) if (src := self.try_get(
-            'src')) is not None else None  # append src to input_regs if the field exists
-        self.input_regs.append(op1) if (op1 := self.try_get('op1')) is not None else None
-        self.input_regs.append(op2) if (op2 := self.try_get('op2')) is not None else None
+            'src')) is not None else None  # append src t~o input_regs if the field exists
+        op1 = self.try_get('op1')
+        op2 = self.try_get('op2')
+        self.input_regs.append(op2) if op2 is not None else None
+        self.input_regs.append(op1) if op1 is not None else None
+
 
     def dependencies(self) -> List[int]:
         """returns a list instance containing all of the instruction's depenedencies, both input and output dependencies

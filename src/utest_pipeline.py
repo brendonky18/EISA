@@ -318,6 +318,58 @@ class UnittestPipeline(unittest.TestCase):
 
         my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
 
+        my_pipe._registers[2] = 24  # Counter
+        my_pipe._registers[0] = 20  # Condition to beat
+        my_pipe._registers[1] = 1  # Amount to increment counter by
+        my_pipe._registers[3] = 0  # Address to branch back to
+
+        instruction1 = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction1['opcode'] = 0b001101
+        instruction1['dest'] = 25  # Load into register 25
+        instruction1['base'] = 2  # Register 2 holds the memory address who's value loads into reg 25
+        instruction1['offset'] = 0
+        instruction1['lit'] = False
+
+        instruction2 = OpCode_InstructionType_lookup[0b000001].encoding()
+        instruction2['opcode'] = 0b0000001
+        instruction2['dest'] = 31  # Put sum in reg 31
+        instruction2['op1'] = 31  # Register 31 as op1
+        instruction2['op2'] = 25  # Register 25 as op2
+        instruction2['imm'] = False
+
+        instruction3 = OpCode_InstructionType_lookup[0b000001].encoding()
+        instruction3['opcode'] = 0b0000001
+        instruction3['dest'] = 2  # Put sum in reg 2
+        instruction3['op1'] = 2  # Register 2 as op1
+        instruction3['op2'] = 1  # Register 1 as op1
+        instruction3['imm'] = False
+
+        # Opcode: 011110 (B)
+        instructionB = OpCode_InstructionType_lookup[0b011110].encoding()
+        instructionB['opcode'] = 0b011110
+        instructionB['n'] = 1  # TODO - verify with brendon that these are supposed to be 0 and not False
+        instructionB['z'] = 1
+        instructionB['c'] = 0
+        instructionB['v'] = 1
+        instructionB['imm'] = False
+        instructionB['base'] = 3  # Register 3 has the address to branch back to
+        instructionB['offset'] = 0
+
+        # cook END instruction to signal pipeline to end
+        end = OpCode_InstructionType_lookup[0b100000].encoding()
+        end['opcode'] = 0b100000
+
+        my_pipe._memory._RAM[0] = instruction1
+        my_pipe._memory._RAM[1] = instruction2
+        my_pipe._memory._RAM[2] = instruction3
+        my_pipe._memory._RAM[3] = instructionB
+        my_pipe._memory._RAM[5] = end
+
+        my_pipe._memory._RAM[24] = 5
+        my_pipe._memory._RAM[25] = 5
+        my_pipe._memory._RAM[26] = 5
+        my_pipe._memory._RAM[27] = 5
+
     def test_unconditional_link(self):
 
         mem_sub = MemorySubsystem(EISA.ADDRESS_SIZE, 4, 1, 1, 8, 2, 2)

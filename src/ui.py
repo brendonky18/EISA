@@ -257,6 +257,7 @@ class Dialog(QDialog):
         self.load_stages()
         self.update_memory()
         self.pc_counter.setText(f"PC: {self._pipeline._pc}")
+        self.flags.setText(f"Flags: {str(self._pipeline.condition_flags)}")
 
     def cycle_ui(self, event):
         self._pipeline.cycle_pipeline()
@@ -276,6 +277,7 @@ class Dialog(QDialog):
         self.stage_memory = StageGroup("Memory")  # self.create_stage_group("Memory")
         self.stage_writeback = StageGroup("Writeback")  # self.create_stage_group("Writeback")
         self.pc_counter = QLabel(f"PC: {self._pipeline._pc}")
+        self.flags = QLabel(f"Flags: {str(self._pipeline.condition_flags)}")
         self.stages = [self.stage_fetch, self.stage_decode, self.stage_execute, self.stage_memory, self.stage_writeback]
 
     def build_pipeline_layout(self):
@@ -290,7 +292,7 @@ class Dialog(QDialog):
         self.hex_button = QPushButton("Hex Toggle")
         self.hex_button.clicked.connect(self.hex_toggle)
         self.load_button = QPushButton("Load Program")
-        self.load_button.clicked.connect(self.load_program_from_file) # TODO - Implement load program
+        self.load_button.clicked.connect(self.load_program_from_file)
         self.exch_button = QPushButton("Load Exch. Sort")
         # self.exch_button.clicked.connect(self.load_exchange_demo)  # TODO - Implement Exchange Sort Benchmark/Demo
         self.matrix_button = QPushButton("Load Matrix Mult.")
@@ -308,6 +310,7 @@ class Dialog(QDialog):
         counters_group = QGroupBox()
         counters_layout = QHBoxLayout()
         counters_layout.addWidget(self.pc_counter)  # TODO - Add LR and ALU regs, Add cycle counter
+        counters_layout.addWidget(self.flags)
         counters_group.setLayout(counters_layout)
 
         pipeline_group = QGroupBox("Pipeline")
@@ -638,6 +641,7 @@ if __name__ == '__main__':
     my_pipe._memory._RAM[4] = end._bits  # END is stored at address (word) 1 in memory
     '''
 
+    '''
     # Unconditional Branching Test
 
     # Registers in use: 3, 31, 4, 30, 24, 16, 12
@@ -716,6 +720,71 @@ if __name__ == '__main__':
     end = OpCode_InstructionType_lookup[0b100000].encoding()
     end['opcode'] = 0b100000
     my_pipe._memory._RAM[32] = end._bits  # END is stored at address (word) 1 in memory
+    '''
+
+    my_pipe._registers[2] = 24  # Counter
+    my_pipe._registers[0] = 20  # Condition to beat
+    my_pipe._registers[1] = 1  # Amount to increment counter by
+    my_pipe._registers[3] = 0  # Address to branch back to
+
+    instruction1 = OpCode_InstructionType_lookup[0b001101].encoding()
+    instruction1['opcode'] = 0b001101
+    instruction1['dest'] = 25  # Load into register 25
+    instruction1['base'] = 2  # Register 2 holds the memory address who's value loads into reg 25
+    instruction1['offset'] = 0
+    instruction1['lit'] = False
+
+    instruction2 = OpCode_InstructionType_lookup[0b000001].encoding()
+    instruction2['opcode'] = 0b0000001
+    instruction2['dest'] = 31  # Put sum in reg 31
+    instruction2['op1'] = 31  # Register 31 as op1
+    instruction2['op2'] = 25  # Register 25 as op2
+    instruction2['imm'] = False
+
+    instruction3 = OpCode_InstructionType_lookup[0b000001].encoding()
+    instruction3['opcode'] = 0b0000001
+    instruction3['dest'] = 2  # Put sum in reg 2
+    instruction3['op1'] = 2  # Register 2 as op1
+    instruction3['op2'] = 1  # Register 1 as op1
+    instruction3['imm'] = False
+
+    # Opcode: 011110 (CMP)
+    instructionC = OpCode_InstructionType_lookup[0b000011].encoding()
+    instructionC['opcode'] = 0b000011
+    instructionC['op1'] = 31  # Register 31 as op1
+    instructionC['op2'] = 0  # Register 0 as op2
+    instructionC['imm'] = False
+
+    # Opcode: 011110 (B)
+    instructionB = OpCode_InstructionType_lookup[0b011110].encoding()
+    instructionB['opcode'] = 0b011110
+    instructionB['n'] = True
+    instructionB['z'] = True
+    instructionB['imm'] = False
+    instructionB['base'] = 3  # Register 3 has the address to branch back to
+    instructionB['offset'] = 0
+
+    instructionBLOCK = OpCode_InstructionType_lookup[0b0].encoding()
+    instructionBLOCK['opcode'] = 0b0
+
+    # cook END instruction to signal pipeline to end
+    end = OpCode_InstructionType_lookup[0b100000].encoding()
+    end['opcode'] = 0b100000
+
+    my_pipe._memory._RAM[0] = instruction1._bits
+    my_pipe._memory._RAM[1] = instruction2._bits
+    my_pipe._memory._RAM[2] = instruction3._bits
+    my_pipe._memory._RAM[3] = instructionC._bits
+    my_pipe._memory._RAM[4] = instructionB._bits
+    my_pipe._memory._RAM[5] = instructionBLOCK._bits
+    my_pipe._memory._RAM[6] = end._bits
+
+    my_pipe._memory._RAM[24] = 5
+    my_pipe._memory._RAM[25] = 5
+    my_pipe._memory._RAM[26] = 5
+    my_pipe._memory._RAM[27] = 5
+    my_pipe._memory._RAM[28] = 5
+    my_pipe._memory._RAM[29] = 5
 
     # Build UI dialog box
     dlg = Dialog(memory, my_pipe)
