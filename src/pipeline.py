@@ -10,6 +10,7 @@ from memory_subsystem import MemorySubsystem, PipelineStall
 # from clock import sleep
 from functools import reduce
 from threading import Lock
+import enum
 
 
 class Queue(deque):
@@ -728,7 +729,45 @@ class STR_InstructionType(MEM_InstructionType):
         # write to that address
         pipeline._memory[dest_addr] = src_val
 
+@enum.unique
+class OpCode(enum.IntEnum):
+    NOOP  = 0b000000
+    ADD   = 0b000001
+    MOV   = 0b000001  # MOV is an alias for ADD 0
+    SUB   = 0b000010
+    CMP   = 0b000011
+    MULT  = 0b000100
+    DIV   = 0b000101
+    MOD   = 0b000110
+    LSL   = 0b000111
+    LSR   = 0b001000
+    ASR   = 0b001001
+    AND   = 0b001010
+    XOR   = 0b001011
+    NOT   = 0b001011  # NOT is an alias for XOR 1
+    ORR   = 0b001100
+    LDR   = 0b001101
+    STR   = 0b001110
+    PUSH  = 0b001111
+    POP   = 0b010000
+    MOVAK = 0b010001
+    LDRAK = 0b010010
+    STRAK = 0b010011
+    PUSAK = 0b010100
+    POPAK = 0b010101
+    AESE  = 0b010110
+    AESD  = 0b010111
+    AESMC = 0b011000
+    AESIC = 0b011001
+    AESSR = 0b011010
+    AESIR = 0b011011
+    AESGE = 0b011100
+    AESDE = 0b011101
+    B     = 0b011110
+    BL    = 0b011111
 
+    def __contains__(self, item):
+        return item in self._member_names_
 # endregion Instruction Types
 
 """dictionary mapping the opcode number to an instruction type
@@ -771,7 +810,7 @@ OpCode_InstructionType_lookup: List[InstructionType] = [
     InstructionType('END')
 ]
 
-
+# TODO refactor InstructionType into the Instruction class
 class Instruction:
     """class for an instance of an instruction, containing the raw encoded bits of the instruction, as well as helper functions for processing the instruction at the different pipeline stages
     """
