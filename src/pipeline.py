@@ -585,7 +585,7 @@ class CMP_InstructionType(ALU_InstructionType):
     def execute_stage_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
         """performs the specified ALU operation, and uses the result to set the pipeline's condition flags
         """
-        res = self._CMP_func(instruction['op1'], instruction['op2'])
+        res = self._CMP_func(pipeline._registers[instruction['op1']], pipeline._registers[instruction['op2']])
 
         pipeline.condition_flags['n'] = res < 0  # gets the sign bit (bit 31)
         pipeline.condition_flags['z'] = res == 0
@@ -593,7 +593,7 @@ class CMP_InstructionType(ALU_InstructionType):
 
         # I know this isn't very ~boolean zen~ but it's more readable so stfu
         signed_overflow = False
-        if res <= -2 ** (EISA.WORD_SIZE - 1):  # less than the minimum signed value
+        if res <= -(2 ** (EISA.WORD_SIZE - 1)):  # less than the minimum signed value
             signed_overflow = True
         elif res >= 2 ** (EISA.WORD_SIZE - 1):  # greater than the maximum signed value
             signed_overflow = True
