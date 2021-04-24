@@ -257,6 +257,7 @@ class Dialog(QDialog):
         self.load_stages()
         self.update_memory()
         self.pc_counter.setText(f"PC: {self._pipeline._pc}")
+        self.cycle_counter.setText(f"Cycles: {self._pipeline._cycles}")
         self.flags.setText(f"Flags: {str(self._pipeline.condition_flags)}")
 
     def cycle_ui(self, event):
@@ -278,7 +279,12 @@ class Dialog(QDialog):
         self.stage_writeback = StageGroup("Writeback")  # self.create_stage_group("Writeback")
         self.pc_counter = QLabel(f"PC: {self._pipeline._pc}")
         self.flags = QLabel(f"Flags: {str(self._pipeline.condition_flags)}")
+        self.cycle_counter = QLabel(f"Cycle: {self._pipeline._cycles}")
         self.stages = [self.stage_fetch, self.stage_decode, self.stage_execute, self.stage_memory, self.stage_writeback]
+        for i in self.stages:
+            i.stage.adjustSize()
+            i.stage.setMaximumWidth(i.stage.width() + 20)
+            i.stage.setMinimumWidth(i.stage.width() + 20)
 
     def build_pipeline_layout(self):
         stages_layout = QHBoxLayout()  # QGridLayout()
@@ -310,6 +316,7 @@ class Dialog(QDialog):
         counters_group = QGroupBox()
         counters_layout = QHBoxLayout()
         counters_layout.addWidget(self.pc_counter)  # TODO - Add LR and ALU regs, Add cycle counter
+        counters_layout.addWidget(self.cycle_counter)
         counters_layout.addWidget(self.flags)
         counters_group.setLayout(counters_layout)
 
@@ -641,7 +648,6 @@ if __name__ == '__main__':
     my_pipe._memory._RAM[4] = end._bits  # END is stored at address (word) 1 in memory
     '''
 
-    '''
     # Unconditional Branching Test
 
     # Registers in use: 3, 31, 4, 30, 24, 16, 12
@@ -682,10 +688,6 @@ if __name__ == '__main__':
     # Opcode: 011110 (B)
     instructionB = OpCode_InstructionType_lookup[0b011110].encoding()
     instructionB['opcode'] = 0b011110
-    instructionB['n'] = 0  # TODO - verify with brendon that these are supposed to be 0 and not False
-    instructionB['z'] = 0
-    instructionB['c'] = 0
-    instructionB['v'] = 0
     instructionB['imm'] = False
     instructionB['base'] = 12
     instructionB['offset'] = 0
@@ -720,8 +722,10 @@ if __name__ == '__main__':
     end = OpCode_InstructionType_lookup[0b100000].encoding()
     end['opcode'] = 0b100000
     my_pipe._memory._RAM[32] = end._bits  # END is stored at address (word) 1 in memory
-    '''
 
+
+    #  Conditional looping + branching test. Cleared as of 4/24
+    '''
     my_pipe._registers[2] = 24  # Counter
     my_pipe._registers[0] = 20  # Condition to beat
     my_pipe._registers[1] = 1  # Amount to increment counter by
@@ -755,11 +759,27 @@ if __name__ == '__main__':
     instructionC['op2'] = 0  # Register 0 as op2
     instructionC['imm'] = False
 
+    #  Add flag fields to branch instructions
+
+    #.add_field('v', 22, 1) 
+    #.add_field('c', 23, 1) 
+    #.add_field('z', 24, 1) 
+    #.add_field('n', 25, 1)
+
+
     # Opcode: 011110 (B)
     instructionB = OpCode_InstructionType_lookup[0b011110].encoding()
     instructionB['opcode'] = 0b011110
-    instructionB['n'] = True
-    instructionB['z'] = True
+
+    instructionB.add_field('z', 24, 1)
+    instructionB['z'] = 1
+
+    instructionB.add_field('or', 21, 1)
+    instructionB['or'] = 1
+
+    instructionB.add_field('n', 25, 1)
+    instructionB['n'] = 1
+
     instructionB['imm'] = False
     instructionB['base'] = 3  # Register 3 has the address to branch back to
     instructionB['offset'] = 0
@@ -785,7 +805,7 @@ if __name__ == '__main__':
     my_pipe._memory._RAM[27] = 5
     my_pipe._memory._RAM[28] = 5
     my_pipe._memory._RAM[29] = 5
-
+    '''
     # Build UI dialog box
     dlg = Dialog(memory, my_pipe)
 
@@ -797,7 +817,6 @@ if __name__ == '__main__':
         print(e)
 
 '''
-
 class PipeLineUI(QThread):
     memory: MemorySubsystem
     pipeline: PipeLine

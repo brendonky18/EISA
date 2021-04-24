@@ -575,6 +575,8 @@ class CMP_InstructionType(ALU_InstructionType):
     CMP_Encoding = ALU_InstructionType.ALU_Encoding.create_subtype('CMP_Encoding')
     CMP_Encoding.remove_field('dest')
 
+
+
     def __init__(self, mnemonic: str, CMP_func: Callable[[int, int], int]):
         self.mnemonic = mnemonic
         self._CMP_func = CMP_func
@@ -607,16 +609,18 @@ class B_InstructionType(InstructionType):
     """wrapper class for the branch instructions:
         B{cond}, BL{cond}
     """
+
     # B, BL
     B_Encoding = InstructionType.Encoding.create_subtype('B_Encoding')
     B_Encoding.add_field('immediate', 0, 15, overlap=True) \
         .add_field('offset', 0, 10, overlap=True) \
         .add_field('base', 10, 5, overlap=True) \
-        .add_field('imm', 15, 1) \
-        .add_field('v', 22, 1) \
-        .add_field('c', 23, 1) \
-        .add_field('z', 24, 1) \
-        .add_field('n', 25, 1)
+        .add_field('imm', 15, 1)
+
+    # NOTE - the flags are going to have to be set at compile time. The assembler will
+    # need to take care of setting the correct flags for each instruction. Look at lines
+    # 767 - 788 in ui.py as an example. We now only set relevant flags. Leave irrelevant
+    # flags without a key within the instruction. -Max
 
     on_branch: Callable[[B_InstructionType], None]
 
@@ -641,10 +645,44 @@ class B_InstructionType(InstructionType):
         """compares the branch's condition code to that of the pipeline to determine if the branch should be taken.
         Squashes the pipeline if the branch is taken
         """
-        take_branch = instruction['n'] == pipeline.condition_flags['n'] or \
-                      instruction['z'] == pipeline.condition_flags['z'] or \
-                      instruction['c'] == pipeline.condition_flags['c'] or \
-                      instruction['v'] == pipeline.condition_flags['v']
+
+        flags = []
+
+        try:
+            n = instruction['n'] and pipeline.condition_flags['n']
+            flags.append(n)
+        except KeyError as e:
+            pass
+
+        try:
+            z = instruction['z'] and pipeline.condition_flags['z']
+            flags.append(z)
+        except KeyError as e:
+            pass
+
+        try:
+            c = instruction['c'] and pipeline.condition_flags['c']
+            flags.append(c)
+        except KeyError as e:
+            pass
+
+        try:
+            v = instruction['v'] and pipeline.condition_flags['v']
+            flags.append(v)
+        except KeyError as e:
+            pass
+
+        if len(flags) == 0:
+            take_branch = 1
+        else:
+            take_branch = flags[0]
+            OR = instruction['or']
+
+            for i in flags:
+                if OR:
+                    take_branch = take_branch or i
+                else:
+                    take_branch = take_branch and i
 
         if take_branch:
             # perform the other behavior (ie. update the link register)
@@ -774,7 +812,6 @@ OpCode_InstructionType_lookup: List[InstructionType] = [
     InstructionType('END')
 ]
 
-
 class Instruction:
     """class for an instance of an instruction, containing the raw encoded bits of the instruction, as well as helper functions for processing the instruction at the different pipeline stages
     """
@@ -795,6 +832,8 @@ class Instruction:
     input_regs: List[int]  # list of registers that the instruction reads from
 
     _pipeline: PipeLine
+
+    _OR: False
 
     # endregion instance vars
 

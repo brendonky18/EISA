@@ -257,10 +257,6 @@ class UnittestPipeline(unittest.TestCase):
         # Opcode: 011110 (B)
         instructionB = OpCode_InstructionType_lookup[0b011110].encoding()
         instructionB['opcode'] = 0b011110
-        instructionB['n'] = 0  # TODO - verify with brendon that these are supposed to be 0 and not False
-        instructionB['z'] = 0
-        instructionB['c'] = 0
-        instructionB['v'] = 0
         instructionB['imm'] = False
         instructionB['base'] = 12
         instructionB['offset'] = 0
@@ -296,7 +292,7 @@ class UnittestPipeline(unittest.TestCase):
         end['opcode'] = 0b100000
         my_pipe._memory._RAM[32] = end._bits  # END is stored at address (word) 1 in memory
 
-        my_pipe.cycle(24)  # TODO - Why is the minimum number of cycles 4 cycles more than load_add_store?
+        my_pipe.cycle(24)
 
         self.assertEqual(my_pipe._memory._RAM[12] + my_pipe._memory._RAM[13], my_pipe._memory._RAM[8])
 
@@ -347,10 +343,15 @@ class UnittestPipeline(unittest.TestCase):
         # Opcode: 011110 (B)
         instructionB = OpCode_InstructionType_lookup[0b011110].encoding()
         instructionB['opcode'] = 0b011110
-        instructionB['n'] = 1  # TODO - verify with brendon that these are supposed to be 0 and not False
+        instructionB.add_field('z', 24, 1)
         instructionB['z'] = 1
-        instructionB['c'] = 0
-        instructionB['v'] = 1
+
+        instructionB.add_field('or', 21, 1)
+        instructionB['or'] = 1
+
+        instructionB.add_field('n', 25, 1)
+        instructionB['n'] = 1
+
         instructionB['imm'] = False
         instructionB['base'] = 3  # Register 3 has the address to branch back to
         instructionB['offset'] = 0
@@ -369,6 +370,11 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._memory._RAM[25] = 5
         my_pipe._memory._RAM[26] = 5
         my_pipe._memory._RAM[27] = 5
+        my_pipe._memory._RAM[28] = 5
+
+        my_pipe.cycle(33)
+
+        self.assertEqual(25, my_pipe._registers[31])
 
     def test_unconditional_link(self):
 
