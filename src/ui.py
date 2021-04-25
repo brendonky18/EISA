@@ -5,7 +5,7 @@ from PyQt6.QtGui import QStandardItemModel
 from PyQt6.QtWidgets import *
 
 from memory_subsystem import MemorySubsystem
-from pipeline import PipeLine, Instruction, DecodeError, OpCode_InstructionType_lookup
+from pipeline import PipeLine, Instruction, DecodeError, Instructions, OpCode, ConditionCode
 
 from eisa import EISA
 
@@ -426,7 +426,7 @@ if __name__ == '__main__':
     memory = MemorySubsystem(EISA.ADDRESS_SIZE, EISA.CACHE_SIZE, 1, 1, EISA.RAM_SIZE, 2, 2)
     my_pipe = PipeLine(0, [0] * 32, memory)
 
-    # Simple Add
+    # region Simple Add
     '''
     my_pipe._registers[31] = 10
     my_pipe._registers[4] = 30
@@ -451,8 +451,9 @@ if __name__ == '__main__':
     my_pipe._memory._RAM[0] = instruction._bits
     my_pipe._memory._RAM[1] = end._bits
     '''
+    # endregion Simple Add
 
-    # Load 2 operands
+    # region Load 2 operands
     '''
     # Opcode: 001101 (LOAD)
     instruction = OpCode_InstructionType_lookup[0b001101].encoding()
@@ -487,8 +488,9 @@ if __name__ == '__main__':
     end['opcode'] = 0b100000
     my_pipe._memory._RAM[2] = end._bits
     '''
+    # endregion Load 2 operands
 
-    # Simple Store
+    # region Simple Store
     '''
     # Opcode: 001110 (STR) Src: 00011 (Register 3) PADDING: 00000 (Bits 20-16 are Irrelevant) Base/Literal: 11111
     # (Register 31) Offset/Literal: 0000000000 (Offset 0) TODO - is this a register number or a literal????
@@ -512,8 +514,9 @@ if __name__ == '__main__':
     end['opcode'] = 0b100000
     my_pipe._memory._RAM[1] = end._bits  # END is stored at address (word) 1 in memory
     '''
+    # endregion Simple Store
 
-    # Moderate Complexity Test
+    # region Moderate Complexity Test
     # Load 2 operands -> Add Them -> Store Result
 
     '''
@@ -573,8 +576,9 @@ if __name__ == '__main__':
     end['opcode'] = 0b100000
     my_pipe._memory._RAM[4] = end._bits  # END is stored at address (word) 1 in memory
     '''
+    # endregion Moderate Complexity Test
 
-    # Unconditional Branching Test
+    # region Unconditional Branching Test
 
     # Registers in use: 3, 31, 4, 30, 24, 16, 12
     # Memory in use: 0, 12, 1, 13, 8, 30, 31, 32
@@ -584,7 +588,7 @@ if __name__ == '__main__':
     my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
 
     # Opcode: 001101 (LOAD)
-    instruction = OpCode_InstructionType_lookup[0b001101].encoding()
+    instruction = Instructions[OpCode.LDR].encoding()
     instruction['opcode'] = 0b001101
     instruction['dest'] = 3
     instruction['lit'] = False
@@ -599,7 +603,7 @@ if __name__ == '__main__':
     my_pipe._registers[31] = 12
 
     # Opcode: 001101 (LOAD)
-    instruction2 = OpCode_InstructionType_lookup[0b001101].encoding()
+    instruction2 = Instructions[OpCode.LDR].encoding()
     instruction2['opcode'] = 0b001101
     instruction2['dest'] = 4
     instruction2['lit'] = False
@@ -612,12 +616,9 @@ if __name__ == '__main__':
     my_pipe._registers[30] = 13
 
     # Opcode: 011110 (B)
-    instructionB = OpCode_InstructionType_lookup[0b011110].encoding()
+    instructionB = Instructions[OpCode.B].encoding()
     instructionB['opcode'] = 0b011110
-    instructionB['n'] = 0  # TODO - verify with brendon that these are supposed to be 0 and not False
-    instructionB['z'] = 0
-    instructionB['c'] = 0
-    instructionB['v'] = 0
+    instructionB['cond'] = ConditionCode.EQ
     instructionB['imm'] = False
     instructionB['base'] = 12
     instructionB['offset'] = 0
@@ -626,7 +627,7 @@ if __name__ == '__main__':
     my_pipe._memory._RAM[2] = instructionB._bits
 
     # Opcode: 000001 (ADD/MOV)
-    instruction3 = OpCode_InstructionType_lookup[0b000001].encoding()
+    instruction3 = Instructions[OpCode.ADD].encoding()
     instruction3['opcode'] = 0b000001
     instruction3['dest'] = 24
     instruction3['op1'] = 4  # Destination of the first load
@@ -639,7 +640,7 @@ if __name__ == '__main__':
     # (Register 31) Offset/Literal: 0000000000 (Offset 0) TODO - is this a register number or a literal????
     #  Assuming reg num for now
 
-    instruction4 = OpCode_InstructionType_lookup[0b001110].encoding()
+    instruction4 = Instructions[OpCode.STR].encoding()
     instruction4['opcode'] = 0b001110
     instruction4['src'] = 24  # Destination of the add op
     instruction4['base'] = 16  # Register holding the address we want to store the result (Register 16)
@@ -649,9 +650,11 @@ if __name__ == '__main__':
     my_pipe._registers[16] = 8
 
     # cook END instruction to signal pipeline to end
-    end = OpCode_InstructionType_lookup[0b100000].encoding()
+    end = Instructions[OpCode.END].encoding()
     end['opcode'] = 0b100000
     my_pipe._memory._RAM[32] = end._bits  # END is stored at address (word) 1 in memory
+    # endregion Unconditional Branching Test
+
 
     # Build UI dialog box
     dlg = Dialog(memory, my_pipe)
