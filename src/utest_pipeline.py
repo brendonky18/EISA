@@ -23,7 +23,7 @@ class UnittestPipeline(unittest.TestCase):
         # Immediate Flg: 0
         # Operand 2: 00100 (Register 4)
         # PADDING: 0000000000 (Bits 9 - 0 are Irrelevant)
-        instruction = OpCode_InstructionType_lookup[0b000001].encoding()
+        instruction = Instructions[OpCode.ADD].encoding()
         instruction['opcode'] = 0b000001
         instruction['dest'] = 0b00011
         instruction['op1'] = 0b11111
@@ -31,7 +31,7 @@ class UnittestPipeline(unittest.TestCase):
         instruction['imm'] = False
 
         # cook END instruction to signal pipeline to end
-        end = OpCode_InstructionType_lookup[0b100000].encoding()
+        end = Instructions[0b100000].encoding()
 
         # cook the pipe's memory
         my_pipe._memory._RAM[0] = instruction._bits
@@ -51,7 +51,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
 
         # Opcode: 001101 (LOAD)
-        instruction = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction = Instructions[0b001101].encoding()
         instruction['opcode'] = 0b001101
         instruction['dest'] = 3
         instruction['lit'] = False
@@ -61,7 +61,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._memory._RAM[0] = instruction._bits
 
         # cook END instruction to signal pipeline to end
-        end = OpCode_InstructionType_lookup[0b100000].encoding()
+        end = Instructions[0b100000].encoding()
         end['opcode'] = 0b100000
         my_pipe._memory._RAM[1] = end._bits
 
@@ -78,7 +78,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
 
         # Opcode: 001101 (LOAD)
-        instruction = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction = Instructions[0b001101].encoding()
         instruction['opcode'] = 0b001101
         instruction['dest'] = 3
         instruction['lit'] = False
@@ -93,7 +93,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[31] = 12
 
         # Opcode: 001101 (LOAD)
-        instruction2 = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction2 = Instructions[0b001101].encoding()
         instruction2['opcode'] = 0b001101
         instruction2['dest'] = 4
         instruction2['lit'] = False
@@ -106,7 +106,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[30] = 13
 
         # cook END instruction to signal pipeline to end
-        end = OpCode_InstructionType_lookup[0b100000].encoding()
+        end = Instructions[0b100000].encoding()
         end['opcode'] = 0b100000
         my_pipe._memory._RAM[2] = end._bits
 
@@ -124,7 +124,7 @@ class UnittestPipeline(unittest.TestCase):
         # (Register 31) Offset/Literal: 0000000000 (Offset 0) TODO - is this a register number or a literal????
         #  Assuming reg num for now
 
-        instruction = OpCode_InstructionType_lookup[0b001110].encoding()
+        instruction = Instructions[0b001110].encoding()
         instruction['opcode'] = 0b001110
         instruction['src'] = 3
         instruction['base'] = 31
@@ -138,7 +138,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[3] = 256  # storing value in register 3
 
         # cook END instruction to signal pipeline to end
-        end = OpCode_InstructionType_lookup[0b100000].encoding()
+        end = Instructions[0b100000].encoding()
         end['opcode'] = 0b100000
         my_pipe._memory._RAM[1] = end._bits  # END is stored at address (word) 1 in memory
 
@@ -156,7 +156,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
 
         # Opcode: 001101 (LOAD)
-        instruction = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction = Instructions[0b001101].encoding()
         instruction['opcode'] = 0b001101
         instruction['dest'] = 3
         instruction['lit'] = False
@@ -171,7 +171,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[31] = 12
 
         # Opcode: 001101 (LOAD)
-        instruction2 = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction2 = Instructions[0b001101].encoding()
         instruction2['opcode'] = 0b001101
         instruction2['dest'] = 4
         instruction2['lit'] = False
@@ -184,7 +184,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[30] = 13
 
         # Opcode: 000001 (ADD/MOV)
-        instruction3 = OpCode_InstructionType_lookup[0b000001].encoding()
+        instruction3 = Instructions[0b000001].encoding()
         instruction3['opcode'] = 0b000001
         instruction3['dest'] = 24
         instruction3['op1'] = 4  # Destination of the first load
@@ -197,7 +197,7 @@ class UnittestPipeline(unittest.TestCase):
         # (Register 31) Offset/Literal: 0000000000 (Offset 0) TODO - is this a register number or a literal????
         #  Assuming reg num for now
 
-        instruction4 = OpCode_InstructionType_lookup[0b001110].encoding()
+        instruction4 = Instructions[0b001110].encoding()
         instruction4['opcode'] = 0b001110
         instruction4['src'] = 24  # Destination of the add op
         instruction4['base'] = 16  # Register holding the address we want to store the result (Register 16)
@@ -207,7 +207,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[16] = 8
 
         # cook END instruction to signal pipeline to end
-        end = OpCode_InstructionType_lookup[0b100000].encoding()
+        end = Instructions[0b100000].encoding()
         end['opcode'] = 0b100000
         my_pipe._memory._RAM[4] = end._bits  # END is stored at address (word) 1 in memory
 
@@ -227,7 +227,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
 
         # Opcode: 001101 (LOAD)
-        instruction = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction = Instructions[0b001101].encoding()
         instruction['opcode'] = 0b001101
         instruction['dest'] = 3
         instruction['lit'] = False
@@ -242,7 +242,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[31] = 12
 
         # Opcode: 001101 (LOAD)
-        instruction2 = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction2 = Instructions[0b001101].encoding()
         instruction2['opcode'] = 0b001101
         instruction2['dest'] = 4
         instruction2['lit'] = False
@@ -255,12 +255,9 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[30] = 13
 
         # Opcode: 011110 (B)
-        instructionB = OpCode_InstructionType_lookup[0b011110].encoding()
+        instructionB = Instructions[0b011110].encoding()
         instructionB['opcode'] = 0b011110
-        instructionB['n'] = 0  # TODO - verify with brendon that these are supposed to be 0 and not False
-        instructionB['z'] = 0
-        instructionB['c'] = 0
-        instructionB['v'] = 0
+        instructionB['cond'] = ConditionCode.EQ
         instructionB['imm'] = False
         instructionB['base'] = 12
         instructionB['offset'] = 0
@@ -269,7 +266,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._memory._RAM[2] = instructionB._bits
 
         # Opcode: 000001 (ADD/MOV)
-        instruction3 = OpCode_InstructionType_lookup[0b000001].encoding()
+        instruction3 = Instructions[0b000001].encoding()
         instruction3['opcode'] = 0b000001
         instruction3['dest'] = 24
         instruction3['op1'] = 4  # Destination of the first load
@@ -282,7 +279,7 @@ class UnittestPipeline(unittest.TestCase):
         # (Register 31) Offset/Literal: 0000000000 (Offset 0) TODO - is this a register number or a literal????
         #  Assuming reg num for now
 
-        instruction4 = OpCode_InstructionType_lookup[0b001110].encoding()
+        instruction4 = Instructions[0b001110].encoding()
         instruction4['opcode'] = 0b001110
         instruction4['src'] = 24  # Destination of the add op
         instruction4['base'] = 16  # Register holding the address we want to store the result (Register 16)
@@ -292,7 +289,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[16] = 8
 
         # cook END instruction to signal pipeline to end
-        end = OpCode_InstructionType_lookup[0b100000].encoding()
+        end = Instructions[0b100000].encoding()
         end['opcode'] = 0b100000
         my_pipe._memory._RAM[32] = end._bits  # END is stored at address (word) 1 in memory
 
