@@ -321,11 +321,8 @@ class PipeLine:
         # Execute depending on instruction
         # https://en.wikipedia.org/wiki/Classic_RISC_pipeline
 
-        # get the instruction type of the instruction
-        instruction_type = OpCode_InstructionType_lookup[instruction.opcode]
-
         # run the execute stage
-        instruction_type.execute_stage_func(instruction, self)
+        type(instruction).execute_stage_func(instruction, self)
 
         # Push edited instruction into the adjacent queue
         self._em_reg[0] = instruction
@@ -341,12 +338,9 @@ class PipeLine:
 
         self._pipeline[3] = instruction
 
-        # get the instruction type of the instruction
-        instruction_type = OpCode_InstructionType_lookup[instruction.opcode]
-
         # run the memory stage
         try:
-            instruction_type.memory_stage_func(instruction, self)
+            type(instruction).memory_stage_func(instruction, self)
         except PipelineStall:
             if not self._stalled_memory:
                 self._start_stall = True
@@ -368,11 +362,8 @@ class PipeLine:
 
         self._pipeline[4] = instruction
 
-        # get the instruction type of the instruction
-        instruction_type = OpCode_InstructionType_lookup[instruction.opcode]
-
         # run the memory stage
-        instruction_type.writeback_stage_func(instruction, self)
+        type(instruction).writeback_stage_func(instruction, self)
 
         # free the dependencies
         self.free_dependency(instruction.dependencies())
