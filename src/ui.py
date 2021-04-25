@@ -241,21 +241,26 @@ class Dialog(QDialog):
 
         self.whole_layout.addLayout(self.dlgLayout)
 
+        self.setMaximumWidth(self.memory_group.ram_box.maximumWidth() + self.memory_group.regs_box.maximumWidth())
+        self.setMaximumHeight(self.memory_group.regs_box.maximumHeight() + self.memory_group.cache_box.maximumHeight() + self.pipeline_group.maximumHeight())
 
         self.setLayout(self.whole_layout)
 
+    '''
     def build_ui(self):
         app = QApplication(sys.argv)
         # Build UI dialog box
-        dlg = Dialog()
-        dlg.update_ui()
-        dlg.show()
+        self.dlg = Dialog()
+        self.dlg.update_ui()
+        self.dlg.show()
         # sys.exit(app.exec_())
+    '''
 
     def update_ui(self):
         self.destroy_stage_fields()
         self.load_stages()
         self.update_memory()
+        self.resize_tables()
         self.pc_counter.setText(f"PC: {self._pipeline._pc}")
         self.cycle_counter.setText(f"Cycles: {self._pipeline._cycles}")
         self.flags.setText(f"Flags: {str(self._pipeline.condition_flags)}")
@@ -315,10 +320,15 @@ class Dialog(QDialog):
 
         counters_group = QGroupBox()
         counters_layout = QHBoxLayout()
-        counters_layout.addWidget(self.pc_counter)  # TODO - Add LR and ALU regs, Add cycle counter
+        counters_layout.addWidget(self.pc_counter)  # TODO - Add LR and ALU regs
         counters_layout.addWidget(self.cycle_counter)
         counters_layout.addWidget(self.flags)
         counters_group.setLayout(counters_layout)
+
+        options_group = QGroupBox()
+        options_layout = QVBoxLayout()
+        #self.pipeline_enabled_radio = QCheckBox()
+        #self.pipeline_enabled_radio.  # TODO - implement toggle_pipeline
 
         pipeline_group = QGroupBox("Pipeline")
 
@@ -328,12 +338,54 @@ class Dialog(QDialog):
         pipeline_layout.addLayout(button_layout)
 
         pipeline_group.setLayout(pipeline_layout)
+
+        pipeline_group.setMaximumWidth(pipeline_group.width())
+        pipeline_group.setMaximumHeight(pipeline_group.height())
+
+        self.pipeline_group = pipeline_group
+
         self.dlgLayout.addWidget(pipeline_group)
+
+    def resize_tables(self):
+
+        # Max tables width
+
+        # halve_width_size = 884
+        ram_width = ((self.memory_group.ram_widget.columnWidth(
+            0) * self.memory_group.ram_widget.columnCount()) + self.memory_group.ram_widget.verticalScrollBar().width()) + 27  # 1022
+        regs_width = ((self.memory_group.regs_widget.columnWidth(
+            0) * self.memory_group.regs_widget.columnCount()) + self.memory_group.regs_widget.verticalScrollBar().width())  # 184
+        cache_width = ((self.memory_group.cache_widget.columnWidth(
+            0) * self.memory_group.cache_widget.columnCount()) + self.memory_group.cache_widget.verticalScrollBar().width())
+
+        self.memory_group.ram_box.setMaximumWidth(ram_width)
+        self.memory_group.regs_box.setMaximumWidth(regs_width)
+        self.memory_group.cache_box.setMaximumWidth(cache_width)
+
+        # Max tables height
+
+        ram_height = (self.memory_group.ram_widget.horizontalHeader().height() + (
+                    self.memory_group.ram_widget.rowHeight(0) * (
+                        self.memory_group.ram_widget.rowCount() + 1)) + self.memory_group.ram_widget.horizontalScrollBar().height())  # 1022
+        regs_height = (self.memory_group.regs_widget.horizontalHeader().height() + (
+                    self.memory_group.regs_widget.rowHeight(0) * (
+                        self.memory_group.regs_widget.rowCount() + 1)) + self.memory_group.regs_widget.horizontalScrollBar().height())  # 184
+        cache_height = (self.memory_group.cache_widget.horizontalHeader().height() + (
+                    self.memory_group.cache_widget.rowHeight(0) * (
+                        self.memory_group.cache_widget.rowCount() + 1)) + self.memory_group.cache_widget.horizontalScrollBar().height())  # 122
+
+        # self.memory_group.cache_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
+
+        self.memory_group.ram_box.setMaximumHeight(ram_height)
+        self.memory_group.regs_box.setMaximumHeight(regs_height)
+        self.memory_group.cache_box.setMaximumHeight(cache_height)
 
     def build_memory_layout(self):
         self.dlgLayout.addWidget(self.memory_group.regs_box)
         self.dlgLayout.addWidget(self.memory_group.cache_box)
         self.whole_layout.addWidget(self.memory_group.ram_box)
+        self.resize_tables()
+
 
     def destroy_stage_fields(self):
         for i in self.stages:
@@ -648,6 +700,7 @@ if __name__ == '__main__':
     my_pipe._memory._RAM[4] = end._bits  # END is stored at address (word) 1 in memory
     '''
 
+    '''
     # Unconditional Branching Test
 
     # Registers in use: 3, 31, 4, 30, 24, 16, 12
@@ -722,10 +775,9 @@ if __name__ == '__main__':
     end = OpCode_InstructionType_lookup[0b100000].encoding()
     end['opcode'] = 0b100000
     my_pipe._memory._RAM[32] = end._bits  # END is stored at address (word) 1 in memory
-
+'''
 
     #  Conditional looping + branching test. Cleared as of 4/24
-    '''
     my_pipe._registers[2] = 24  # Counter
     my_pipe._registers[0] = 20  # Condition to beat
     my_pipe._registers[1] = 1  # Amount to increment counter by
@@ -805,7 +857,7 @@ if __name__ == '__main__':
     my_pipe._memory._RAM[27] = 5
     my_pipe._memory._RAM[28] = 5
     my_pipe._memory._RAM[29] = 5
-    '''
+
     # Build UI dialog box
     dlg = Dialog(memory, my_pipe)
 
