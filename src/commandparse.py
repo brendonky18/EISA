@@ -110,7 +110,7 @@ class CommandParser:
         """Starts running the termisshnal
         """
         from debug import terminal_print
-
+        terminal_print()
         run = True
 
         while run:
@@ -143,7 +143,6 @@ class CommandParser:
                             f'You entered {cur_input.args}')
                         
                         terminal_print(err_msg)
-                        
                     return
                 
                 # back in the main thread
