@@ -1,6 +1,7 @@
 import sys
+from copy import copy
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, QDir
 from PyQt6.QtGui import QStandardItemModel
 from PyQt6.QtWidgets import *
 
@@ -218,25 +219,25 @@ class Dialog(QDialog):
 
     _memory: MemorySubsystem
     _pipeline: PipeLine
+    _hex: True
 
     def __init__(self, memory: MemorySubsystem, pipeline: PipeLine, parent=None):
         """Initializer."""
         super().__init__(parent)
         self._memory = memory
         self._pipeline = pipeline
+        self._hex = True
 
         self.setWindowTitle('Encryptinator')
         self.dlgLayout = QVBoxLayout()  # QVBoxLayout()
         self.whole_layout = QHBoxLayout()
         self.build_stages()
         self.build_pipeline_layout()
-        self.load_stages()
-        #self.build_cycle_button()
 
         self.memory_group = MemoryGroup(self._pipeline._registers, self._pipeline._memory)
         self.build_memory_layout()
 
-
+        self.update_ui()
 
         self.whole_layout.addLayout(self.dlgLayout)
 
@@ -247,15 +248,21 @@ class Dialog(QDialog):
         app = QApplication(sys.argv)
         # Build UI dialog box
         dlg = Dialog()
+        dlg.update_ui()
         dlg.show()
         # sys.exit(app.exec_())
 
-    def cycle_ui(self, event):
-        self.destroy_fields()
-        self._pipeline.cycle_pipeline()
+    def update_ui(self):
+        self.destroy_stage_fields()
         self.load_stages()
         self.update_memory()
         self.pc_counter.setText(f"PC: {self._pipeline._pc}")
+        self.cycle_counter.setText(f"Cycles: {self._pipeline._cycles}")
+        self.flags.setText(f"Flags: {str(self._pipeline.condition_flags)}")
+
+    def cycle_ui(self, event):
+        self._pipeline.cycle_pipeline()
+        self.update_ui()
 
     '''
     def build_cycle_button(self):
@@ -271,41 +278,68 @@ class Dialog(QDialog):
         self.stage_memory = StageGroup("Memory")  # self.create_stage_group("Memory")
         self.stage_writeback = StageGroup("Writeback")  # self.create_stage_group("Writeback")
         self.pc_counter = QLabel(f"PC: {self._pipeline._pc}")
+        self.flags = QLabel(f"Flags: {str(self._pipeline.condition_flags)}")
+        self.cycle_counter = QLabel(f"Cycle: {self._pipeline._cycles}")
         self.stages = [self.stage_fetch, self.stage_decode, self.stage_execute, self.stage_memory, self.stage_writeback]
+        for i in self.stages:
+            i.stage.adjustSize()
+            i.stage.setMaximumWidth(i.stage.width() + 20)
+            i.stage.setMinimumWidth(i.stage.width() + 20)
 
     def build_pipeline_layout(self):
-        pipeline_layout = QGridLayout()
-        pipeline_layout.addWidget(self.stage_fetch.stage, 1, 1)
-        pipeline_layout.addWidget(self.stage_decode.stage, 1, 2)
-        pipeline_layout.addWidget(self.stage_execute.stage, 1, 3)
-        pipeline_layout.addWidget(self.stage_memory.stage, 1, 4)
-        pipeline_layout.addWidget(self.stage_writeback.stage, 1, 5)
+        stages_layout = QHBoxLayout()  # QGridLayout()
+        stages_layout.addWidget(self.stage_fetch.stage)
+        stages_layout.addWidget(self.stage_decode.stage)
+        stages_layout.addWidget(self.stage_execute.stage)
+        stages_layout.addWidget(self.stage_memory.stage)
+        stages_layout.addWidget(self.stage_writeback.stage)
+
+
+        self.hex_button = QPushButton("Hex Toggle")
+        self.hex_button.clicked.connect(self.hex_toggle)
+        self.load_button = QPushButton("Load Program")
+        self.load_button.clicked.connect(self.load_program_from_file)
+        self.exch_button = QPushButton("Load Exch. Sort")
+        # self.exch_button.clicked.connect(self.load_exchange_demo)  # TODO - Implement Exchange Sort Benchmark/Demo
+        self.matrix_button = QPushButton("Load Matrix Mult.")
+        # self.matrix_button.clicked.connect(self.load_matrix_demo)  # TODO - Implement Matrix Multiply Benchmark/Demo
         self.cycle_button = QPushButton("Cycle")
         self.cycle_button.clicked.connect(self.cycle_ui)
-        pipeline_layout.addWidget(self.cycle_button, 2, 5)
-        pipeline_layout.addWidget(self.pc_counter, 2, 1)
+
+        button_layout = QHBoxLayout()
+        button_layout.addWidget(self.hex_button)
+        button_layout.addWidget(self.load_button)
+        button_layout.addWidget(self.exch_button)
+        button_layout.addWidget(self.matrix_button)
+        button_layout.addWidget(self.cycle_button)
+
+        counters_group = QGroupBox()
+        counters_layout = QHBoxLayout()
+        counters_layout.addWidget(self.pc_counter)  # TODO - Add LR and ALU regs, Add cycle counter
+        counters_layout.addWidget(self.cycle_counter)
+        counters_layout.addWidget(self.flags)
+        counters_group.setLayout(counters_layout)
+
         pipeline_group = QGroupBox("Pipeline")
+
+        pipeline_layout = QVBoxLayout()
+        pipeline_layout.addWidget(counters_group)
+        pipeline_layout.addLayout(stages_layout)
+        pipeline_layout.addLayout(button_layout)
+
         pipeline_group.setLayout(pipeline_layout)
         self.dlgLayout.addWidget(pipeline_group)
-        '''
-        self.dlgLayout.addWidget(self.stage_fetch.stage, 1, 1)
-        self.dlgLayout.addWidget(self.stage_decode.stage, 1, 2)
-        self.dlgLayout.addWidget(self.stage_execute.stage, 1, 3)
-        self.dlgLayout.addWidget(self.stage_memory.stage, 1, 4)
-        self.dlgLayout.addWidget(self.stage_writeback.stage, 1, 5)
-        '''
 
     def build_memory_layout(self):
         self.dlgLayout.addWidget(self.memory_group.regs_box)
         self.dlgLayout.addWidget(self.memory_group.cache_box)
         self.whole_layout.addWidget(self.memory_group.ram_box)
-        #for i in range(self.memory_group.ram_cols):
-        #self.memory_group.ram_box.
 
-    def destroy_fields(self):
+    def destroy_stage_fields(self):
         for i in self.stages:
             for j in range(EISA.MAX_INSTRUCTION_FIELDS):
                 i.fields[j].setText("")
+
 
     def load_stage(self, stage: int):
         '''Loads a SINGLE SPECIFIED stage of the pipeline into the UI'''
@@ -388,20 +422,24 @@ class Dialog(QDialog):
             self.load_stage(i)
 
     def update_ram(self):
-        ram = self._pipeline._memory._RAM
+        ram = [i for i in self._pipeline._memory._RAM]
 
         for i in range(1, self.memory_group.ram_rows+1):
             for j in range(1, self.memory_group.ram_cols+1):
                 val = ram[((i-1)*self.memory_group.ram_cols) + (j-1)]
+                if self._hex:
+                    val = hex(val)
                 self.memory_group.ram_table[i][j] = val
                 self.memory_group.ram_widget.item(i-1, j-1).setText(str(val))
 
     def update_regs(self):
-        regs = self._pipeline._registers
+        regs = self._pipeline._registers.copy()
 
         for i in range(1, self.memory_group.regs_rows+1):
             for j in range(1, self.memory_group.regs_cols+1):
                 val = regs[((i - 1) * self.memory_group.regs_cols) + (j - 1)]
+                if self._hex:
+                    val = hex(val)
                 self.memory_group.regs_table[i][j] = val
                 self.memory_group.regs_widget.item(i-1, j-1).setText(str(val))
 
@@ -410,7 +448,10 @@ class Dialog(QDialog):
 
         for i in range(1, self.memory_group.cache_rows+1):
             for j in range(1, self.memory_group.cache_cols+1):
-                val = cache[((i - 1) * self.memory_group.cache_cols) + (j - 1)]._data
+                val = [i for i in cache[((i - 1) * self.memory_group.cache_cols) + (j - 1)]._data]
+                if self._hex:
+                    for k in range(len(val)):
+                        val[k] = hex(val[k])
                 self.memory_group.cache_table[i][j] = val
                 self.memory_group.cache_widget.item(i-1, j-1).setText(str(val))
 
@@ -419,6 +460,39 @@ class Dialog(QDialog):
         self.update_regs()
         self.update_cache()
 
+    def hex_toggle(self):
+        self._hex = not(self._hex)
+        self.update_ui()
+
+    def load_program_from_file(self):
+        filepath = QFileDialog.getOpenFileName(self, 'Hey! Select a File')[0]
+        if filepath == '':
+            return
+
+        # TODO - retain prior pipeline/memory in load program rather than deleting it
+
+        del self._memory
+        del self._pipeline
+
+        self._memory = MemorySubsystem(EISA.ADDRESS_SIZE, EISA.CACHE_SIZE, 1, 1, EISA.RAM_SIZE, 2, 2)
+        self._pipeline = PipeLine(0, [0] * 32, self._memory)
+
+        with open(filepath) as f:
+            content = f.readlines()
+        instructions = [x.strip() for x in content]  # Remove whitespace
+
+        for i in range(len(instructions)):
+            self._memory._RAM[i] = int(instructions[i], 2)
+
+        self.update_ui()
+
+
+
+    def load_exchange_demo(self):
+        pass
+
+    def load_matrix_demo(self):
+        pass
 
 if __name__ == '__main__':
     app = QApplication(sys.argv)
@@ -656,6 +730,89 @@ if __name__ == '__main__':
     # endregion Unconditional Branching Test
 
 
+
+    #  Conditional looping + branching test. Cleared as of 4/24
+    '''
+    my_pipe._registers[2] = 24  # Counter
+    my_pipe._registers[0] = 20  # Condition to beat
+    my_pipe._registers[1] = 1  # Amount to increment counter by
+    my_pipe._registers[3] = 0  # Address to branch back to
+
+    instruction1 = OpCode_InstructionType_lookup[0b001101].encoding()
+    instruction1['opcode'] = 0b001101
+    instruction1['dest'] = 25  # Load into register 25
+    instruction1['base'] = 2  # Register 2 holds the memory address who's value loads into reg 25
+    instruction1['offset'] = 0
+    instruction1['lit'] = False
+
+    instruction2 = OpCode_InstructionType_lookup[0b000001].encoding()
+    instruction2['opcode'] = 0b0000001
+    instruction2['dest'] = 31  # Put sum in reg 31
+    instruction2['op1'] = 31  # Register 31 as op1
+    instruction2['op2'] = 25  # Register 25 as op2
+    instruction2['imm'] = False
+
+    instruction3 = OpCode_InstructionType_lookup[0b000001].encoding()
+    instruction3['opcode'] = 0b0000001
+    instruction3['dest'] = 2  # Put sum in reg 2
+    instruction3['op1'] = 2  # Register 2 as op1
+    instruction3['op2'] = 1  # Register 1 as op1
+    instruction3['imm'] = False
+
+    # Opcode: 011110 (CMP)
+    instructionC = OpCode_InstructionType_lookup[0b000011].encoding()
+    instructionC['opcode'] = 0b000011
+    instructionC['op1'] = 31  # Register 31 as op1
+    instructionC['op2'] = 0  # Register 0 as op2
+    instructionC['imm'] = False
+
+    #  Add flag fields to branch instructions
+
+    #.add_field('v', 22, 1) 
+    #.add_field('c', 23, 1) 
+    #.add_field('z', 24, 1) 
+    #.add_field('n', 25, 1)
+
+
+    # Opcode: 011110 (B)
+    instructionB = OpCode_InstructionType_lookup[0b011110].encoding()
+    instructionB['opcode'] = 0b011110
+
+    instructionB.add_field('z', 24, 1)
+    instructionB['z'] = 1
+
+    instructionB.add_field('or', 21, 1)
+    instructionB['or'] = 1
+
+    instructionB.add_field('n', 25, 1)
+    instructionB['n'] = 1
+
+    instructionB['imm'] = False
+    instructionB['base'] = 3  # Register 3 has the address to branch back to
+    instructionB['offset'] = 0
+
+    instructionBLOCK = OpCode_InstructionType_lookup[0b0].encoding()
+    instructionBLOCK['opcode'] = 0b0
+
+    # cook END instruction to signal pipeline to end
+    end = OpCode_InstructionType_lookup[0b100000].encoding()
+    end['opcode'] = 0b100000
+
+    my_pipe._memory._RAM[0] = instruction1._bits
+    my_pipe._memory._RAM[1] = instruction2._bits
+    my_pipe._memory._RAM[2] = instruction3._bits
+    my_pipe._memory._RAM[3] = instructionC._bits
+    my_pipe._memory._RAM[4] = instructionB._bits
+    my_pipe._memory._RAM[5] = instructionBLOCK._bits
+    my_pipe._memory._RAM[6] = end._bits
+
+    my_pipe._memory._RAM[24] = 5
+    my_pipe._memory._RAM[25] = 5
+    my_pipe._memory._RAM[26] = 5
+    my_pipe._memory._RAM[27] = 5
+    my_pipe._memory._RAM[28] = 5
+    my_pipe._memory._RAM[29] = 5
+    '''
     # Build UI dialog box
     dlg = Dialog(memory, my_pipe)
 
@@ -667,7 +824,6 @@ if __name__ == '__main__':
         print(e)
 
 '''
-
 class PipeLineUI(QThread):
     memory: MemorySubsystem
     pipeline: PipeLine

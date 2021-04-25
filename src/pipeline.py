@@ -270,7 +270,7 @@ class PipeLine:
 
         self._pipeline[0] = instruction
 
-        if not self._stalled_fetch and not self._stalled_memory and not self._dependency_stall:
+        if not self._stalled_fetch and not self._stalled_memory and not self._dependency_stall and not self._is_finished:
             self._fd_reg[0] = instruction
             self._pc += 1
             self._fetch_isWaiting = False
@@ -572,9 +572,12 @@ class Instruction:
 
         # update the instruction's input dependencies
         self.input_regs.append(src) if (src := self.try_get(
-            'src')) is not None else None  # append src to input_regs if the field exists
-        self.input_regs.append(op1) if (op1 := self.try_get('op1')) is not None else None
-        self.input_regs.append(op2) if (op2 := self.try_get('op2')) is not None else None
+            'src')) is not None else None  # append src t~o input_regs if the field exists
+        op1 = self.try_get('op1')
+        op2 = self.try_get('op2')
+        self.input_regs.append(op2) if op2 is not None else None
+        self.input_regs.append(op1) if op1 is not None else None
+
 
     def dependencies(self) -> List[int]:
         """returns a list instance containing all of the instruction's depenedencies, both input and output dependencies
