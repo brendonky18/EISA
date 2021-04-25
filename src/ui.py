@@ -260,7 +260,7 @@ class Dialog(QDialog):
         self.destroy_stage_fields()
         self.load_stages()
         self.update_memory()
-        self.resize_tables()
+        #self.resize_tables()
         self.pc_counter.setText(f"PC: {self._pipeline._pc}")
         self.cycle_counter.setText(f"Cycles: {self._pipeline._cycles}")
         self.flags.setText(f"Flags: {str(self._pipeline.condition_flags)}")

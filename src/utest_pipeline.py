@@ -314,6 +314,7 @@ class UnittestPipeline(unittest.TestCase):
 
         my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
 
+        #  Conditional looping + branching test. Cleared as of 4/24
         my_pipe._registers[2] = 24  # Counter
         my_pipe._registers[0] = 20  # Condition to beat
         my_pipe._registers[1] = 1  # Amount to increment counter by
@@ -340,9 +341,24 @@ class UnittestPipeline(unittest.TestCase):
         instruction3['op2'] = 1  # Register 1 as op1
         instruction3['imm'] = False
 
+        # Opcode: 011110 (CMP)
+        instructionC = OpCode_InstructionType_lookup[0b000011].encoding()
+        instructionC['opcode'] = 0b000011
+        instructionC['op1'] = 31  # Register 31 as op1
+        instructionC['op2'] = 0  # Register 0 as op2
+        instructionC['imm'] = False
+
+        #  Add flag fields to branch instructions
+
+        # .add_field('v', 22, 1)
+        # .add_field('c', 23, 1)
+        # .add_field('z', 24, 1)
+        # .add_field('n', 25, 1)
+
         # Opcode: 011110 (B)
         instructionB = OpCode_InstructionType_lookup[0b011110].encoding()
         instructionB['opcode'] = 0b011110
+
         instructionB.add_field('z', 24, 1)
         instructionB['z'] = 1
 
@@ -356,23 +372,29 @@ class UnittestPipeline(unittest.TestCase):
         instructionB['base'] = 3  # Register 3 has the address to branch back to
         instructionB['offset'] = 0
 
+        instructionBLOCK = OpCode_InstructionType_lookup[0b0].encoding()
+        instructionBLOCK['opcode'] = 0b0
+
         # cook END instruction to signal pipeline to end
         end = OpCode_InstructionType_lookup[0b100000].encoding()
         end['opcode'] = 0b100000
 
-        my_pipe._memory._RAM[0] = instruction1
-        my_pipe._memory._RAM[1] = instruction2
-        my_pipe._memory._RAM[2] = instruction3
-        my_pipe._memory._RAM[3] = instructionB
-        my_pipe._memory._RAM[5] = end
+        my_pipe._memory._RAM[0] = instruction1._bits
+        my_pipe._memory._RAM[1] = instruction2._bits
+        my_pipe._memory._RAM[2] = instruction3._bits
+        my_pipe._memory._RAM[3] = instructionC._bits
+        my_pipe._memory._RAM[4] = instructionB._bits
+        my_pipe._memory._RAM[5] = instructionBLOCK._bits
+        my_pipe._memory._RAM[6] = end._bits
 
         my_pipe._memory._RAM[24] = 5
         my_pipe._memory._RAM[25] = 5
         my_pipe._memory._RAM[26] = 5
         my_pipe._memory._RAM[27] = 5
         my_pipe._memory._RAM[28] = 5
+        my_pipe._memory._RAM[29] = 5
 
-        my_pipe.cycle(33)
+        my_pipe.cycle(77)
 
         self.assertEqual(25, my_pipe._registers[31])
 
