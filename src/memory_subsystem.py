@@ -33,6 +33,12 @@ class MemorySubsystem:
     stalls_remaining_writing: int
     _write_miss: bool
 
+    cache_enabled: bool
+    cache_size_original: int
+    cache_read_speed: int
+    cache_write_speed: int
+
+
     def cache_evict_cb(self):
         return None
 
@@ -58,6 +64,11 @@ class MemorySubsystem:
         self.waiting_on_writing = -1
         self.stalls_remaining_writing = 0
         self._write_miss = False
+
+        self.cache_enabled = True
+        self.cache_size_original = cache_size
+        self.cache_read_speed = cache_read_speed
+        self.cache_write_speed = cache_write_speed
 
     # read
     def __getitem__(self, address: int) -> int:

@@ -87,7 +87,7 @@ class PipeLine:
     # ALU register
     AR: int  # TODO implement the ALU register with dependencies, rather than using the 'computed' field in 'Instruction'
 
-    yes_pipe: True
+    yes_pipe: bool
 
     # Has to be size 2
     _fd_reg: list[Instruction]  # Fetch/Decode reg
@@ -250,11 +250,24 @@ class PipeLine:
 
         self.free_dependency(active_regs)
 
+    def check_empty_pipeline(self):
+        for i in self._pipeline:
+            if i.opcode != 0:
+                return False
+        return True
+
     def stage_fetch(self) -> None:
         """function to run the fetch stage
         """
 
         instruction = Instruction()
+
+        # Send NOOP forward from fetch if the pipeline is disabled and the pipeline is not empty
+        if (not self.yes_pipe) and (not self.check_empty_pipeline()):
+            self._pipeline[0] = instruction
+            self._fd_reg[0] = Instruction()
+            return
+
 
         if self._fetch_isWaiting:
             instruction = self._pipeline[0]
@@ -262,11 +275,12 @@ class PipeLine:
         # Load instruction in MEMORY at the address the PC is pointing to
         if not self._is_finished and not self._fetch_isWaiting:
             try:
-                instruction = Instruction(self._memory[self._pc])
+                instruction = Instruction(self._memory[self._pc % EISA.RAM_ADDR_SPACE])
             except PipelineStall:
                 # instruction = Instruction() # send noop forward on a pipeline stall
                 self._stalled_fetch = True
 
+                '''
                 if not self.yes_pipe:
                     while 1:
                         try:
@@ -277,6 +291,7 @@ class PipeLine:
                             break
                         except PipelineStall:
                             self._cycles += 1
+                '''
 
             else:
                 self._stalled_fetch = False
@@ -367,7 +382,8 @@ class PipeLine:
             # instruction = Instruction() # send a NOOP forward
             self._mw_reg[0] = Instruction()
 
-            if not self.yes_pipe:
+            '''
+            if not self.yes_pipe and self.stall_jumping:
                 while 1:
                     try:
                         instruction_type.memory_stage_func(instruction, self)
@@ -377,6 +393,7 @@ class PipeLine:
                         break
                     except PipelineStall:
                         self._cycles += 1
+            '''
 
         else:
             self._mw_reg[0] = instruction
@@ -417,51 +434,41 @@ class PipeLine:
         """function to run a single cycle of the pipeline - NOT THREADSAFE -> Call cycle(int cycles) instead
         """
 
-        if self.yes_pipe:
+        # self._stalled_fetch = False
+        # self._stalled_memory = False
 
-            # self._stalled_fetch = False
-            # self._stalled_memory = False
+        # self._mw_reg = [self._em_reg[1], self._mw_reg[0]]
+        self.stage_writeback()
+        self.stage_memory()
+        # self._mw_reg = [self._em_reg[1], self._mw_reg[0]]
 
-            # self._mw_reg = [self._em_reg[1], self._mw_reg[0]]
-            self.stage_writeback()
-            self.stage_memory()
-            # self._mw_reg = [self._em_reg[1], self._mw_reg[0]]
+        # if not self._stalled_memory:
+        self.stage_execute()
+        # self._em_reg = [self._de_reg[1], self._em_reg[0]]
 
-            # if not self._stalled_memory:
-            self.stage_execute()
-            # self._em_reg = [self._de_reg[1], self._em_reg[0]]
+        self.stage_decode()
+        # self._de_reg = [self._fd_reg[1], self._de_reg[0]]
 
-            self.stage_decode()
-            # self._de_reg = [self._fd_reg[1], self._de_reg[0]]
+        self.stage_fetch()
 
-            self.stage_fetch()
+        # self._fd_reg = [Instruction(), self._fd_reg[0]]
 
-            # self._fd_reg = [Instruction(), self._fd_reg[0]]
+        self.cycle_stage_regs()
 
-            self.cycle_stage_regs()
+        # Memory stall flags during cycles
+        if self._start_stall:
+            self._stalled_memory = True
+            self._start_stall = False
 
-            # Memory stall flags during cycles
-            if self._start_stall:
-                self._stalled_memory = True
-                self._start_stall = False
+        if self._stall_finished:
+            self._stalled_memory = False
+            self._stall_finished = False
 
-            if self._stall_finished:
-                self._stalled_memory = False
-                self._stall_finished = False
+        # if self._stalled_memory:
+        #    self._stall_prior_stages = True
 
-            # if self._stalled_memory:
-            #    self._stall_prior_stages = True
-
-            self._cycles += 1
-            # self.cycle_stage_regs()
-        else:
-            self.stage_writeback()
-            self.stage_memory()
-            self.stage_execute()
-            self.stage_decode()
-            self.stage_fetch()
-            self.cycle_stage_regs()
-            self._cycles += 1
+        self._cycles += 1
+        # self.cycle_stage_regs()
 
     def cycle(self, cycle_count: int):
         """run the pipeline for a number of cycles
@@ -877,9 +884,6 @@ class Instruction:
     input_regs: List[int]  # list of registers that the instruction reads from
 
     _pipeline: PipeLine
-
-    _OR: False
-
     # endregion instance vars
 
     def __init__(self, encoded: Optional[int] = None):

@@ -5,6 +5,7 @@ from PyQt6.QtCore import Qt, QDir
 from PyQt6.QtGui import QStandardItemModel
 from PyQt6.QtWidgets import *
 
+import memory_devices
 from memory_subsystem import MemorySubsystem
 from pipeline import PipeLine, Instruction, DecodeError, OpCode_InstructionType_lookup
 
@@ -100,7 +101,7 @@ class MemoryGroup:
         self.memory = memory_subsystem
 
         self.ram = self.memory._RAM
-        self.cache = self.memory._cache._cache  # NOTE - List of Cacheways #TODO -  have brendon look at reading cache values
+        self.cache = self.memory._cache._cache  # NOTE - List of Cacheways
         self.regs = regs
 
         self.load_memory()
@@ -116,6 +117,8 @@ class MemoryGroup:
         self.regs_box.setLayout(regsvbox)
 
         #self.ram_box.setMinimumWidth(500)
+
+
 
     def load_ram(self):
         self.ram_table, row_headers = set_headers(self.ram_rows, self.ram_cols,
@@ -227,11 +230,11 @@ class Dialog(QDialog):
         self._memory = memory
         self._pipeline = pipeline
         self._hex = True
+        self.run_to_completion = False
 
         self.setWindowTitle('Encryptinator')
         self.dlgLayout = QVBoxLayout()  # QVBoxLayout()
         self.whole_layout = QHBoxLayout()
-        self.build_stages()
         self.build_pipeline_layout()
 
         self.memory_group = MemoryGroup(self._pipeline._registers, self._pipeline._memory)
@@ -241,10 +244,13 @@ class Dialog(QDialog):
 
         self.whole_layout.addLayout(self.dlgLayout)
 
-        self.setMaximumWidth(self.memory_group.ram_box.maximumWidth() + self.memory_group.regs_box.maximumWidth())
-        self.setMaximumHeight(self.memory_group.regs_box.maximumHeight() + self.memory_group.cache_box.maximumHeight() + self.pipeline_group.maximumHeight())
-
         self.setLayout(self.whole_layout)
+
+        self.setMaximumWidth(self.memory_group.ram_box.maximumWidth() + self.memory_group.regs_box.maximumWidth())
+
+
+        self.setMaximumHeight(700)#740)
+            #self.memory_group.regs_box.maximumHeight() + self.memory_group.cache_box.maximumHeight() + self.pipeline_group.maximumHeight())
 
     '''
     def build_ui(self):
@@ -266,8 +272,28 @@ class Dialog(QDialog):
         self.flags.setText(f"Flags: {str(self._pipeline.condition_flags)}")
 
     def cycle_ui(self, event):
-        self._pipeline.cycle_pipeline()
-        self.update_ui()
+        try:
+            cycles = int(self.cycles_editor.text())
+        except ValueError:
+            self.error_dialog = QMessageBox().critical(self, "Invalid Cycle Number", "Please enter a valid number of cycles.")
+            return
+
+        if self.run_to_completion:
+            while self._pipeline._pipeline[4].opcode != 32:
+                self._pipeline.cycle_pipeline()
+                self.update_ui()
+                if self._pipeline._cycles >= EISA.PROGRAM_MAX_CYCLE_LIMIT:
+                    self.error_dialog = QMessageBox().critical(self, "Cycle Limit Reached",
+                                                               "Maximum number of cycles reached.")
+                    self._pipeline._pc = 0
+                    self.update_ui()
+                    return
+            self._pipeline.cycle_pipeline()
+            self.update_ui()
+        else:
+            for i in range(cycles):
+                self._pipeline.cycle_pipeline()
+                self.update_ui()
 
     '''
     def build_cycle_button(self):
@@ -282,9 +308,6 @@ class Dialog(QDialog):
         self.stage_execute = StageGroup("Execute")  # self.create_stage_group("Execute")
         self.stage_memory = StageGroup("Memory")  # self.create_stage_group("Memory")
         self.stage_writeback = StageGroup("Writeback")  # self.create_stage_group("Writeback")
-        self.pc_counter = QLabel(f"PC: {self._pipeline._pc}")
-        self.flags = QLabel(f"Flags: {str(self._pipeline.condition_flags)}")
-        self.cycle_counter = QLabel(f"Cycle: {self._pipeline._cycles}")
         self.stages = [self.stage_fetch, self.stage_decode, self.stage_execute, self.stage_memory, self.stage_writeback]
         for i in self.stages:
             i.stage.adjustSize()
@@ -292,6 +315,9 @@ class Dialog(QDialog):
             i.stage.setMinimumWidth(i.stage.width() + 20)
 
     def build_pipeline_layout(self):
+
+        self.build_stages()
+
         stages_layout = QHBoxLayout()  # QGridLayout()
         stages_layout.addWidget(self.stage_fetch.stage)
         stages_layout.addWidget(self.stage_decode.stage)
@@ -320,15 +346,51 @@ class Dialog(QDialog):
 
         counters_group = QGroupBox()
         counters_layout = QHBoxLayout()
+
+        self.pc_counter = QLabel(f"PC: {self._pipeline._pc}")
+        self.flags = QLabel(f"Flags: {str(self._pipeline.condition_flags)}")
+        self.cycle_counter = QLabel(f"Cycle: {self._pipeline._cycles}")
+
         counters_layout.addWidget(self.pc_counter)  # TODO - Add LR and ALU regs
         counters_layout.addWidget(self.cycle_counter)
         counters_layout.addWidget(self.flags)
+
         counters_group.setLayout(counters_layout)
 
-        options_group = QGroupBox()
+        options_group = QGroupBox("Options")
+        self.options_group = options_group
         options_layout = QVBoxLayout()
-        #self.pipeline_enabled_radio = QCheckBox()
-        #self.pipeline_enabled_radio.  # TODO - implement toggle_pipeline
+
+        self.pipeline_enabled = QCheckBox("Disable Pipeline")
+        self.pipeline_enabled.toggled.connect(self.toggle_pipeline)
+
+        self.cache_enabled_box = QCheckBox("Disable Cache")
+        self.cache_enabled_box.toggled.connect(self.toggle_cache)  # TODO - implement toggle cache
+
+        self.maximize_window = QCheckBox("Expand Window")
+        self.maximize_window.toggled.connect(self.maximize)
+
+        cycle_layout = QVBoxLayout()
+        self.multi_cycle_enabled_box = QCheckBox("Enable Multi-Cycle")
+        self.multi_cycle_enabled_box.toggled.connect(self.enable_multi_cycle)
+        cycle_layout.addWidget(self.multi_cycle_enabled_box)
+        minor_cycle_layout = QHBoxLayout()
+        self.cycles_editor = QLineEdit("1")
+        minor_cycle_layout.addWidget(QLabel("Cycles: "))
+        minor_cycle_layout.addWidget(self.cycles_editor)
+        cycle_layout.addLayout(minor_cycle_layout)
+        self.cycles_editor.setDisabled(True)
+
+        self.run_to_completion_enabled_box = QCheckBox("Enable Run-To-Completion")
+        self.run_to_completion_enabled_box.toggled.connect(self.toggle_run_to_completion)
+
+        options_layout.addWidget(self.pipeline_enabled)
+        options_layout.addWidget(self.cache_enabled_box)
+        options_layout.addWidget(self.maximize_window)
+        options_layout.addLayout(cycle_layout)
+        options_layout.addWidget(self.run_to_completion_enabled_box)
+
+        options_group.setLayout(options_layout)
 
         pipeline_group = QGroupBox("Pipeline")
 
@@ -339,12 +401,51 @@ class Dialog(QDialog):
 
         pipeline_group.setLayout(pipeline_layout)
 
-        pipeline_group.setMaximumWidth(pipeline_group.width())
-        pipeline_group.setMaximumHeight(pipeline_group.height())
-
         self.pipeline_group = pipeline_group
 
-        self.dlgLayout.addWidget(pipeline_group)
+        self.pipeline_options_layout = QHBoxLayout()
+        self.pipeline_options_layout.addWidget(self.pipeline_group)
+        self.pipeline_options_layout.addWidget(options_group)
+
+        pipeline_width = 0
+
+        for i in self.stages:
+            pipeline_width += i.stage.width() + 20
+
+        pipeline_group.setMaximumWidth(pipeline_group.width() + 40)
+        pipeline_group.setMaximumHeight(pipeline_group.height())
+
+        self.dlgLayout.addLayout(self.pipeline_options_layout)
+
+        self.hex_button.setAutoDefault(False)
+        self.load_button.setAutoDefault(False)
+        self.exch_button.setAutoDefault(False)
+        self.matrix_button.setAutoDefault(False)
+
+
+    def toggle_run_to_completion(self):
+        self.run_to_completion = not self.run_to_completion
+
+    def maximize(self):
+        self.setMinimumSize(self.maximumWidth(),self.maximumHeight())
+
+    def enable_multi_cycle(self):
+        self.cycles_editor.setText("1")
+        if self.cycles_editor.isEnabled():
+            self.cycles_editor.setDisabled(True)
+        else:
+            self.cycles_editor.setDisabled(False)
+
+    def toggle_cache(self):
+        self._memory.cache_enabled = not self._memory.cache_enabled
+        if self._memory.cache_enabled:
+            self._memory._cache = memory_devices.Cache(self._memory.cache_size_original, 2, self._memory._RAM, self._memory.cache_read_speed, self._memory.cache_write_speed, self._memory.cache_evict_cb)
+        else:
+            self._memory._cache = memory_devices.Cache(0, 0, self._memory._RAM, self._memory.cache_read_speed, self._memory.cache_write_speed, self._memory.cache_evict_cb)
+        self.update_ui()
+
+    def toggle_pipeline(self):
+        self._pipeline.yes_pipe = not self._pipeline.yes_pipe
 
     def resize_tables(self):
 
@@ -381,11 +482,63 @@ class Dialog(QDialog):
         self.memory_group.cache_box.setMaximumHeight(cache_height)
 
     def build_memory_layout(self):
-        self.dlgLayout.addWidget(self.memory_group.regs_box)
-        self.dlgLayout.addWidget(self.memory_group.cache_box)
+
+        '''
+        ram_button_layout = QGridLayout()
+        self.reset_ram_button = QPushButton("Reset RAM")
+        self.reset_ram_button.clicked.connect(self.reset_ram)
+        self.reset_ram_button.setAutoDefault(False)
+        ram_button_layout.addWidget(self.reset_ram_button, 1, 3, alignment=Qt.Alignment.AlignRight)
+
+        final_ram_layout = self.memory_group.ram_box.layout()
+        final_ram_layout.addLayout(ram_button_layout)
+        '''
+
         self.whole_layout.addWidget(self.memory_group.ram_box)
+
+        '''
+        regs_button_layout = QGridLayout()
+        self.reset_regs_button = QPushButton("Reset Registers")
+        self.reset_regs_button.clicked.connect(self.reset_regs)
+        self.reset_regs_button.setAutoDefault(False)
+        regs_button_layout.addWidget(self.reset_regs_button, 1, 3, alignment=Qt.Alignment.AlignRight)
+
+        final_regs_layout = self.memory_group.regs_box.layout()
+        final_regs_layout.addLayout(regs_button_layout)
+        '''
+
+        self.dlgLayout.addWidget(self.memory_group.regs_box)
+
+        '''
+        cache_button_layout = QGridLayout()
+        self.reset_cache_button = QPushButton("Reset Registers")
+        self.reset_cache_button.clicked.connect(self.reset_cache)
+        self.reset_cache_button.setAutoDefault(False)
+        cache_button_layout.addWidget(self.reset_cache_button, 1, 3, alignment=Qt.Alignment.AlignRight)
+
+        final_cache_layout = self.memory_group.cache_box.layout()
+        final_cache_layout.addLayout(cache_button_layout)
+        '''
+        
+        self.dlgLayout.addWidget(self.memory_group.cache_box)
+
         self.resize_tables()
 
+    def reset_ram(self):
+        for i in range(EISA.RAM_ADDR_SPACE):
+            self._memory._RAM[i] = 0
+        self.update_ui()
+
+    def reset_regs(self):
+        for i in range(EISA.RAM_ADDR_SPACE):
+            self.memory._RAM[i] = 0
+        self.update_ui()
+
+    def reset_cache(self):
+        self._memory._cache = memory_devices.Cache(self._memory.cache_size_original, 2, self._memory._RAM,
+                                                   self._memory.cache_read_speed, self._memory.cache_write_speed,
+                                                   self._memory.cache_evict_cb)
+        self.update_ui()
 
     def destroy_stage_fields(self):
         for i in self.stages:
@@ -526,7 +679,7 @@ class Dialog(QDialog):
         del self._memory
         del self._pipeline
 
-        self._memory = MemorySubsystem(EISA.ADDRESS_SIZE, EISA.CACHE_SIZE, 1, 1, EISA.RAM_SIZE, 2, 2)
+        self._memory = MemorySubsystem(EISA.ADDRESS_SIZE, EISA.CACHE_SIZE, EISA.CACHE_READ_SPEED, EISA.CACHE_WRITE_SPEED, EISA.RAM_SIZE, EISA.RAM_READ_SPEED, EISA.RAM_WRITE_SPEED)
         self._pipeline = PipeLine(0, [0] * 32, self._memory)
 
         with open(filepath) as f:
@@ -549,7 +702,9 @@ class Dialog(QDialog):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
 
-    memory = MemorySubsystem(EISA.ADDRESS_SIZE, EISA.CACHE_SIZE, 1, 1, EISA.RAM_SIZE, 2, 2)
+    memory = MemorySubsystem(EISA.ADDRESS_SIZE, EISA.CACHE_SIZE, EISA.CACHE_READ_SPEED, EISA.CACHE_WRITE_SPEED,
+                             EISA.RAM_SIZE, EISA.RAM_READ_SPEED, EISA.RAM_WRITE_SPEED)
+
     my_pipe = PipeLine(0, [0] * 32, memory)
 
     # Simple Add
