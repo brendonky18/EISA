@@ -696,19 +696,7 @@ class Instruction:
         else:
             self._decoded[field] = value
 
-    # region class vars
-    mnemonic: str = ''
-
-    encoding = BitVector.create_subtype('InstructionEncoding', 32)
-    encoding.add_field('opcode', 26, 6)
-    # endregion class vars
-
-    @classmethod
-    def create_instruction(cls, mnemonic: str):
-        return type(f'{mnemonic}_Instruction', (cls,), {'mnemonic': mnemonic})
-
-    @classmethod
-    def execute_stage_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
+    def execute_stage_func(self, pipeline: PipeLine) -> None:
         """the defines the behavior of the instruction in the execute stage
 
         Parameters
@@ -720,8 +708,7 @@ class Instruction:
         """
         pass
 
-    @classmethod
-    def memory_stage_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
+    def memory_stage_func(self, pipeline: PipeLine) -> None:
         """the defines the behavior of the instruction in the memory stage
 
         Parameters
@@ -733,8 +720,7 @@ class Instruction:
         """
         pass
 
-    @classmethod
-    def writeback_stage_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
+    def writeback_stage_func(self, pipeline: PipeLine) -> None:
         """the defines the behavior of the instruction in the writeback stage
 
         Parameters
@@ -745,7 +731,19 @@ class Instruction:
             reference to the pipeline that the instruction is from
         """
         pass
+     
+    # region class vars
+    mnemonic: str = ''
 
+    encoding = BitVector.create_subtype('InstructionEncoding', 32)
+    encoding.add_field('opcode', 26, 6)
+    # endregion class vars
+
+    @classmethod
+    def create_instruction(cls, mnemonic: str):
+        return type(f'{mnemonic}_Instruction', (cls,), {'mnemonic': mnemonic})
+
+    
 class ALU_Instruction(Instruction):
     encoding = Instruction.encoding.create_subtype('InstructionEncoding', 32)
     encoding \
@@ -766,20 +764,19 @@ class ALU_Instruction(Instruction):
             '_ALU_func': ALU_func
         })
 
-    @classmethod
-    def execute_stage_func(self, instruction: Instruction, pipeline: PipeLine) -> None:
+    def execute_stage_func(self, pipeline: PipeLine) -> None:
         """get's the two operands and performs the ALU operation
         """
-        val1 = pipeline.get_dependency(instruction['op1'])
+        val1 = pipeline.get_dependency(self['op1'])
 
-        if instruction['imm']:
+        if self['imm']:
             # immediate value used
-            val2 = instruction['immediate']
+            val2 = self['immediate']
         else:
             # register direct
-            val2 = pipeline.get_dependency(instruction['op2'])
+            val2 = pipeline.get_dependency(self['op2'])
 
-        instruction.computed = self._ALU_func(val1, val2)
+        self.computed = self._ALU_func(val1, val2)
 
 class CMP_Instruction(ALU_Instruction):
     encoding = ALU_Instruction.encoding.create_subtype('CMP_Encoding')
@@ -796,11 +793,10 @@ class CMP_Instruction(ALU_Instruction):
             '_CMP_func': CMP_func
         })
 
-    @classmethod
-    def execute_stage_func(cls, instruction: Instruction, pipeline: PipeLine) -> None:
+    def execute_stage_func(self, pipeline: PipeLine) -> None:
         """performs the specified ALU operation, and uses the result to set the pipeline's condition flags
         """
-        res = cls._CMP_func(instruction['op1'], instruction['op2'])
+        res = type(self)._CMP_func(self['op1'], self['op2'])
 
         pipeline.condition_flags['n'] = bool(res & (0b1 << (EISA.WORD_SIZE - 1)))  # gets the sign bit (bit 31)
         pipeline.condition_flags['z'] = res == 0
@@ -816,8 +812,7 @@ class CMP_Instruction(ALU_Instruction):
         pipeline.condition_flags['v'] = signed_overflow
 
     # override inherited function because CMP does not writeback it's result
-    @classmethod
-    def writeback_stage_func(cls, instruction: Instruction, pipeline: PipeLine) -> None:
+    def writeback_stage_func(self, pipeline: PipeLine) -> None:
         pass
 
 class B_Instruction(Instruction):
@@ -854,8 +849,7 @@ class B_Instruction(Instruction):
             '_on_branch': on_branch
         })
 
-    @classmethod
-    def execute_stage_func(cls, instruction: Instruction, pipeline: PipeLine):
+    def execute_stage_func(self, pipeline: PipeLine):
         """compares the branch's condition code to that of the pipeline to determine if the branch should be taken.
         Squashes the pipeline if the branch is taken
         """
@@ -880,17 +874,17 @@ class B_Instruction(Instruction):
             ConditionCode.AL: lambda: True
         }
 
-        if eval_branch[ConditionCode(instruction['cond'])]:
+        if eval_branch[ConditionCode(self['cond'])]:
             # perform the other behavior (ie. update the link register)
-            cls._on_branch()
+            type(self)._on_branch()
 
             # calculate the target address for the new program counter
             target_address = 0b0
-            if instruction['imm']:  # immediate value used, PC relative
-                target_address = instruction['offset'] + pipeline._pc
+            if self['imm']:  # immediate value used, PC relative
+                target_address = self['offset'] + pipeline._pc
             else:  # no immediate, register indirect used
-                base_reg = instruction['base']
-                target_address = instruction['offset'] + pipeline.get_dependency(base_reg)
+                base_reg = self['base']
+                target_address = self['offset'] + pipeline.get_dependency(base_reg)
 
             # squash the pipeline
             pipeline.squash(target_address)
@@ -916,45 +910,42 @@ class LDR_Instruction(MEM_Instruction):
         .add_field('lit', 15, 1) \
         .add_field('dest', 21, 5)
 
-    @classmethod
-    def memory_stage_func(cls, instruction: Instruction, pipeline: PipeLine) -> None:
+    def memory_stage_func(self, pipeline: PipeLine) -> None:
         """calculates the memory address from which a value should be loaded and 
         gets that value from memory
         """
 
-        if instruction['lit'] == 1:  # contains a literal value
-            instruction.computed = instruction['literal']
+        if self['lit'] == 1:  # contains a literal value
+            self.computed = self['literal']
         else:  # uses register direct + offset
             # calculate the address
-            base_addr_reg = instruction['base']
-            src_addr = pipeline._registers[base_addr_reg] + instruction['offset']
+            base_addr_reg = self['base']
+            src_addr = pipeline._registers[base_addr_reg] + self['offset']
 
             # read from that address
-            instruction.computed = pipeline._memory[src_addr]
+            self.computed = pipeline._memory[src_addr]
 
-    @classmethod
-    def writeback_stage_func(cls, instruction: Instruction, pipeline: PipeLine) -> None:
+    def writeback_stage_func(self, pipeline: PipeLine) -> None:
         """writes the value we got from memory into the specified register
         """
-        pipeline._registers[instruction['dest']] = instruction.computed
+        pipeline._registers[self['dest']] = self.computed
 
 class STR_Instruction(MEM_Instruction):
     # STR
     encoding = MEM_Instruction.encoding.create_subtype('STR_Encoding')
     encoding.add_field('src', 21, 5)
 
-    @classmethod
-    def memory_stage_func(cls, instruction: Instruction, pipeline: PipeLine) -> None:
+    def memory_stage_func(self, pipeline: PipeLine) -> None:
         """calulates the memory address to which a value should be stored and
         loads that value into memory
         """
 
         # calculate the address
-        base_addr_reg = instruction['base']
-        dest_addr = pipeline._registers[base_addr_reg] + instruction['offset']
+        base_addr_reg = self['base']
+        dest_addr = pipeline._registers[base_addr_reg] + self['offset']
 
         # get the value to write
-        src_val = pipeline._registers[instruction['src']]
+        src_val = pipeline._registers[self['src']]
 
         # write to that address
         pipeline._memory[dest_addr] = src_val
