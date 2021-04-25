@@ -260,7 +260,7 @@ class PipeLine:
         # Load instruction in MEMORY at the address the PC is pointing to
         if not self._is_finished and not self._fetch_isWaiting:
             try:
-                instruction = Instruction(self._memory[self._pc])
+                instruction = Instruction(self, encoded=self._memory[self._pc])
             except PipelineStall:
                 # instruction = Instruction() # send noop forward on a pipeline stall
                 self._stalled_fetch = True
@@ -287,6 +287,7 @@ class PipeLine:
         self._pipeline[1] = instruction
 
         # Decode the instruction
+        instruction.__class__ = Instructions[instruction.opcode] # TODO, this is probably a violation of the Geneva convention
         instruction.decode()
 
         # if the instruction is END, flag the pipeline to tell it to not load anymore instructions
@@ -345,7 +346,7 @@ class PipeLine:
             if not self._stalled_memory:
                 self._start_stall = True
             # instruction = Instruction() # send a NOOP forward
-            self._mw_reg[0] = Instruction()
+            self._mw_reg[0] = Instruction(self)
         else:
             self._mw_reg[0] = instruction
             if self._stalled_memory:
@@ -549,6 +550,8 @@ class Instruction:
 
         self._scoreboard_index = -1
 
+        self._pipeline = pipeline
+
         self._encoded = 0b0 if encoded is None else encoded  # sets instruction to NOOP if encoded value is not specified
         self._decoded = None  # type: ignore
 
@@ -747,7 +750,12 @@ class ALU_Instruction(Instruction):
             # register direct
             val2 = self._pipeline.get_dependency(self['op2'])
 
-        self.computed = self._ALU_func(val1, val2)
+        self.computed = type(self)._ALU_func(val1, val2)
+
+    def writeback_stage_func(self) -> None:
+        """write's the computed result to the destination register  
+        """
+        self._pipeline._registers[self['dest']] = self.computed
 
 class CMP_Instruction(ALU_Instruction):
     encoding = ALU_Instruction.encoding.create_subtype('CMP_Encoding')
@@ -855,10 +863,10 @@ class B_Instruction(Instruction):
                 target_address = self['offset'] + pipeline._pc
             else:  # no immediate, register indirect used
                 base_reg = self['base']
-                target_address = self['offset'] + pipeline.get_dependency(base_reg)
+                target_address = self['offset'] + self._pipeline.get_dependency(base_reg)
 
             # squash the pipeline
-            pipeline.squash(target_address)
+            self._pipeline.squash(target_address)
 
 class MEM_Instruction(Instruction):
     # LDR, STR
@@ -924,7 +932,7 @@ class STR_Instruction(MEM_Instruction):
 """dictionary mapping the opcode number to an instruction type
 this is where each of the instruction types and their behaviors are defined
 """
-Instructions: List[Instruction] = [
+Instructions: List[Type[Instruction]] = [
     Instruction.create_instruction('NOOP'),
     ALU_Instruction.create_instruction('ADD', lambda op1, op2: op1 + op2),
     ALU_Instruction.create_instruction('SUB', lambda op1, op2: op1 - op2),
