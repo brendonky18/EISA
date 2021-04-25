@@ -219,7 +219,7 @@ class Dialog(QDialog):
 
     _memory: MemorySubsystem
     _pipeline: PipeLine
-    _hex: True
+    _hex: bool
 
     def __init__(self, memory: MemorySubsystem, pipeline: PipeLine, parent=None):
         """Initializer."""
@@ -692,7 +692,7 @@ if __name__ == '__main__':
     # Opcode: 011110 (B)
     instructionB = Instructions[OpCode.B].encoding()
     instructionB['opcode'] = 0b011110
-    instructionB['cond'] = ConditionCode.EQ
+    instructionB['cond'] = ConditionCode.AL
     instructionB['imm'] = False
     instructionB['base'] = 12
     instructionB['offset'] = 0
