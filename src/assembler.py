@@ -2,6 +2,7 @@ from argparse import ArgumentParser
 from parse import parse
 import pyparsing as pp
 import sys
+import os
 from typing import List
 import pipeline
 
@@ -13,7 +14,7 @@ class AssemblerError(RuntimeError):
     def __str__(self):
         return self.message
 
-
+MOV_dest = -1
 def parse_line(line: str) -> pp.ParseResults:
     # region mnemonic parsing
     conditional_instructions = [pipeline.OpCode.B.name, pipeline.OpCode.BL.name]
@@ -67,8 +68,10 @@ def parse_line(line: str) -> pp.ParseResults:
     comma = pp.Suppress(',') # ignore commas in the final output
 
     register_num = pp.oneOf(' '.join([str(i) for i in range(32)])) # 0-31, automatically converts to int
-    register_tokens = pp.Combine(pp.Suppress('r') + register_num) # registers r0-r31
-    register_tokens.setParseAction(lambda num_str: int(num_str[0])) # automatically converts to integer
+    spec_regs = pp.oneOf([sr.name for sr in pipeline.SpecialRegister]) # the special registers: ZR, LR, SP, PC
+    register_tokens = \
+        pp.Combine(pp.Suppress('r') + register_num).setParseAction(lambda num_str: int(num_str[0])) | \
+        spec_regs.setParseAction(lambda reg_str: pipeline.SpecialRegister[reg_str[0]])
 
     # region ALU parsing
 
@@ -87,7 +90,7 @@ def parse_line(line: str) -> pp.ParseResults:
     
     # checks if there is an operand, or a literal
     is_op = pp.FollowedBy(register_tokens).setParseAction(lambda x: False)
-    is_lit = pp.FollowedBy(literal_syntax ^ whitespace[...]).setParseAction(lambda x: True)
+    is_lit = pp.FollowedBy(literal_syntax).setParseAction(lambda x: True)
     lit_or_op = (is_lit ^ is_op)
 
     # region lit or op test
@@ -96,44 +99,25 @@ def parse_line(line: str) -> pp.ParseResults:
     # print(lit_or_op.parseString(''))
     # endregion lit or op test
 
-    def calc_op2(x):
-        global cur_instruction
-        immediate = -1
-        if cur_instruction == pipeline.OpCode.NOT:
-            immediate = 1
-        elif cur_instruction == pipeline.OpCode.MOV:
-            immediate = 0
-        else:
-            raise pp.ParseFatalException(f'Opcode {cur_instruction} is not \'NOT\' or \'XOR\'')
-        
-        return immediate
-
     operand_2 = \
         lit_or_op('lit') + \
         (
-            (comma + register_tokens('op2')) | 
-            (comma + literal_syntax('literal')) |
-            whitespace[...].setParseAction(calc_op2).setResultsName('literal')
+            register_tokens('op2') | 
+            literal_syntax('literal')
         )
 
     # region op 2 test
     # print('op 2 test')
-    # print(operand_2.parseString(', r2'))
-    # print(operand_2.parseString(', 0b1111'))
-    # cur_instruction = pipeline.OpCode.MOV
-    # print(operand_2.parseString(''))
-    # cur_instruction = pipeline.OpCode.NOT
-    # print(operand_2.parseString(''))
+    # print(operand_2.parseString('r2'))
+    # print(operand_2.parseString('0b1111'))
     # endregion op 2 test
-
 
     # [dest], [op1], [op2] or [lit]
     ALU_syntax = \
         register_tokens('dest') + \
         comma + register_tokens('op1') + \
-        operand_2
+        comma + operand_2
         
-
     # region ALU test
     # print('ALU test')
     # print(ALU_syntax.parseString('r0, r1, r2'))
@@ -146,6 +130,48 @@ def parse_line(line: str) -> pp.ParseResults:
     # cur_instruction = pipeline.OpCode.NOT
     # print(ALU_syntax.parseString('r0, r1'))
     # endregion ALU test
+
+    # region MOV parsing
+    # MOV [dest] [op2]
+    # op1 is implicitly assumed to be dest
+    
+    MOV_syntax = \
+        register_tokens('dest') + \
+        (whitespace[...] + pp.FollowedBy(comma + operand_2)).setParseAction(lambda: pipeline.SpecialRegister.zr).setResultsName('op1') + \
+        comma + operand_2
+
+    # region MOV test
+    # print('MOV test')
+    # res = MOV_syntax.parseString('r2, r4')
+    # print(res)
+    # print(f"dest: {res['dest']}")
+    # print(f"op1: {res['op1']}")
+    # print(f"lit: {res['lit']}")
+    # print(f"op2: {res['op2']}")
+
+    # res = MOV_syntax.parseString('r2, 0xbeef')
+    # print(res)
+    # print(f"dest: {res['dest']}")
+    # print(f"op1: {res['op1']}")
+    # print(f"lit: {res['lit']}")
+    # print(f"literal: {res['literal']}")
+    # endregion MOV test
+    # endregion MOV parsing
+
+    # region NOT parsing
+    # NOT [dest] [op1]
+    # op2 is implicitly assumed to be 0b1111111...
+    NOT_syntax = \
+        register_tokens('dest') + \
+        comma + register_tokens('op1') + \
+        pp.FollowedBy(whitespace[...]).setResultsName('lit').setParseAction(lambda: False) + \
+        pp.FollowedBy(~operand_2).setResultsName('literal').setParseAction(lambda: -1 & 2**32 - 1)
+
+    # region NOT test
+    # print('NOT test')
+    # print(NOT_syntax.parseString('r0, r1'))
+    # endregion NOT test
+    # endregion NOT parsing
 
     # region CMP parsing
     CMP_syntax =  \
@@ -228,15 +254,21 @@ def parse_line(line: str) -> pp.ParseResults:
     instruction_syntax = \
         mnemonic_syntax + \
         (
+            CMP_syntax |            # CMP
+            MOV_syntax |            # MOV
+            NOT_syntax |            # NOT
             ALU_syntax |            # ALU
-            # CMP_syntax |            # CMP
             MEM_syntax |            # Memory (LDR/STR)
             B_syntax                # B/BL
         )
 
     # region instruction test
     # print('Instruction test')
-    # print(instruction_syntax.parseString('BL [r0]'))
+    # print(instruction_syntax.parseString('CMP r1, r2'))
+    # print(instruction_syntax.parseString('CMP r1, 0xbeef'))
+    # print(instruction_syntax.parseString('MOV r1, r2'))
+    # print(instruction_syntax.parseString('MOV r1, 0xbeef'))
+    # print(instruction_syntax.parseString('NOT r1, r2'))
     # endregion instruction test
 
     # endregion instruction parsing
@@ -250,48 +282,68 @@ if __name__ == '__main__':
     # print(parse_line('B #0xC0FFEE'))
     # print(parse_line('CMP r0, 0xDEAD'))
     # print(parse_line('CMP r2, r3'))
-    print(parse_line('NOT r2, r3 '))
-    print(parse_line('NOT r2, r3 ')['opcode'])
-    print(parse_line('NOT r2, r3 ')['dest'])
-    print(parse_line('NOT r2, r3 ')['op1'])
-    print(parse_line('NOT r2, r3 ')['lit'])
-    print(parse_line('NOT r2, r3 ')['literal'])
 
-    print(parse_line('MOV r2, r3 '))
-    print(parse_line('MOV r2, r3 ')['opcode'])
-    print(parse_line('MOV r2, r3 ')['dest'])
-    print(parse_line('MOV r2, r3 ')['op1'])
-    print(parse_line('MOV r2, r3 ')['lit'])
-    print(parse_line('MOV r2, r3 ')['literal'])
+    # print(parse_line('NOT r2, r3 '))
+    # print(parse_line('NOT r2, r3 ')['opcode'])
+    # print(parse_line('NOT r2, r3 ')['dest'])
+    # print(parse_line('NOT r2, r3 ')['op1'])
+    # print(parse_line('NOT r2, r3 ')['lit'])
+    # print(parse_line('NOT r2, r3 ')['literal'])
 
-    print(parse_line('ADD r2, r3, 0xC0FFEE '))
-    print(parse_line('ADD r2, r3, 0xC0FFEE ')['opcode'])
-    print(parse_line('ADD r2, r3, 0xC0FFEE ')['dest'])
-    print(parse_line('ADD r2, r3, 0xC0FFEE ')['op1'])
-    print(parse_line('ADD r2, r3, 0xC0FFEE ')['lit'])
-    print(parse_line('ADD r2, r3, 0xC0FFEE ')['literal'])
+    # print(parse_line('MOV r2, r3 '))
+    # print(parse_line('MOV r2, r3 ')['opcode'])
+    # print(parse_line('MOV r2, r3 ')['dest'])
+    # print(parse_line('MOV r2, r3 ')['op1'])
+    # print(parse_line('MOV r2, r3 ')['lit'])
+    # print(parse_line('MOV r2, r3 ')['literal'])
 
-    print(parse_line('ADD r2, r3, r4 '))
-    print(parse_line('ADD r2, r3, r4 ')['opcode'])
-    print(parse_line('ADD r2, r3, r4 ')['dest'])
-    print(parse_line('ADD r2, r3, r4 ')['op1'])
-    print(parse_line('ADD r2, r3, r4 ')['lit'])
-    print(parse_line('ADD r2, r3, r4 ')['op2'])
+    # print(parse_line('ADD r2, r3, 0xC0FFEE '))
+    # print(parse_line('ADD r2, r3, 0xC0FFEE ')['opcode'])
+    # print(parse_line('ADD r2, r3, 0xC0FFEE ')['dest'])
+    # print(parse_line('ADD r2, r3, 0xC0FFEE ')['op1'])
+    # print(parse_line('ADD r2, r3, 0xC0FFEE ')['lit'])
+    # print(parse_line('ADD r2, r3, 0xC0FFEE ')['literal'])
 
-    print(parse_line('BL [r4] '))
-    print(parse_line('BL [r4] ')['opcode'])
-    print(parse_line('BL [r4] ')['cond'])
-    print(parse_line('BL [r4] ')['imm'])
-    print(parse_line('BL [r4] ')['base'])
-    print(parse_line('BL [r4] ')['offset'])
+    # print(parse_line('ADD r2, r3, r4 '))
+    # print(parse_line('ADD r2, r3, r4 ')['opcode'])
+    # print(parse_line('ADD r2, r3, r4 ')['dest'])
+    # print(parse_line('ADD r2, r3, r4 ')['op1'])
+    # print(parse_line('ADD r2, r3, r4 ')['lit'])
+    # print(parse_line('ADD r2, r3, r4 ')['op2'])
 
-    # parse the line
-    line = ''
-    parsed = parse_line(line)
+    # print(parse_line('BL [r4] '))
+    # print(parse_line('BL [r4] ')['opcode'])
+    # print(parse_line('BL [r4] ')['cond'])
+    # print(parse_line('BL [r4] ')['imm'])
+    # print(parse_line('BL [r4] ')['base'])
+    # print(parse_line('BL [r4] ')['offset'])
 
-    # get the instruction encoding
-    cur_encoding = pipeline.Instructions[parsed['opcode']].encoding
+    # parse_line('')
 
-    # pass the results to the encoding
-    result = cur_encoding(fields=dict(parsed))
+    arg_parse = ArgumentParser()
+    arg_parse.add_argument('source', type=str)
+    arg_parse.add_argument('-o', type=str, metavar='destination', dest='destination')
 
+    args = arg_parse.parse_args()
+
+    dest = args.destination
+    if dest is not None:
+        sys.stdout = open(dest, 'w+')             
+
+    with open(args.source, 'r') as in_file:
+        for line in in_file:
+            # parse the line
+            parsed = parse_line(line)
+
+            # get the instruction encoding
+            cur_encoding = pipeline.Instructions[parsed['opcode']].encoding
+
+            # pass the results to the encoding
+            result = cur_encoding(val=dict(parsed))
+
+            print(f'{result._bits:032b}')
+
+    # reset stdout back to the terminal
+    sys.stdout = os.fdopen(1, 'w', 1)
+
+    print(f'compiled {args.source} to {"stdout" if dest is None else dest}')
