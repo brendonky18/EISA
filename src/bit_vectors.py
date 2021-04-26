@@ -1,6 +1,6 @@
 from __future__ import annotations  # must be first import, allows type hinting of next_device to be the enclosing class
 
-from typing import Dict, Type, Optional
+from typing import Dict, Type, Optional, Union
 
 from eisa import EISA
 
@@ -24,8 +24,17 @@ class BitVector:
     _size: int = EISA.WORD_SIZE
     _fields: Dict[str, BitVectorField] = {}
 
-    def __init__(self, val: int=0b0):
-        self._bits = val
+    def __init__(self, val: Union[int, Dict[str, int]]=0b0):
+        if isinstance(val, int):
+            self._bits = val
+        elif isinstance(val, dict):
+            self._bits = 0b0  # initialize bits
+            for key in val.keys():
+                print(f'key: {key}')
+                print(f'value: {val[key]}')
+                self[key] = val[key]
+        else:
+            raise ValueError('val must be an int or dictionary')
 
     def __str__(self):
         new_line_char = '\n'
