@@ -1,9 +1,10 @@
 import sys
 from copy import copy
 
-from PyQt6.QtCore import Qt, QDir
+from PyQt6.QtCore import Qt, QDir, QEvent
 from PyQt6.QtGui import QStandardItemModel
 from PyQt6.QtWidgets import *
+from PyQt6.uic.properties import QtCore
 
 import memory_devices
 from memory_subsystem import MemorySubsystem
@@ -31,15 +32,17 @@ class TableModel(QStandardItemModel):
             for (j, cell) in enumerate(row):
                 self.setData(self.index(i, j), cell)
 '''
+
+
 def format_list_to_table(rows: int, cols: int, table_list: list[int]) -> list[list]:
     table = []
 
-    for i in range(rows+1):
-        table.append([0 for j in range(cols+1)])
+    for i in range(rows + 1):
+        table.append([0 for j in range(cols + 1)])
 
     list_counter = 0
-    for i in range(1, rows+1):
-        for j in range(1, cols+1):
+    for i in range(1, rows + 1):
+        for j in range(1, cols + 1):
             table[i][j] = table_list[list_counter]
             list_counter += 1
 
@@ -48,11 +51,11 @@ def format_list_to_table(rows: int, cols: int, table_list: list[int]) -> list[li
 
 def set_headers(rows: int, cols: int, table: list[list]) -> list[list]:
     row_headers = []
-    for i in range(rows+1):
+    for i in range(rows + 1):
         table[i][0] = f"Base: {cols * (i)}"
         row_headers.append(table[i][0])
 
-    for i in range(cols+1):
+    for i in range(cols + 1):
         table[0][i] = f"Offset: {i}"
 
     return table, row_headers  # TODO - Test whether this returns the correct table
@@ -116,26 +119,24 @@ class MemoryGroup:
         self.cache_box.setLayout(cachevbox)
         self.regs_box.setLayout(regsvbox)
 
-        #self.ram_box.setMinimumWidth(500)
-
-
+        # self.ram_box.setMinimumWidth(500)
 
     def load_ram(self):
         self.ram_table, row_headers = set_headers(self.ram_rows, self.ram_cols,
-                                     format_list_to_table(self.ram_rows, self.ram_cols, self.ram))
+                                                  format_list_to_table(self.ram_rows, self.ram_cols, self.ram))
         self.ram_widget = QTableWidget(self.ram_rows, self.ram_cols)
-        for i in range(1, self.ram_rows+1):
-            for j in range(1, self.ram_cols+1):
+        for i in range(1, self.ram_rows + 1):
+            for j in range(1, self.ram_cols + 1):
                 temp = QTableWidgetItem()
                 temp.setData(0, self.ram_table[i][j])
-                self.ram_widget.setItem(i-1, j-1, temp)
+                self.ram_widget.setItem(i - 1, j - 1, temp)
 
         self.ram_widget.setHorizontalHeaderLabels(self.ram_table[0])
         self.ram_widget.setVerticalHeaderLabels(row_headers)
 
     def load_cache(self):
         self.cache_table, row_headers = set_headers(self.cache_rows, self.cache_cols,
-                                       format_list_to_table(self.cache_rows, self.cache_cols, self.cache))
+                                                    format_list_to_table(self.cache_rows, self.cache_cols, self.cache))
         self.cache_widget = QTableWidget(self.cache_rows, self.cache_cols)
         for i in range(1, self.cache_rows + 1):
             for j in range(1, self.cache_cols + 1):
@@ -145,7 +146,7 @@ class MemoryGroup:
 
     def load_regs(self):
         self.regs_table, row_headers = set_headers(self.regs_rows, self.regs_cols,
-                                      format_list_to_table(self.regs_rows, self.regs_cols, self.regs))
+                                                   format_list_to_table(self.regs_rows, self.regs_cols, self.regs))
         self.regs_widget = QTableWidget(self.regs_rows, self.regs_cols)
         for i in range(1, self.regs_rows + 1):
             for j in range(1, self.regs_cols + 1):
@@ -217,12 +218,19 @@ class StageGroup:
         self.stage.setLayout(vbox)
 
 
-class Dialog(QDialog):
+class Dialog(QMainWindow):
     """Dialog."""
 
     _memory: MemorySubsystem
     _pipeline: PipeLine
     _hex: bool
+
+    already_max: bool
+
+    fp: any
+    program_lines: list
+
+    spacer: QSpacerItem
 
     def __init__(self, memory: MemorySubsystem, pipeline: PipeLine, parent=None):
         """Initializer."""
@@ -246,11 +254,19 @@ class Dialog(QDialog):
 
         self.setLayout(self.whole_layout)
 
-        self.setMaximumWidth(self.memory_group.ram_box.maximumWidth() + self.memory_group.regs_box.maximumWidth())
+        # self.setMaximumWidth(self.memory_group.ram_box.maximumWidth() + self.memory_group.regs_box.maximumWidth())
 
+        self.main_widget = QWidget()
+        self.main_widget.setLayout(self.whole_layout)
 
-        self.setMaximumHeight(700)#740)
-            #self.memory_group.regs_box.maximumHeight() + self.memory_group.cache_box.maximumHeight() + self.pipeline_group.maximumHeight())
+        self.setCentralWidget(self.main_widget)
+
+        self.pipeline_group.setMaximumHeight(self.pipeline_group.height())
+
+        self.already_max = False
+
+        # self.setMaximumHeight(700)#740)
+        # self.memory_group.regs_box.maximumHeight() + self.memory_group.cache_box.maximumHeight() + self.pipeline_group.maximumHeight())
 
     '''
     def build_ui(self):
@@ -261,6 +277,21 @@ class Dialog(QDialog):
         dlg.show()
         # sys.exit(app.exec_())
     '''
+
+    def changeEvent(self, a0):
+        try:
+            if self.isMaximized() and not self.already_max:
+                self.spacer = QSpacerItem(self.memory_group.regs_box.width(),
+                                          self.memory_group.ram_box.height() - 700)
+                self.dlgLayout.addSpacerItem(self.spacer)
+                self.already_max = True
+            elif not self.isMaximized():
+                temp = self.dlgLayout.takeAt(3)
+                del temp
+                del self.spacer
+                self.already_max = False
+        except AttributeError as e:
+            pass
 
     def update_ui(self):
         self.destroy_stage_fields()
@@ -275,7 +306,8 @@ class Dialog(QDialog):
         try:
             cycles = int(self.cycles_editor.text())
         except ValueError:
-            self.error_dialog = QMessageBox().critical(self, "Invalid Cycle Number", "Please enter a valid number of cycles.")
+            self.error_dialog = QMessageBox().critical(self, "Invalid Cycle Number",
+                                                       "Please enter a valid number of cycles.")
             return
 
         if self.run_to_completion:
@@ -291,9 +323,13 @@ class Dialog(QDialog):
             self._pipeline.cycle_pipeline()
             self.update_ui()
         else:
+            self._pipeline.cycle(cycles)
+            # For later if we want output
+            '''
             for i in range(cycles):
                 self._pipeline.cycle_pipeline()
                 self.update_ui()
+            '''
 
     '''
     def build_cycle_button(self):
@@ -325,9 +361,8 @@ class Dialog(QDialog):
         stages_layout.addWidget(self.stage_memory.stage)
         stages_layout.addWidget(self.stage_writeback.stage)
 
-
-        self.hex_button = QPushButton("Hex Toggle")
-        self.hex_button.clicked.connect(self.hex_toggle)
+        self.reload_button = QPushButton("Reload Program")
+        self.reload_button.clicked.connect(self.reload_program)
         self.load_button = QPushButton("Load Program")
         self.load_button.clicked.connect(self.load_program_from_file)
         self.exch_button = QPushButton("Load Exch. Sort")
@@ -338,7 +373,7 @@ class Dialog(QDialog):
         self.cycle_button.clicked.connect(self.cycle_ui)
 
         button_layout = QHBoxLayout()
-        button_layout.addWidget(self.hex_button)
+        button_layout.addWidget(self.reload_button)
         button_layout.addWidget(self.load_button)
         button_layout.addWidget(self.exch_button)
         button_layout.addWidget(self.matrix_button)
@@ -357,6 +392,7 @@ class Dialog(QDialog):
         counters_layout.addWidget(self.cycle_counter, alignment=Qt.Alignment.AlignLeft)
         counters_layout.addWidget(self.flags, alignment=Qt.Alignment.AlignLeft)
         counters_group.setLayout(counters_layout)
+        counters_group.setMaximumHeight(self.pc_counter.fontMetrics().height() + 20)
 
         options_group = QGroupBox("Options")
         self.options_group = options_group
@@ -367,9 +403,6 @@ class Dialog(QDialog):
 
         self.cache_enabled_box = QCheckBox("Disable Cache")
         self.cache_enabled_box.toggled.connect(self.toggle_cache)  # TODO - implement toggle cache
-
-        self.maximize_window = QCheckBox("Expand Window")
-        self.maximize_window.toggled.connect(self.maximize)
 
         cycle_layout = QVBoxLayout()
         self.multi_cycle_enabled_box = QCheckBox("Enable Multi-Cycle")
@@ -385,11 +418,15 @@ class Dialog(QDialog):
         self.run_to_completion_enabled_box = QCheckBox("Enable Run-To-Completion")
         self.run_to_completion_enabled_box.toggled.connect(self.toggle_run_to_completion)
 
+        self.hex_button_box = QCheckBox("Hex Toggle")
+        self.hex_button_box.toggled.connect(self.hex_toggle)
+
         options_layout.addWidget(self.pipeline_enabled)
         options_layout.addWidget(self.cache_enabled_box)
-        options_layout.addWidget(self.maximize_window)
         options_layout.addLayout(cycle_layout)
         options_layout.addWidget(self.run_to_completion_enabled_box)
+        options_layout.addWidget(self.hex_button_box)
+
 
         options_group.setLayout(options_layout)
 
@@ -418,17 +455,12 @@ class Dialog(QDialog):
 
         self.dlgLayout.addLayout(self.pipeline_options_layout)
 
-        self.hex_button.setAutoDefault(False)
         self.load_button.setAutoDefault(False)
         self.exch_button.setAutoDefault(False)
         self.matrix_button.setAutoDefault(False)
 
-
     def toggle_run_to_completion(self):
         self.run_to_completion = not self.run_to_completion
-
-    def maximize(self):
-        self.setMinimumSize(self.maximumWidth(),self.maximumHeight())
 
     def enable_multi_cycle(self):
         self.cycles_editor.setText("1")
@@ -440,9 +472,12 @@ class Dialog(QDialog):
     def toggle_cache(self):
         self._memory.cache_enabled = not self._memory.cache_enabled
         if self._memory.cache_enabled:
-            self._memory._cache = memory_devices.Cache(self._memory.cache_size_original, 2, self._memory._RAM, self._memory.cache_read_speed, self._memory.cache_write_speed, self._memory.cache_evict_cb)
+            self._memory._cache = memory_devices.Cache(self._memory.cache_size_original, 2, self._memory._RAM,
+                                                       self._memory.cache_read_speed, self._memory.cache_write_speed,
+                                                       self._memory.cache_evict_cb)
         else:
-            self._memory._cache = memory_devices.Cache(0, 0, self._memory._RAM, self._memory.cache_read_speed, self._memory.cache_write_speed, self._memory.cache_evict_cb)
+            self._memory._cache = memory_devices.Cache(0, 0, self._memory._RAM, self._memory.cache_read_speed,
+                                                       self._memory.cache_write_speed, self._memory.cache_evict_cb)
         self.update_ui()
 
     def toggle_pipeline(self):
@@ -467,14 +502,14 @@ class Dialog(QDialog):
         # Max tables height
 
         ram_height = (self.memory_group.ram_widget.horizontalHeader().height() + (
-                    self.memory_group.ram_widget.rowHeight(0) * (
-                        self.memory_group.ram_widget.rowCount() + 1)) + self.memory_group.ram_widget.horizontalScrollBar().height())  # 1022
+                self.memory_group.ram_widget.rowHeight(0) * (
+                self.memory_group.ram_widget.rowCount() + 1)) + self.memory_group.ram_widget.horizontalScrollBar().height())  # 1022
         regs_height = (self.memory_group.regs_widget.horizontalHeader().height() + (
-                    self.memory_group.regs_widget.rowHeight(0) * (
-                        self.memory_group.regs_widget.rowCount() + 1)) + self.memory_group.regs_widget.horizontalScrollBar().height())  # 184
+                self.memory_group.regs_widget.rowHeight(0) * (
+                self.memory_group.regs_widget.rowCount() + 1)) + self.memory_group.regs_widget.horizontalScrollBar().height())  # 184
         cache_height = (self.memory_group.cache_widget.horizontalHeader().height() + (
-                    self.memory_group.cache_widget.rowHeight(0) * (
-                        self.memory_group.cache_widget.rowCount() + 1)) + self.memory_group.cache_widget.horizontalScrollBar().height())  # 122
+                self.memory_group.cache_widget.rowHeight(0) * (
+                self.memory_group.cache_widget.rowCount() + 1)) + self.memory_group.cache_widget.horizontalScrollBar().height())  # 122
 
         # self.memory_group.cache_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
@@ -525,6 +560,8 @@ class Dialog(QDialog):
 
         self.resize_tables()
 
+        # self.dlgLayout.addSpacerItem(QSpacerItem(self.memory_group.regs_box.width(), self.memory_group.ram_box.height() - 700))
+
     def reset_ram(self):
         for i in range(EISA.RAM_ADDR_SPACE):
             self._memory._RAM[i] = 0
@@ -545,7 +582,6 @@ class Dialog(QDialog):
         for i in self.stages:
             for j in range(EISA.MAX_INSTRUCTION_FIELDS):
                 i.fields[j].setText("")
-
 
     def load_stage(self, stage: int):
         '''Loads a SINGLE SPECIFIED stage of the pipeline into the UI'''
@@ -579,7 +615,6 @@ class Dialog(QDialog):
                 continue
             private_stage.fields[counter].setText(f"{key.capitalize()}: {str(decoded[key])}")
             counter += 1
-
 
         '''
         self.stages[stage].encoded.setText(f"Encoded: {self._pipeline._pipeline[stage]._encoded}")
@@ -630,36 +665,36 @@ class Dialog(QDialog):
     def update_ram(self):
         ram = [i for i in self._pipeline._memory._RAM]
 
-        for i in range(1, self.memory_group.ram_rows+1):
-            for j in range(1, self.memory_group.ram_cols+1):
-                val = ram[((i-1)*self.memory_group.ram_cols) + (j-1)]
+        for i in range(1, self.memory_group.ram_rows + 1):
+            for j in range(1, self.memory_group.ram_cols + 1):
+                val = ram[((i - 1) * self.memory_group.ram_cols) + (j - 1)]
                 if self._hex:
                     val = hex(val)
                 self.memory_group.ram_table[i][j] = val
-                self.memory_group.ram_widget.item(i-1, j-1).setText(str(val))
+                self.memory_group.ram_widget.item(i - 1, j - 1).setText(str(val))
 
     def update_regs(self):
         regs = self._pipeline._registers.copy()
 
-        for i in range(1, self.memory_group.regs_rows+1):
-            for j in range(1, self.memory_group.regs_cols+1):
+        for i in range(1, self.memory_group.regs_rows + 1):
+            for j in range(1, self.memory_group.regs_cols + 1):
                 val = regs[((i - 1) * self.memory_group.regs_cols) + (j - 1)]
                 if self._hex:
                     val = hex(val)
                 self.memory_group.regs_table[i][j] = val
-                self.memory_group.regs_widget.item(i-1, j-1).setText(str(val))
+                self.memory_group.regs_widget.item(i - 1, j - 1).setText(str(val))
 
     def update_cache(self):
         cache = self._pipeline._memory._cache._cache
 
-        for i in range(1, self.memory_group.cache_rows+1):
-            for j in range(1, self.memory_group.cache_cols+1):
+        for i in range(1, self.memory_group.cache_rows + 1):
+            for j in range(1, self.memory_group.cache_cols + 1):
                 val = [i for i in cache[((i - 1) * self.memory_group.cache_cols) + (j - 1)]._data]
                 if self._hex:
                     for k in range(len(val)):
                         val[k] = hex(val[k])
                 self.memory_group.cache_table[i][j] = val
-                self.memory_group.cache_widget.item(i-1, j-1).setText(str(val))
+                self.memory_group.cache_widget.item(i - 1, j - 1).setText(str(val))
 
     def update_memory(self):
         self.update_ram()
@@ -667,32 +702,56 @@ class Dialog(QDialog):
         self.update_cache()
 
     def hex_toggle(self):
-        self._hex = not(self._hex)
+        self._hex = not (self._hex)
         self.update_ui()
 
+    def reinit_pipe_and_memory(self):
+        del self._memory
+        del self._pipeline
+
+        self._memory = MemorySubsystem(EISA.ADDRESS_SIZE, EISA.CACHE_SIZE, EISA.CACHE_READ_SPEED,
+                                       EISA.CACHE_WRITE_SPEED, EISA.RAM_SIZE, EISA.RAM_READ_SPEED, EISA.RAM_WRITE_SPEED)
+        self._pipeline = PipeLine(0, [0] * 32, self._memory)
+
     def load_program_from_file(self):
+
+        try:
+            try:
+                self.fp.close()
+            except AttributeError:
+                pass
+        except ValueError:
+            pass
+
         filepath = QFileDialog.getOpenFileName(self, 'Hey! Select a File')[0]
         if filepath == '':
             return
 
         # TODO - retain prior pipeline/memory in load program rather than deleting it
 
-        del self._memory
-        del self._pipeline
+        self.reinit_pipe_and_memory()
 
-        self._memory = MemorySubsystem(EISA.ADDRESS_SIZE, EISA.CACHE_SIZE, EISA.CACHE_READ_SPEED, EISA.CACHE_WRITE_SPEED, EISA.RAM_SIZE, EISA.RAM_READ_SPEED, EISA.RAM_WRITE_SPEED)
-        self._pipeline = PipeLine(0, [0] * 32, self._memory)
+        self.fp = open(filepath)
 
-        with open(filepath) as f:
+        with self.fp as f:
             content = f.readlines()
-        instructions = [x.strip() for x in content]  # Remove whitespace
+        self.program_lines = [x.strip() for x in content]  # Remove whitespace
 
-        for i in range(len(instructions)):
-            self._memory._RAM[i] = int(instructions[i], 2)
+        for i in range(len(self.program_lines)):
+            self._memory._RAM[i] = int(self.program_lines[i], 2)
 
         self.update_ui()
 
+    def reload_program(self):
+        self.reinit_pipe_and_memory()
 
+        try:
+            for i in range(len(self.program_lines)):
+                self._memory._RAM[i] = int(self.program_lines[i], 2)
+            self.update_ui()
+        except AttributeError:
+            self.error_dialog = QMessageBox().critical(self, "No Program Loaded",
+                                                       "Please load a program into EISA before reloading.")
 
     def load_exchange_demo(self):
         pass
@@ -700,13 +759,14 @@ class Dialog(QDialog):
     def load_matrix_demo(self):
         pass
 
+
 if __name__ == '__main__':
     app = QApplication(sys.argv)
 
     memory = MemorySubsystem(EISA.ADDRESS_SPACE, EISA.CACHE_SIZE, EISA.CACHE_READ_SPEED, EISA.CACHE_WRITE_SPEED,
                              EISA.RAM_SIZE, EISA.RAM_READ_SPEED, EISA.RAM_WRITE_SPEED)
 
-    #my_pipe = PipeLine(0, [0] * 32, memory)
+    # my_pipe = PipeLine(0, [0] * 32, memory)
 
     my_pipe = PipeLine(0, [i for i in range(EISA.NUM_GP_REGS)], memory)
 
@@ -1120,7 +1180,6 @@ if __name__ == '__main__':
     print(instruction12)
     print(instruction13)
 
-    
     # Build UI dialog box
     dlg = Dialog(memory, my_pipe)
 
