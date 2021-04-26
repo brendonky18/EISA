@@ -803,7 +803,7 @@ class CMP_Instruction(ALU_Instruction):
     def execute_stage_func(self) -> None:
         """performs the specified ALU operation, and uses the result to set the pipeline's condition flags
         """
-        res = type(self)._CMP_func(self['op1'], self['op2'])
+        res = type(self)._CMP_func(self._pipeline._registers[self['op1']], self._pipeline._registers[self['op2']])
 
         self._pipeline.condition_flags['n'] = bool(res & (0b1 << (EISA.WORD_SIZE - 1)))  # gets the sign bit (bit 31)
         self._pipeline.condition_flags['z'] = res == 0

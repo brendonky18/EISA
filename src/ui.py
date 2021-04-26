@@ -80,8 +80,8 @@ class MemoryGroup:
 
     def __init__(self, regs: list[int], memory_subsystem: MemorySubsystem):
 
-        self.ram_rows = 32
         self.ram_cols = 8
+        self.ram_rows = int(EISA.ADDRESS_SPACE / self.ram_cols)
 
         self.cache_rows = 2
         self.cache_cols = 8
@@ -703,12 +703,12 @@ class Dialog(QDialog):
 if __name__ == '__main__':
     app = QApplication(sys.argv)
 
-    memory = MemorySubsystem(EISA.ADDRESS_SIZE, EISA.CACHE_SIZE, EISA.CACHE_READ_SPEED, EISA.CACHE_WRITE_SPEED,
+    memory = MemorySubsystem(EISA.ADDRESS_SPACE, EISA.CACHE_SIZE, EISA.CACHE_READ_SPEED, EISA.CACHE_WRITE_SPEED,
                              EISA.RAM_SIZE, EISA.RAM_READ_SPEED, EISA.RAM_WRITE_SPEED)
 
-    # my_pipe = PipeLine(0, [0] * 32, memory)
+    my_pipe = PipeLine(0, [0] * 32, memory)
 
-    my_pipe = PipeLine(0, [i for i in range(EISA.NUM_GP_REGS)], memory)
+    #my_pipe = PipeLine(0, [i for i in range(EISA.NUM_GP_REGS)], memory)
 
     # region Simple Add
     '''
@@ -943,27 +943,27 @@ if __name__ == '__main__':
 
 
     #  Conditional looping + branching test. Cleared as of 4/24
-    '''
+
     my_pipe._registers[2] = 24  # Counter
     my_pipe._registers[0] = 20  # Condition to beat
     my_pipe._registers[1] = 1  # Amount to increment counter by
     my_pipe._registers[3] = 0  # Address to branch back to
 
-    instruction1 = OpCode_InstructionType_lookup[0b001101].encoding()
+    instruction1 = Instructions[0b001101].encoding()
     instruction1['opcode'] = 0b001101
     instruction1['dest'] = 25  # Load into register 25
     instruction1['base'] = 2  # Register 2 holds the memory address who's value loads into reg 25
     instruction1['offset'] = 0
     instruction1['lit'] = False
 
-    instruction2 = OpCode_InstructionType_lookup[0b000001].encoding()
+    instruction2 = Instructions[0b000001].encoding()
     instruction2['opcode'] = 0b0000001
     instruction2['dest'] = 31  # Put sum in reg 31
     instruction2['op1'] = 31  # Register 31 as op1
     instruction2['op2'] = 25  # Register 25 as op2
     instruction2['imm'] = False
 
-    instruction3 = OpCode_InstructionType_lookup[0b000001].encoding()
+    instruction3 = Instructions[0b000001].encoding()
     instruction3['opcode'] = 0b0000001
     instruction3['dest'] = 2  # Put sum in reg 2
     instruction3['op1'] = 2  # Register 2 as op1
@@ -971,7 +971,7 @@ if __name__ == '__main__':
     instruction3['imm'] = False
 
     # Opcode: 011110 (CMP)
-    instructionC = OpCode_InstructionType_lookup[0b000011].encoding()
+    instructionC = Instructions[0b000011].encoding()
     instructionC['opcode'] = 0b000011
     instructionC['op1'] = 31  # Register 31 as op1
     instructionC['op2'] = 0  # Register 0 as op2
@@ -986,27 +986,23 @@ if __name__ == '__main__':
 
 
     # Opcode: 011110 (B)
-    instructionB = OpCode_InstructionType_lookup[0b011110].encoding()
+    instructionB = Instructions[0b011110].encoding()
     instructionB['opcode'] = 0b011110
 
-    instructionB.add_field('z', 24, 1)
-    instructionB['z'] = 1
+    instructionB['cond'] = ConditionCode.LE
 
-    instructionB.add_field('or', 21, 1)
-    instructionB['or'] = 1
-
-    instructionB.add_field('n', 25, 1)
-    instructionB['n'] = 1
+    #instructionB['z'] = 1
+    #instructionB['n'] = 1
 
     instructionB['imm'] = False
     instructionB['base'] = 3  # Register 3 has the address to branch back to
     instructionB['offset'] = 0
 
-    instructionBLOCK = OpCode_InstructionType_lookup[0b0].encoding()
+    instructionBLOCK = Instructions[0b0].encoding()
     instructionBLOCK['opcode'] = 0b0
 
     # cook END instruction to signal pipeline to end
-    end = OpCode_InstructionType_lookup[0b100000].encoding()
+    end = Instructions[0b100000].encoding()
     end['opcode'] = 0b100000
 
     my_pipe._memory._RAM[0] = instruction1._bits
@@ -1109,7 +1105,8 @@ if __name__ == '__main__':
     my_pipe._memory._RAM[10] = instruction11._bits
     my_pipe._memory._RAM[11] = instruction12._bits
     my_pipe._memory._RAM[12] = instruction13._bits
-
+    '''
+    
     # Build UI dialog box
     dlg = Dialog(memory, my_pipe)
 
