@@ -706,9 +706,9 @@ if __name__ == '__main__':
     memory = MemorySubsystem(EISA.ADDRESS_SPACE, EISA.CACHE_SIZE, EISA.CACHE_READ_SPEED, EISA.CACHE_WRITE_SPEED,
                              EISA.RAM_SIZE, EISA.RAM_READ_SPEED, EISA.RAM_WRITE_SPEED)
 
-    my_pipe = PipeLine(0, [0] * 32, memory)
+    #my_pipe = PipeLine(0, [0] * 32, memory)
 
-    #my_pipe = PipeLine(0, [i for i in range(EISA.NUM_GP_REGS)], memory)
+    my_pipe = PipeLine(0, [i for i in range(EISA.NUM_GP_REGS)], memory)
 
     # region Simple Add
     '''
@@ -941,7 +941,7 @@ if __name__ == '__main__':
     # endregion Unconditional Branching Test
     '''
 
-
+    '''
     #  Conditional looping + branching test. Cleared as of 4/24
 
     my_pipe._registers[2] = 24  # Counter
@@ -1105,7 +1105,21 @@ if __name__ == '__main__':
     my_pipe._memory._RAM[10] = instruction11._bits
     my_pipe._memory._RAM[11] = instruction12._bits
     my_pipe._memory._RAM[12] = instruction13._bits
-    '''
+
+    print(instruction1)
+    print(instruction2)
+    print(instruction3)
+    print(instruction4)
+    print(instruction5)
+    print(instruction6)
+    print(instruction7)
+    print(instruction8)
+    print(instruction9)
+    print(instruction10)
+    print(instruction11)
+    print(instruction12)
+    print(instruction13)
+
     
     # Build UI dialog box
     dlg = Dialog(memory, my_pipe)
@@ -1141,7 +1155,6 @@ class PipeLineUI(QThread):
         dlg.show()
 
         # sys.exit(app.exec_())
-
 
 class DebugThread(QThread):
     memory: MemorySubsystem
