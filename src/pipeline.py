@@ -452,7 +452,7 @@ class PipeLine(object):
 
     def __setattr__(self, attr, val):
         print(f'setting attr {attr}')
-        if attr == '_pc':
+        if attr == '_pc': # TODO refactor all references of _pc to pc
             self._registers[SpecialRegister.pc] = val
         elif attr in SpecialRegister._member_names_:
             self._registers[SpecialRegister[attr]] = val
