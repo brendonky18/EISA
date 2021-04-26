@@ -244,8 +244,11 @@ class PipeLine:
         self._pipeline[1] = Instruction(self)
         self._fd_reg = [Instruction(self), Instruction(self)]
         self._de_reg = [Instruction(self), Instruction(self)]
-        self._pc = newPC - 1  # NOTE - Max added -1 here because fetch increments the PC at the end of the cycle, so
+        self._pc = newPC #- 1  # NOTE - Max added -1 here because fetch increments the PC at the end of the cycle, so
                               #   so the -1 prevents ending up 1 word past where we're supposed to branch to
+
+        self._fetch_isWaiting = False  # TODO - Max added this as a fix for the extra cycles in branch. Needs more
+        # testing to verify correctness
 
         active_regs = [i for i in range(len(self._active_registers)) if self._active_registers[i]]
 
@@ -361,12 +364,19 @@ class PipeLine:
         except PipelineStall:
             if not self._stalled_memory:
                 self._start_stall = True
+
+            #if not self._fetch_isWaiting:
+            #    self._fetch_isWaiting = True
+
             # instruction = Instruction() # send a NOOP forward
             self._mw_reg[0] = Instruction(self)
         else:
             self._mw_reg[0] = instruction
             if self._stalled_memory:
                 self._stall_finished = True
+
+            #if self._fetch_isWaiting:
+            #    self._fetch_isWaiting = False
 
         # Push instruction into the adjacent queue
         # self._mw_reg[0] = instruction
@@ -549,8 +559,6 @@ class Instruction:
     input_regs: List[int]  # list of registers that the instruction reads from
 
     _pipeline: PipeLine
-
-    _OR: False
 
     # endregion instance vars
 
@@ -880,7 +888,7 @@ class B_Instruction(Instruction):
             # calculate the target address for the new program counter
             target_address = 0b0
             if self['imm']:  # immediate value used, PC relative
-                target_address = self['offset'] + pipeline._pc
+                target_address = self['offset'] + self._pipeline._pc
             else:  # no immediate, register indirect used
                 base_reg = self['base']
                 target_address = self['offset'] + self._pipeline.get_dependency(base_reg)
@@ -949,6 +957,58 @@ class STR_Instruction(MEM_Instruction):
         # write to that address
         self._pipeline._memory[dest_addr] = src_val
 
+class POP_Instruction(LDR_Instruction):
+    encoding = LDR_Instruction.encoding.create_subtype('POP_Encoding')
+
+    def __init__(self):
+        super(POP_Instruction, self).__init__()
+        if self._pipeline.SP - 1 < 0:
+            raise ValueError(f"Pop instruction created that pops from invalid address: {self['base']}")
+
+
+    def memory_stage_func(self) -> None:
+        """calulates the memory address to which a value should be stored and
+        loads that value into memory
+        """
+        # uses register direct + offset
+        # calculate the address
+        src_addr = self._pipeline.SP + 1
+
+        # read from that address
+        self.computed = self._pipeline._memory[src_addr]
+        self._pipeline._memory._RAM[src_addr] = 0
+
+    def writeback_stage_func(self) -> None:
+        """writes the value we got from memory into the specified register
+        """
+        self._pipeline._registers[self['dest']] = self.computed
+        if self._pipeline.SP < 255:
+            self._pipeline.SP += 1
+
+class PUSH_Instruction(STR_Instruction):
+
+    encoding = STR_Instruction.encoding.create_subtype('PUSH_Encoding')
+
+    def memory_stage_func(self) -> None:
+        """calulates the memory address to which a value should be stored and
+        loads that value into memory
+        """
+
+        # calculate the address
+        dest_addr = self._pipeline.SP
+
+        # get the value to write
+        src_val = self._pipeline._registers[self['src']]
+
+        # write to that address
+        self._pipeline._memory[dest_addr] = src_val
+
+    def writeback_stage_func(self) -> None:
+        """writes the value we got from memory into the specified register
+        """
+        self._pipeline._registers[self['src']] = 0
+        self._pipeline.SP -= 1
+
 """dictionary mapping the opcode number to an instruction type
 this is where each of the instruction types and their behaviors are defined
 """
@@ -968,8 +1028,8 @@ Instructions: List[Type[Instruction]] = [
     ALU_Instruction.create_instruction('ORR', lambda op1, op2: op1 | op2),
     LDR_Instruction.create_instruction('LDR'),
     STR_Instruction.create_instruction('STR'),
-    Instruction.create_instruction('PUSH'),# TODO implement the rest of the instructions, implemented as NOOPs currently
-    Instruction.create_instruction('POP'),
+    PUSH_Instruction.create_instruction('PUSH'),# TODO implement the rest of the instructions, implemented as NOOPs currently
+    POP_Instruction.create_instruction('POP'),
     Instruction.create_instruction('MOVAK'),
     Instruction.create_instruction('LDRAK'),
     Instruction.create_instruction('STRAK'),

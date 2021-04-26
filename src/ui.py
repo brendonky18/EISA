@@ -267,6 +267,7 @@ class Dialog(QDialog):
         self.load_stages()
         self.update_memory()
         self.pc_counter.setText(f"PC: {self._pipeline._pc}")
+        self.SP.setText(f"Stack Pointer: {str(self._pipeline.SP)}")
         self.cycle_counter.setText(f"Cycles: {self._pipeline._cycles}")
         self.flags.setText(f"Flags: {str(self._pipeline.condition_flags)}")
 
@@ -347,12 +348,14 @@ class Dialog(QDialog):
         counters_layout = QHBoxLayout()
 
         self.pc_counter = QLabel(f"PC: {self._pipeline._pc}")
+        self.SP = QLabel(f"Stack Pointer: {self._pipeline.SP}")
         self.flags = QLabel(f"Flags: {str(self._pipeline.condition_flags)}")
         self.cycle_counter = QLabel(f"Cycle: {self._pipeline._cycles}")
 
-        counters_layout.addWidget(self.pc_counter)  # TODO - Add LR and ALU regs
-        counters_layout.addWidget(self.cycle_counter)
-        counters_layout.addWidget(self.flags)
+        counters_layout.addWidget(self.pc_counter, alignment=Qt.Alignment.AlignLeft)  # TODO - Add LR and ALU regs
+        counters_layout.addWidget(self.SP, alignment=Qt.Alignment.AlignLeft)
+        counters_layout.addWidget(self.cycle_counter, alignment=Qt.Alignment.AlignLeft)
+        counters_layout.addWidget(self.flags, alignment=Qt.Alignment.AlignLeft)
         counters_group.setLayout(counters_layout)
 
         options_group = QGroupBox("Options")
@@ -703,7 +706,9 @@ if __name__ == '__main__':
     memory = MemorySubsystem(EISA.ADDRESS_SIZE, EISA.CACHE_SIZE, EISA.CACHE_READ_SPEED, EISA.CACHE_WRITE_SPEED,
                              EISA.RAM_SIZE, EISA.RAM_READ_SPEED, EISA.RAM_WRITE_SPEED)
 
-    my_pipe = PipeLine(0, [0] * 32, memory)
+    # my_pipe = PipeLine(0, [0] * 32, memory)
+
+    my_pipe = PipeLine(0, [i for i in range(EISA.NUM_GP_REGS)], memory)
 
     # region Simple Add
     '''
@@ -857,6 +862,7 @@ if __name__ == '__main__':
     '''
     # endregion Moderate Complexity Test
 
+    '''
     # region Unconditional Branching Test
 
     # Registers in use: 3, 31, 4, 30, 24, 16, 12
@@ -933,7 +939,7 @@ if __name__ == '__main__':
     end['opcode'] = 0b100000
     my_pipe._memory._RAM[32] = end._bits  # END is stored at address (word) 1 in memory
     # endregion Unconditional Branching Test
-
+    '''
 
 
     #  Conditional looping + branching test. Cleared as of 4/24
@@ -1018,6 +1024,92 @@ if __name__ == '__main__':
     my_pipe._memory._RAM[28] = 5
     my_pipe._memory._RAM[29] = 5
     '''
+
+    # Begin region push/pop basic test
+    # MOV - Copy R[29] into R[30]
+    instruction1 = Instructions[0b000001].encoding()
+    instruction1['opcode'] = 0b0000001
+    instruction1['dest'] = 30  # Register 30
+    instruction1['op1'] = 29  # Register 29
+    instruction1['immediate'] = 0  # IMM 0
+    instruction1['imm'] = True
+
+    # SUB - Reset R[31] to 0
+    instruction2 = Instructions[0b000010].encoding()
+    instruction2['opcode'] = 0b0000010
+    instruction2['dest'] = 31  # Register 31
+    instruction2['op1'] = 31  # Register 31
+    instruction2['immediate'] = 31  # IMM 31
+    instruction2['imm'] = True
+
+    # PUSH - Push R[0] to stack
+    instruction3 = Instructions[0b001111].encoding()
+    instruction3['opcode'] = 0b001111
+    instruction3['src'] = 0  # R[0]
+
+    # PUSH - Push R[1] to stack
+    instruction4 = Instructions[0b001111].encoding()
+    instruction4['opcode'] = 0b001111
+    instruction4['src'] = 1  # R[1]
+
+    # PUSH - Push R[2] to stack
+    instruction5 = Instructions[0b001111].encoding()
+    instruction5['opcode'] = 0b001111
+    instruction5['src'] = 2  # R[2]
+
+    # PUSH - Push R[3] to stack
+    instruction6 = Instructions[0b001111].encoding()
+    instruction6['opcode'] = 0b001111
+    instruction6['src'] = 3  # R[3]
+
+    # PUSH - Push R[4] to stack
+    instruction7 = Instructions[0b001111].encoding()
+    instruction7['opcode'] = 0b001111
+    instruction7['src'] = 4  # R[4]
+
+    # POP - Pop R[4] from stack into R[4]
+    instruction8 = Instructions[0b010000].encoding()
+    instruction8['opcode'] = 0b010000
+    instruction8['dest'] = 4  # R[4]
+
+    # POP - Pop R[3] from stack into R[3]
+    instruction9 = Instructions[0b010000].encoding()
+    instruction9['opcode'] = 0b010000
+    instruction9['dest'] = 3  # R[3]
+
+    # POP - Pop R[2] from stack into R[2]
+    instruction10 = Instructions[0b010000].encoding()
+    instruction10['opcode'] = 0b010000
+    instruction10['dest'] = 2  # R[2]
+
+    # POP - Pop R[1] from stack into R[1]
+    instruction11 = Instructions[0b010000].encoding()
+    instruction11['opcode'] = 0b010000
+    instruction11['dest'] = 1  # R[1]
+
+    # POP - Pop R[0] from stack into R[0]
+    instruction12 = Instructions[0b010000].encoding()
+    instruction12['opcode'] = 0b010000
+    instruction12['dest'] = 0  # R[0]
+
+    # END
+    instruction13 = Instructions[0b100000].encoding()
+    instruction13['opcode'] = 0b100000
+
+    my_pipe._memory._RAM[0] = instruction1._bits
+    my_pipe._memory._RAM[1] = instruction2._bits
+    my_pipe._memory._RAM[2] = instruction3._bits
+    my_pipe._memory._RAM[3] = instruction4._bits
+    my_pipe._memory._RAM[4] = instruction5._bits
+    my_pipe._memory._RAM[5] = instruction6._bits
+    my_pipe._memory._RAM[6] = instruction7._bits
+    my_pipe._memory._RAM[7] = instruction8._bits
+    my_pipe._memory._RAM[8] = instruction9._bits
+    my_pipe._memory._RAM[9] = instruction10._bits
+    my_pipe._memory._RAM[10] = instruction11._bits
+    my_pipe._memory._RAM[11] = instruction12._bits
+    my_pipe._memory._RAM[12] = instruction13._bits
+
     # Build UI dialog box
     dlg = Dialog(memory, my_pipe)
 
