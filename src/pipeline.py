@@ -267,7 +267,7 @@ class PipeLine:
         instruction = Instruction(self)
 
         # Send NOOP forward from fetch if the pipeline is disabled and the pipeline is not empty
-        if (not self.yes_pipe) and (not self.check_empty_pipeline()):
+        if ((not self.yes_pipe) and (not self.check_empty_pipeline())) or (self._pipeline[2].opcode == 30): # TODO - figure out a way to check whether a branch was taken or not to reduce how much this happens.
             self._pipeline[0] = instruction
             self._fd_reg[0] = instruction
             return
@@ -864,24 +864,24 @@ class B_Instruction(Instruction):
         # defines all the different ways of evaluating the different condition codes
         # too bad python doesn't have switch statements
         eval_branch: Dict[ConditionCode, Callable[[], bool]] = {
-            ConditionCode.EQ: lambda: self._pipeline.condition_flags['Z'] == 1,
-            ConditionCode.NE: lambda: self._pipeline.condition_flags['Z'] == 0,
-            ConditionCode.CS: lambda: self._pipeline.condition_flags['C'] == 1,
-            ConditionCode.CC: lambda: self._pipeline.condition_flags['C'] == 0,
-            ConditionCode.MI: lambda: self._pipeline.condition_flags['N'] == 1,
-            ConditionCode.PL: lambda: self._pipeline.condition_flags['N'] == 0,
-            ConditionCode.VS: lambda: self._pipeline.condition_flags['V'] == 1,
-            ConditionCode.VC: lambda: self._pipeline.condition_flags['V'] == 0,
-            ConditionCode.HI: lambda: self._pipeline.condition_flags['C'] == 1 and self._pipeline.condition_flags['Z'] == 0,
-            ConditionCode.LS: lambda: self._pipeline.condition_flags['C'] == 0 or  self._pipeline.condition_flags['Z'] == 1,
-            ConditionCode.GE: lambda: self._pipeline.condition_flags['N'] == self._pipeline.condition_flags['V'],
-            ConditionCode.LT: lambda: self._pipeline.condition_flags['N'] != self._pipeline.condition_flags['V'],
-            ConditionCode.GT: lambda: self._pipeline.condition_flags['Z'] == 0 and self._pipeline.condition_flags['N'] == self._pipeline.condition_flags['V'],
-            ConditionCode.LE: lambda: self._pipeline.condition_flags['Z'] == 1 or  self._pipeline.condition_flags['N'] != self._pipeline.condition_flags['V'],
+            ConditionCode.EQ: lambda: self._pipeline.condition_flags['z'] == 1,
+            ConditionCode.NE: lambda: self._pipeline.condition_flags['z'] == 0,
+            ConditionCode.CS: lambda: self._pipeline.condition_flags['c'] == 1,
+            ConditionCode.CC: lambda: self._pipeline.condition_flags['c'] == 0,
+            ConditionCode.MI: lambda: self._pipeline.condition_flags['n'] == 1,
+            ConditionCode.PL: lambda: self._pipeline.condition_flags['n'] == 0,
+            ConditionCode.VS: lambda: self._pipeline.condition_flags['v'] == 1,
+            ConditionCode.VC: lambda: self._pipeline.condition_flags['v'] == 0,
+            ConditionCode.HI: lambda: self._pipeline.condition_flags['c'] == 1 and self._pipeline.condition_flags['z'] == 0,
+            ConditionCode.LS: lambda: self._pipeline.condition_flags['c'] == 0 or self._pipeline.condition_flags['z'] == 1,
+            ConditionCode.GE: lambda: self._pipeline.condition_flags['n'] == self._pipeline.condition_flags['v'],
+            ConditionCode.LT: lambda: self._pipeline.condition_flags['n'] != self._pipeline.condition_flags['v'],
+            ConditionCode.GT: lambda: self._pipeline.condition_flags['z'] == 0 and self._pipeline.condition_flags['n'] == self._pipeline.condition_flags['v'],
+            ConditionCode.LE: lambda: self._pipeline.condition_flags['z'] == 1 or self._pipeline.condition_flags['n'] != self._pipeline.condition_flags['v'],
             ConditionCode.AL: lambda: True
         }
 
-        if eval_branch[ConditionCode(self['cond'])]:
+        if eval_branch[ConditionCode(self['cond'])]():
             # perform the other behavior (ie. update the link register)
             type(self)._on_branch()
 
