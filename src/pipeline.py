@@ -449,6 +449,12 @@ class PipeLine:
         return out
 
 
+class SpecialRegister(enum.IntEnum):
+    zr = 28  # Zero Register
+    sp = 29  # Stack Pointer
+    lr = 30  # Link Register
+    pc = 31  # Program Counter
+
 class OpCode(enum.IntEnum):
     NOOP  = 0b000000
     ADD   = 0b000001
@@ -488,6 +494,7 @@ class OpCode(enum.IntEnum):
 
     def __contains__(self, item):
         return item in self._member_names_
+    
 # endregion Instruction Types
 
 @enum.unique
@@ -534,7 +541,7 @@ class Instruction:
     _pipeline: PipeLine
     # endregion instance vars
 
-    def __init__(self, pipeline: PipeLine, encoded: Optional[int] = None, fields: Optional[Dict[str, int]] = None):
+    def __init__(self, pipeline: PipeLine, encoded: Optional[int] = None):
         """creates a new instance of an instruction
 
         Parameters
@@ -710,20 +717,24 @@ class Instruction:
     # region class vars
     mnemonic: str = ''
 
-    encoding = BitVector.create_subtype('InstructionEncoding', 32)
+    encoding: BitVector = BitVector.create_subtype('InstructionEncoding', 32)
     encoding.add_field('opcode', 26, 6)
     # endregion class vars
 
     @classmethod
     def create_instruction(cls, mnemonic: str):
         return type(f'{mnemonic}_Instruction', (cls,), {'mnemonic': mnemonic})
- 
+
+    @classmethod
+    def fields(cls) -> List[str]:
+        return cls.encoding.keys()
+ #FIXME: change immediate field to a literal field
 class ALU_Instruction(Instruction):
     encoding = Instruction.encoding.create_subtype('InstructionEncoding', 32)
     encoding \
-        .add_field('immediate', 0, 15, overlap=True) \
+        .add_field('literal', 0, 15, overlap=True) \
         .add_field('op2', 10, 5, overlap=True) \
-        .add_field('imm', 15, 1) \
+        .add_field('lit', 15, 1) \
         .add_field('op1', 16, 5) \
         .add_field('dest', 21, 5)
 
@@ -743,9 +754,9 @@ class ALU_Instruction(Instruction):
         """
         val1 = self._pipeline.get_dependency(self['op1'])
 
-        if self['imm']:
+        if self['lit']:
             # immediate value used
-            val2 = self['immediate']
+            val2 = self['literal']
         else:
             # register direct
             val2 = self._pipeline.get_dependency(self['op2'])
@@ -873,7 +884,9 @@ class MEM_Instruction(Instruction):
     encoding = Instruction.encoding.create_subtype('MEM_Encoding')
     encoding \
         .add_field('offset', 0, 10) \
-        .add_field('base', 10, 5)
+        .add_field('base', 10, 5) \
+        .add_field('immediate', 0, 15, overlap=True) \
+        .add_field('imm', 15, 1) \
 
     @classmethod
     def create_instruction(cls, mnemonic: str):
@@ -884,25 +897,22 @@ class MEM_Instruction(Instruction):
 class LDR_Instruction(MEM_Instruction):
     # LDR
     encoding = MEM_Instruction.encoding.create_subtype('LDR_Encoding')
-    encoding \
-        .add_field('literal', 0, 15, overlap=True) \
-        .add_field('lit', 15, 1) \
-        .add_field('dest', 21, 5)
+    encoding.add_field('dest', 21, 5)
 
     def memory_stage_func(self) -> None:
         """calculates the memory address from which a value should be loaded and 
         gets that value from memory
         """
 
-        if self['lit'] == 1:  # contains a literal value
-            self.computed = self['literal']
+        if self['imm'] == 1:  # contains an immediate value
+            src_addr = self['immediate']
         else:  # uses register direct + offset
             # calculate the address
             base_addr_reg = self['base']
             src_addr = self._pipeline._registers[base_addr_reg] + self['offset']
 
-            # read from that address
-            self.computed = self._pipeline._memory[src_addr]
+        # read from that address
+        self.computed = self._pipeline._memory[src_addr]
 
     def writeback_stage_func(self) -> None:
         """writes the value we got from memory into the specified register
@@ -918,11 +928,13 @@ class STR_Instruction(MEM_Instruction):
         """calulates the memory address to which a value should be stored and
         loads that value into memory
         """
-
-        # calculate the address
-        base_addr_reg = self['base']
-        dest_addr = self._pipeline._registers[base_addr_reg] + self['offset']
-
+        if self['imm'] == 1:  # contains an immediate value
+            dest_addr = self['immediate']
+        else:  # uses register direct + offset
+            # calculate the address
+            base_addr_reg = self['base']
+            dest_addr = self._pipeline._memory[base_addr_reg] + self['offset']
+        
         # get the value to write
         src_val = self._pipeline._registers[self['src']]
 
