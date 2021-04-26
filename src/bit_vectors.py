@@ -30,8 +30,6 @@ class BitVector:
         elif isinstance(val, dict):
             self._bits = 0b0  # initialize bits
             for key in val.keys():
-                print(f'key: {key}')
-                print(f'value: {val[key]}')
                 self[key] = val[key]
         else:
             raise ValueError('val must be an int or dictionary')
