@@ -44,7 +44,7 @@ class DecodeError(Exception):
         return self.message
 
 
-class PipeLine:
+class PipeLine(object):
     """The pipeline for the simulation
     """
 
@@ -78,13 +78,6 @@ class PipeLine:
     # Hash registers
     # TODO
 
-    # special registers
-    # program counter
-    _pc: int  # TODO refactor '_pc' to 'pc' to make it a public variable
-    # link register
-    LR: int
-    # Stack pointer
-    SP: int
     # ALU register
     AR: int  # TODO implement the ALU register with dependencies, rather than using the 'computed' field in 'Instruction'
 
@@ -112,9 +105,9 @@ class PipeLine:
         self._registers = registers
         self._active_registers = [False for i in range(len(registers))]
 
-        self._pc = pc
-        self.LR = 0
-        self.SP = 255
+        self._registers[SpecialRegister.pc] = pc
+        self._registers[SpecialRegister.lr] = 0
+        self._registers[SpecialRegister.sp] = 255
 
         self._memory = memory
 
@@ -448,6 +441,25 @@ class PipeLine:
 
         return out
 
+    def __getattr__(self, attr):
+        print(f'getting attr {attr}')
+        if attr == '_pc':
+            return self._registers[SpecialRegister.pc]
+        elif attr in SpecialRegister._member_names_:
+            return self._registers[SpecialRegister[attr]]
+        else:
+            raise AttributeError(f'{attr} is not an attribute of {type(self)}')
+
+    def __setattr__(self, attr, val):
+        print(f'setting attr {attr}')
+        if attr == '_pc':
+            self._registers[SpecialRegister.pc] = val
+        elif attr in SpecialRegister._member_names_:
+            self._registers[SpecialRegister[attr]] = val
+        else:
+            super().__setattr__(attr, val)
+        #     self.attr = val
+            # raise AttributeError(f'{attr} is not an attribute of {type(self)}')
 
 class SpecialRegister(enum.IntEnum):
     zr = 28  # Zero Register
