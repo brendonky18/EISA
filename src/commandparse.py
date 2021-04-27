@@ -1,12 +1,16 @@
-from ast import literal_eval
-from typing import Callable, Any, Optional, List
+from __future__ import annotations
+from typing import Callable, Any, List
+from concurrent.futures import Executor, ThreadPoolExecutor, Future
+from types import TracebackType
+from typing import Callable, Any, List, Optional, Dict, Tuple, Type, Literal
 from dataclasses import dataclass
-from clock import Clock
-from threading import Thread, Lock
+
+class InputError(ValueError):
+    pass
 
 @dataclass
 class Command:
-    arg_types: list[type ]
+    arg_types: List[Type]
     callback: Callable[[str], Any]
 
 class UserInput:
@@ -18,20 +22,64 @@ class UserInput:
         self.args = arg_string.split()
 
 class CommandParser:
-    command_threads: List[Thread] = []
+    _command_executor: Executor
+    _command_tasks: List[Future]
 
-    def __init__(self, name=""):
+    valid_commands: Dict
+
+    def __init__(self, name="", commands: List[Tuple[str, List[type], Callable[..., None]]]=[]):
         """Constructor
 
         Parameters
         ----------
         name : str, optional
             name of the terminal interface to be displayed, none by default
+        commands: List[Tuple[str, List[type], Callable[..., None]], optional
+            a list of commands to add
         """
         self.name = name
         self.valid_commands = {}
 
-    def add_command(self, cmd: str, arg_types: list[type], callback: Callable[..., Any]) -> bool:
+        self._command_executor = ThreadPoolExecutor(thread_name_prefix='command_thread')
+        self._command_tasks = []
+
+        for cur_command in commands:
+            # add all of the passed commands, raise an error when attempting to add duplicate commands
+            if not self.add_command(*cur_command):
+                raise ValueError(f'Command \'{cur_command[0]} already exists')
+
+    def __enter__(self) -> CommandParser:
+        """allows CommandParser to be used in 'with' syntax,
+        function is called on start
+
+        Returns
+        -------
+        commandparse
+            the reference to itself, 
+            is is called after the constructor so it is required to get a reference to the newly instantiated object
+        """
+        from debug import terminal_print
+        # initialize the terminal
+        terminal_print('')
+        return self
+
+    def __exit__(
+            self,
+            exc_type: Optional[Type[BaseException]],
+            exc_val: Optional[BaseException],
+            exc_tb: Optional[TracebackType]
+        ) -> Literal[False]:
+        """allows CommandParser to be used in 'with' syntax,
+        attempts to gracefully shut down the command parser
+        """
+        self._command_executor.shutdown(wait=True)
+        print(f'{self.name} closed')
+
+        # return false in order to get the error traceback if there was one
+        # return true to suppress the error message
+        return False
+
+    def add_command(self, cmd: str, arg_types: List[type], callback: Callable[..., None]) -> bool:
         """add a command which the terminal will recognize
 
         Parameters
@@ -62,14 +110,12 @@ class CommandParser:
         """Starts running the termisshnal
         """
         from debug import terminal_print
-
+        terminal_print()
         run = True
-        Clock.start()
 
         while run:
             # gets the user's input, splits it between the command and arguments, and puts it in a named tuple
             try:
-                terminal_print('')
                 cur_input = UserInput(*input().split(maxsplit=1))
                 
             except EOFError:
@@ -77,42 +123,50 @@ class CommandParser:
             # checks if the user wants to exit the interface
             if cur_input.command == 'exit': 
                 run = False
-                if Clock.run_clock:
-                    print('Warning: Clock not stopped, stopping now')
-                    Clock.stop()
-                for t in CommandParser.command_threads:
-                    t.join()
                 
-            
             # checks if the user entered a valid command
             elif cur_input.command not in self.valid_commands:
-                print(f'\'{cur_input.command}\' is not recognized as a command')
+                terminal_print(f'\'{cur_input.command}\' is not recognized as a command')
             else:
                 # thread so we don't wait for something to return
                 def command_thread():
+                    # invokes the designated callback, and passes the provided arguments as strings
                     try:
                         # invokes the designated callback, and passes the provided arguments as strings
                         cur_cmd = self.valid_commands[cur_input.command]
                         cur_cmd.callback(*cur_input.args, arg_types=cur_cmd.arg_types)
-                    except (TypeError, ValueError) as e: # will error on anything that isn't a literal, including strings
+                    except InputError as e: # will error on anything that isn't a literal, including strings
                         num_args = len(self.valid_commands[cur_input.command].arg_types)
-                        terminal_print(str(e))
+                        err_msg = (f'{str(e)}, '
+                            f'{cur_input.command} requires {num_args} argument{"s" if num_args > 1 else ""} of type{"s" if num_args > 1 else ""} '
+                            f'{", ".join([f"<{t.__name__}>" for t in self.valid_commands[cur_input.command].arg_types])}. '
+                            f'You entered {cur_input.args}')
+                        
+                        terminal_print(err_msg)
                     return
-
-                new_thread = Thread(target=command_thread, name=f'Command thread - {cur_input.command}: {cur_input.args}')
-                new_thread.start()
-                self.command_threads.append(new_thread)
                 
+                # back in the main thread
+                new_task = self._command_executor.submit(command_thread)
+                self._command_tasks.append(new_task)
 
+                for task in self._command_tasks:
+                    # check if the task raised any exceptions
+                    if task.done() and (task_exception := task.exception()) is not None:
+                        raise task_exception
+
+                # remove all the tasks that are done
+                self._command_tasks = list(filter(lambda cur_task: not cur_task.done(), self._command_tasks))
 
 def commandparse_cb(func) -> Callable[..., Any]: 
     def commandparse_cb_wrapper(*args, arg_types: list[type]=[int], **kwargs):
         if not len(args) == len(arg_types):
-            raise ValueError("lists do not match")
+            raise InputError("Number of parameters do not match")
         
         # casted_args = [any] * len(args)
-        casted_args = list(map(lambda arg_type, arg: arg_type(arg), arg_types, args))
-
+        try:
+            casted_args = list(map(lambda arg_type, arg: arg_type(arg), arg_types, args))
+        except (ValueError, TypeError):
+            raise InputError('Could not cast inputs')
         # for i in range(len(args)):
         #     casted_args[i] = arg_types[i](args[i])
 

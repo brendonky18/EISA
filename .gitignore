@@ -353,3 +353,13 @@ MigrationBackup/
 # Ionide (cross platform F# VS Code tools) working folder
 .ionide/
 test.py
+
+# Project Files
+venv/*
+src/*.txt
+.idea/.gitignore
+.idea/EISA.iml
+.idea/misc.xml
+.idea/modules.xml
+.idea/vcs.xml
+.idea/inspectionProfiles/profiles_settings.xml

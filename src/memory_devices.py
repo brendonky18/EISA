@@ -1,11 +1,15 @@
-from __future__ import annotations # must be first import, allows type hinting of next_device to be the enclosing class
-from abc import ABC, abstractmethod # Abstract Base Class
-from tabulate import tabulate  # pip install tabulate
+from __future__ import annotations  # must be first import, allows type hinting of next_device to be the enclosing class
+
+from abc import ABC, abstractmethod  # Abstract Base Class
 from functools import reduce
-from typing import Union, Optional, Callable, Any, List
+from typing import Union, Optional, Callable, Any
+
+from tabulate import tabulate  # pip install tabulate
+
+#from clock import Clock
 from eisa import EISA
-from constant import const
-from clock import Clock
+from math import ceil
+
 
 class MemoryMissError(ValueError):
     # raised on a cache miss
@@ -71,7 +75,7 @@ class MemoryDevice(ABC):
     _read_speed: int
     _write_speed: int
     _next_device: Union[MemoryDevice, None]
-    _clock: Clock = Clock()
+    # _clock: Clock = Clock()
     _policies: Policy
 
     def __init__(self, local_addr_size: int, next_device: Union[MemoryDevice, None], read_speed: int, write_speed: int): #TODO check if we need to specify read and write speeds seperately
@@ -184,7 +188,7 @@ class CacheWay:
     _tag: int
     _index: int
     _data: list[int] = [0, 0, 0, 0]
-    _clock: Clock = Clock()
+    # _clock: Clock = Clock()
     # </instance variables>
 
     def __init__(self, index_bits: int, offset_bits: int):
@@ -222,11 +226,11 @@ class CacheWay:
         # Print starting line
         s = tabulate(
             [
-                ['Valid', f'{self.valid():#0{2}x}'],
-                ['Dirty', f'{self.dirty():#0{2}x}'],
-                ['Tag', f'{self.tag():#0{2 + self._tag_bits // 4}x}'],
-                ['Index', f'{self.index():#0{2 + self._index_bits // 4}x}'],
-                ['Data', f'{self.data()}'] #TODO print data formatted as hex
+                ['Valid', f'{self.valid():#0{2 + 1}x}'],
+                ['Dirty', f'{self.dirty():#0{2 + 1}x}'],
+                ['Tag', f'{self.tag():#0{2 + ceil(self._tag_bits / 4)}x}'],
+                ['Index', f'{self.index():#0{2 + ceil(self._index_bits / 4)}x}'],
+                ['Data', f'{self.data():#0{2 + ceil(self._data_bits / 4)}x}']
             ],
             headers=['Field', 'Value'],
             tablefmt='pretty',
@@ -253,7 +257,8 @@ class CacheWay:
         if tag != self.tag() or not self.valid():
             raise MemoryMissError('Read miss')
 
-        self._clock.wait(1, wait_event_name='Cache read')
+        # self._clock.wait(1, wait_event_name='Cache read')
+
         return self._data[offset]
 
     # write
@@ -273,18 +278,46 @@ class CacheWay:
         if tag != self.tag():
             raise MemoryMissError('Write miss')
         
-        self._clock.wait(1, wait_event_name='Cache write')
+        # self._clock.wait(1, wait_event_name='Cache write')
         self._data[offset] = value
         self.valid(True)
 
     def check_hit(self, address: int) -> bool:
+        """checks if an address is loaded in the cache
+
+        Parameters
+        ----------
+        address : int
+            the address to check
+
+        Returns
+        -------
+        bool
+            true if there is a cache hit
+            false if there is a cache miss
+        """
         # get the tag
         address >>= (self._index_bits + self._offset_bits)
         tag = address & (2**self._tag_bits - 1)
 
-        return tag == self.tag() and self.valid()
+        return (tag == self.tag()) and bool(self.valid())
+        
     # replace/evict
     def replace(self, address_block: slice, data: int):
+        """performs a cache eviction by replacing the data in a cache way
+
+        Parameters
+        ----------
+        address_block : slice
+            the new block of words
+        data : int
+            the new value
+
+        Raises
+        ------
+        ValueError
+            if the index of the cache way being replaced, does not match the index of the incoming address block
+        """
         address = address_block.start
     
         # get the index
@@ -302,7 +335,23 @@ class CacheWay:
         # update the data
         self.data(data)
 
-    def valid(self, value: Optional[int]=None):
+    def valid(self, value: Optional[int]=None) -> Union[int, CacheWay]:
+        """accessor function for the valid bit
+
+        Parameters
+        ----------
+        value : int
+            perform a set, the value to assign the valid bit, by default None
+        value: None
+            perform a get
+
+        Returns
+        -------
+        int
+            the value stored in the valid bit if the access is a `get` operation
+        CacheWay
+            the CacheWay if the access is a `set` operation
+        """
         if value is None:
             return self._valid
         else:
@@ -310,6 +359,22 @@ class CacheWay:
             return self
 
     def dirty(self, value: Optional[int]=None):
+        """accessor function for the dirty bit
+
+        Parameters
+        ----------
+        value : int
+            perform a set, the value to assign the dirty bit, by default None
+        value: None
+            perform a get
+
+        Returns
+        -------
+        int
+            the value stored in the dirty bit if the access is a `get` operation
+        CacheWay
+            the CacheWay if the access is a `set` operation
+        """
         if value is None:
             return self._dirty
         else:
@@ -317,6 +382,22 @@ class CacheWay:
             return self
     
     def tag(self, value: Optional[int]=None):
+        """accessor function for the tag field
+
+        Parameters
+        ----------
+        value : int
+            perform a set, the value to assign the tag field
+        value: None
+            perform a get
+
+        Returns
+        -------
+        int
+            the value stored in the tag field if the access is a `get` operation
+        CacheWay
+            the CacheWay if the access is a `set` operation
+        """
         if value is None:
             return self._tag
         else:
@@ -324,6 +405,22 @@ class CacheWay:
             return self
     
     def index(self, value: Optional[int]=None):
+        """accessor function for the index field
+
+        Parameters
+        ----------
+        value : int
+            perform a set, the value to assign the index field
+        value: None
+            perform a get
+
+        Returns
+        -------
+        int
+            the value stored in the index field if the access is a `get` operation
+        """
+        CacheWay
+            
         if value is None:
             return self._index
         else:
@@ -333,6 +430,20 @@ class CacheWay:
     # TODO implement this function inside __setitem__ and __getitem__
     # it will check for replacement vs assignment by using slices for replacement, and ints for assignment
     def data(self, value: Optional[int]=None):
+        """accessor function for the index field
+
+        Parameters
+        ----------
+        value : int
+            perform a set, the value to assign the data field
+        value: None
+            perform a get
+
+        Returns
+        -------
+        int
+            the value stored in the data field if the access is a `get` operation
+        """
         if value is None: # get
             return self._data
         else: # set
@@ -390,7 +501,8 @@ class Cache(MemoryDevice):
         self._cache = [CacheWay(self._local_addr_size, offset_size).index(i) for i in range(EISA.CACHE_ADDR_SPACE)]
 
         if evict_cb is not None:
-            self._on_evict = evict_cb #mypy does not like assigning to functions but I think it should be ok
+            self._on_evict = evict_cb # type: ignore
+            # mypy does not like assigning to functions but I think it should be ok
 
     def __str__(self, start: int=0, size: int=0) -> str:
         """to string method
@@ -421,7 +533,7 @@ class Cache(MemoryDevice):
         return s
 
     # read
-    def __getitem__(self, address: int) -> int:
+    def __getitem__(self, address: int) -> int: # type: ignore
         return self.get_cacheway(address)[address]
 
     # write
@@ -483,7 +595,7 @@ class RAM(MemoryDevice):
         """
         validate_address(address)
 
-        self._clock.wait(self._read_speed, wait_event_name='RAM read')
+        # self._clock.wait(self._read_speed, wait_event_name='RAM read')
 
         if isinstance(address, int):
             return self._memory[address]
@@ -505,7 +617,7 @@ class RAM(MemoryDevice):
         """
         validate_address(address)
 
-        self._clock.wait(self._write_speed, wait_event_name='RAM write')
+        # self._clock.wait(self._write_speed, wait_event_name='RAM write')
 
         self._memory[address] = value
 

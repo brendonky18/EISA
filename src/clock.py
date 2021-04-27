@@ -1,28 +1,42 @@
-from typing import Callable, Any, List, Optional, Type
-from threading import Thread, Lock
-from time import sleep, perf_counter_ns
 from dataclasses import dataclass
+from threading import Lock
+from concurrent.futures import ThreadPoolExecutor, Future
+from time import sleep
+from typing import Callable, Any, List, Optional, Type
+from types import TracebackType
+
 
 @dataclass
 class ClockEvent:
     delay: int = 0
     counter: int = 0
     callback: Callable[[], None] = lambda: None
+    name: Optional[str] = None
+
+    def __str__(self) -> str:
+        s = ''
+        if self.name is not None:
+            s += f'{self.name}: '
+        else:
+            s += f'Event: ,'
+
+        s += f'Total Delay: {self.delay}, Cycles Passed: {self.counter}'
+
+        return s
 
 class Clock:
-    cycle_count: int = 0
-    
-    run_clock: bool = False
-    run_clock_lock: Lock = Lock()
-
+    # region variables
     pending_calls: list[ClockEvent] = []
     pending_calls_lock: Lock = Lock()
 
-    step_clock: bool = False
     step_clock_counter: int = 0
-    step_clock_lock: Lock = Lock()
 
-    clock_thread = None
+    run_clock: bool = False
+
+    clock_thread = ThreadPoolExecutor(max_workers=1, thread_name_prefix='clock')
+    clock_thread_task: Future = None # type: ignore
+    clock_tread_lock: Lock = Lock()
+    # endregion variables
 
     @classmethod
     def start(cls):
@@ -33,69 +47,85 @@ class Clock:
         RuntimeError
             [description]
         """
-        if cls.run_clock or cls.step_clock:
-            raise RuntimeError('Cannot have multiple instances of clock running')
-        else:
-            cls.run_clock = True
-            def run():
-                cls.run_clock_lock.acquire()                # get the lock before entering
-                while cls.run_clock:
-                    cls.run_clock_lock.release()
+        def run():
+            while Clock.run_clock:
+                cls.resolve_pending_calls()
 
-                    with cls.pending_calls_lock:
-                        for cur_event in cls.pending_calls: # iterate over and update all events
-                            cur_event.counter += 1
-                            
-                            if cur_event.delay == cur_event.counter:    
-                                cur_event.callback()        # trigger the event's callback         
-                                                        
-                        # remove events that have been called
-                        cls.pending_calls = [cur_event for cur_event in cls.pending_calls if cur_event.counter < cur_event.delay]
-
-                    cls.run_clock_lock.acquire()            # get the locks for the next iteration
-                cls.run_clock_lock.release()                # releases the lock when finished
-        
-            cls.clock_thread = Thread(target=run, name='Clock Running')
-            cls.clock_thread.start()                        # actually start running the thread
+        with Clock.clock_tread_lock:
+            # checks if there is a clock thread already running
+            if cls.clock_thread_task is None or cls.clock_thread_task.done():
+                Clock.run_clock = True
+                cls.clock_thread_task = cls.clock_thread.submit(run)
+            else:
+                raise RuntimeError('Cannot have multiple instances of clock running')
             
     @classmethod
     def stop(cls):
         """class method to stop the program clock
         """
-        with cls.run_clock_lock:
-            cls.run_clock = False
-        cls.clock_thread.join()
+        Clock.run_clock = False
+
+        # checks if there was an error
+        clock_thread_exception = cls.clock_thread_task.exception()
+        if clock_thread_exception is not None:
+            raise clock_thread_exception
     
     @classmethod
     def step(cls, count: int=1):
-        if cls.run_clock or cls.step_clock:
-            raise RuntimeError('Cannot have multiple instances of clock running')
-        else:
-            cls.step_clock = True
-            def run():
-                cls.step_clock_lock.acquire()                # get the lock before entering
-                for step in range(count):
-                    cls.step_clock_lock.release()
+        def run():
+            for step in range(count):
+                cls.resolve_pending_calls()
+        with Clock.clock_tread_lock:
+            # checks if there is a clock thread already running
+            if cls.clock_thread_task is None or cls.clock_thread_task.done():        
+                # checks for an exception in the previous execution     
+                clock_thread_exception =  cls.clock_thread_task.exception()
+                if clock_thread_exception is not None:
+                    raise clock_thread_exception
+                else:
+                    Clock.run_clock = True
+                    cls.clock_thread_task = cls.clock_thread.submit(run)
+            else:
+                raise RuntimeError('Cannot have multiple instances of clock running')
 
-                    with cls.pending_calls_lock:
-                        for cur_event in cls.pending_calls: # iterate over and update all events
-                            cur_event.counter += 1
-                            
-                            if cur_event.delay == cur_event.counter:    
-                                cur_event.callback()        # trigger the event's callback         
-                                                        
-                        # remove events that have been called
-                        cls.pending_calls = [cur_event for cur_event in cls.pending_calls if cur_event.counter < cur_event.delay]
+        # wait for the function to be done
+        while not cls.clock_thread_task.done():
+            pass
 
-                    cls.step_clock_lock.acquire()            # get the locks for the next iteration
-                cls.step_clock_lock.release()                # releases the lock when finished
+        # checks if there was an error
+        clock_thread_exception = cls.clock_thread_task.exception()
+        if clock_thread_exception is not None:
+            raise clock_thread_exception
+
+    @classmethod
+    def resolve_pending_calls(cls):
+        with cls.pending_calls_lock:
+            # print('a')
+            for cur_event in cls.pending_calls: # iterate over and update all events
+                cur_event.counter += 1
+                
+                if cur_event.delay == cur_event.counter:    
+                    cur_event.callback()        # trigger the event's callback         
+                                            
+            # remove events that have been called
+            cls.pending_calls = [cur_event for cur_event in cls.pending_calls if cur_event.counter < cur_event.delay]
+
+    def __enter__(self):
+        if Clock.clock_thread._shutdown:
+            Clock.clock_thread = ThreadPoolExecutor(max_workers=1, thread_name_prefix='clock')
         
-            cls.clock_thread = Thread(target=run, name='Clock Stepping')
-            cls.clock_thread.start()                        # actually start running the thread
-            cls.clock_thread.join()
-            cls.step_clock = False
+        Clock.start()
+        return self
 
-        
+    def __exit__(
+            self,
+            exc_type: Optional[Type[BaseException]],
+            exc_val: Optional[BaseException],
+            exc_tb: Optional[TracebackType]
+        ):
+        Clock.stop()
+        print('clock stopped')
+        Clock.clock_thread.shutdown(wait=True)
 
     def wait(
         self, 
@@ -121,16 +151,23 @@ class Clock:
             returns whatever the passed function returns
         """
         from debug import terminal_print
-        if not (Clock.run_clock or Clock.step_clock):
-            terminal_print('Warning: Clock not running. Commands will not be executed')
+        if Clock.clock_thread_task is None or Clock.clock_thread_task.done():
+            terminal_print(f'Warning: Clock not running. {wait_event_name} will not be executed')
             
         self._waiting = True
-
+        result = None
         def on_done():
             self._waiting = False
+            
+            # trigger the passed vallback
+            if wait_event is not None:
+                result =  wait_event() if wait_event_args is None else wait_event(*wait_event_args)
+
+            # print that the function has completed
+            terminal_print(f'{"Command" if wait_event_name is None else wait_event_name} took {my_event.counter} cycle{"s" if my_event.counter > 1 else ""} to complete')
 
         # add to the list of events
-        my_event = ClockEvent(delay=delay, counter=0, callback=on_done)
+        my_event = ClockEvent(delay=delay, counter=0, callback=on_done, name=wait_event_name)
         with Clock.pending_calls_lock:
             Clock.pending_calls.append(my_event)
         
@@ -138,16 +175,6 @@ class Clock:
         while self._waiting:
             sleep(0.001)
 
-        #from __main__ import terminal_print
-        terminal_print(f'{"Command" if wait_event_name is None else wait_event_name} took {my_event.counter} cycle{"s" if my_event.counter > 1 else ""} to complete')
+        return result
 
-        # trigger the event function if one was passes
-        if wait_event is not None:
-            if wait_event_args is None:
-                return wait_event()
-            else:
-                return wait_event(*wait_event_args) # type: ignore
-                # not sure how to get around that error, something with the ellipsis when defining the wait_event's type
-        else:
-            return None
         

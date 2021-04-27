@@ -1,6 +1,9 @@
-from __future__ import annotations # must be first import, allows type hinting of next_device to be the enclosing class
-from typing import Dict, List, Type, Optional
+from __future__ import annotations  # must be first import, allows type hinting of next_device to be the enclosing class
+
+from typing import Dict, Type, Optional
+
 from eisa import EISA
+
 
 class BitVectorField:
     _start: int
@@ -10,7 +13,7 @@ class BitVectorField:
     def __init__(self, start, size):
         self.start = start
         self.size = size
-        self.stop = start + size
+        self.stop = start + size - 1
         self.mask = 2**size - 1
 
 
@@ -20,19 +23,18 @@ class BitVector:
     # static variables
     _size: int = EISA.WORD_SIZE
     _fields: Dict[str, BitVectorField] = {}
-    _unallocated: List[slice] = [slice(0, _size)]
 
-    def __init__(self):
-        self._bits = 0b0
+    def __init__(self, val: int=0b0):
+        self._bits = val
 
     def __str__(self):
         new_line_char = '\n'
-        s = f'raw bits: {self._bits:0{2 + self._size}b}{new_line_char}'
+        s = f'raw bits: {self._bits:0{self._size}b}{new_line_char}'
         s += f'{new_line_char.join([f"{cur_key}: {self[cur_key]}" for cur_key in self._fields.keys()])}'
         
         return s
 
-    def __getitem__(self, field: str) -> Optional[int]:
+    def __getitem__(self, field: str) -> int:
         """gets the value stored at the specified field
 
         Parameters
@@ -50,12 +52,10 @@ class BitVector:
         target_field = None
         try:
             target_field = self._fields[field]
-        except KeyError:
-            print(f'\'{field}\' is not a field in type \'{type(self).__name__}\'')
+        except KeyError: # override the error message
+            raise KeyError(f'\'{field}\' is not a field in type \'{type(self).__name__}\'') 
         else:
             return (self._bits >> target_field.start) & target_field.mask
-
-        return None
     
     def __setitem__(self, field: str, value: int) -> None:
         """assigns the passed value to the passed field
@@ -77,7 +77,7 @@ class BitVector:
         try:
             target_field = self._fields[field]
         except KeyError:
-            print(f'\'{field}\' is not a field in type \'{type(self).__name__}\'')
+            raise KeyError(f'\'{field}\' is not a field in type \'{type(self).__name__}\'')
         else:
             if value > target_field.mask:
                 raise ValueError(f'Cannot to assign {value} to \'{field}\'. Can be at most {target_field.mask}')
@@ -88,7 +88,7 @@ class BitVector:
             self._bits |= value << target_field.start
 
     @classmethod
-    def add_field(cls, field_name: str, field_start: int, field_size: int) -> Type[BitVector]:
+    def add_field(cls, field_name: str, field_start: int, field_size: int, overlap: bool=False) -> Type[BitVector]:
         """creates a new field starting at the passed value, and of the passed size
 
         Parameters
@@ -122,28 +122,36 @@ class BitVector:
         if cls._size < new_field.stop:
             raise(ValueError('Cannot create a field which extends beyond the bit vector'))
 
-        for i in range(len(cls._unallocated)):
-            slot = cls._unallocated[i]
-            if slot.start <= new_field.start and new_field.stop <= slot.stop:
-                new_unallocated = cls._unallocated[:i]
+        # checks if we're trying to allocate where something has already been allocated
+        if not overlap:
+            for cur_field_name in cls._fields:
+                cur_field = cls._fields[cur_field_name]
 
-                if slot.start < new_field.start:
-                    new_unallocated.append(slice(slot.start, new_field.start))
+                if new_field.start <= cur_field.stop and cur_field.start <= new_field.stop:
+                    raise ValueError(f'Cannot create new field \'{field_name}\'. Overlaps with {cur_field_name}.')
 
-                if new_field.stop < slot.stop:
-                    new_unallocated.append(slice(slot.stop, new_field.stop))
-
-                new_unallocated += cls._unallocated[i + 1:]
-
-                cls._unallocated = new_unallocated
-
-            cls._fields[field_name] = new_field
-            return cls
+        cls._fields[field_name] = new_field
+        return cls
         
-        raise ValueError(f'Cannot create new field \'{field_name}\'. Bits {new_field.start} to {new_field.stop} are already used by another field.')
+        
 
     @classmethod
-    def create_subtype(cls, name: str, size: Optional[int]=None) -> type:
+    def remove_field(cls, field_name: str) -> Type[BitVector]:
+        # remove the old field
+        del cls._fields[field_name]
+        return cls
+
+    @classmethod
+    def rename_field(cls, old_field_name: str, new_field_name) -> Type[BitVector]:
+        if new_field_name in cls._fields:
+            raise ValueError(f'Cannot rename field \'{old_field_name}\' to \'{new_field_name}\', \'{new_field_name}\' already exists.')
+        
+        cls._fields[new_field_name] = cls._fields.pop(old_field_name)
+
+        return cls
+
+    @classmethod
+    def create_subtype(cls, name: str, size: Optional[int]=None):
         """creates a new class with the passed name, which inherits from this class
 
         Parameters
@@ -161,7 +169,7 @@ class BitVector:
         """
         return type(name, (cls,), {
             '_size'         : size if size is not None else cls._size,
-            'add_field'     : cls.add_field
+            '_fields'       : cls._fields.copy()
         })
 
 # if __name__ == '__main__':
