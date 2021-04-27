@@ -355,7 +355,7 @@ MigrationBackup/
 test.py
 
 # Project Files
-prog/
+venv/*
 src/*.txt
 .idea/.gitignore
 .idea/EISA.iml

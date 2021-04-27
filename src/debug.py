@@ -1,6 +1,6 @@
 import argparse
 import sys
-from typing import List, Tuple, Callable
+from typing import List, Tuple, Callable, Optional
 from threading import Lock
 from memory_subsystem import MemorySubsystem, PipelineStall
 # from clock import Clock
@@ -94,6 +94,8 @@ def init_commands(memory: MemorySubsystem, pipeline: PipeLine) -> List[Tuple[str
         except FileNotFoundError:
             raise InputError(f'File \'{file_path}\' not found. No such file exitst')
 
+        terminal_print()
+
         # load them into memory
         stop_addr = start_addr + len(program_instructions)
         if stop_addr > memory._RAM._local_addr_space:
@@ -109,6 +111,8 @@ def init_commands(memory: MemorySubsystem, pipeline: PipeLine) -> List[Tuple[str
                     sleep(0.001)
                 else: 
                     stalled = False
+
+        terminal_print()
 
     @commandparse_cb
     def run_pipeline(cycle_count: int) -> None:
@@ -142,10 +146,11 @@ def init_commands(memory: MemorySubsystem, pipeline: PipeLine) -> List[Tuple[str
 
 print_lock: Lock = Lock()
 
-def terminal_print(print_string: str):
+def terminal_print(print_string: Optional[str] = None):
     global terminal_name
     with print_lock:
-        print(f'\r{print_string}')
+        if print_string is not None:
+            print(f'\r{print_string}')
 
         try:
             if terminal_name is not None:

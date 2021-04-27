@@ -23,7 +23,7 @@ class UnittestPipeline(unittest.TestCase):
         # Immediate Flg: 0
         # Operand 2: 00100 (Register 4)
         # PADDING: 0000000000 (Bits 9 - 0 are Irrelevant)
-        instruction = OpCode_InstructionType_lookup[0b000001].encoding()
+        instruction = Instructions[OpCode.ADD].encoding()
         instruction['opcode'] = 0b000001
         instruction['dest'] = 0b00011
         instruction['op1'] = 0b11111
@@ -31,7 +31,7 @@ class UnittestPipeline(unittest.TestCase):
         instruction['imm'] = False
 
         # cook END instruction to signal pipeline to end
-        end = OpCode_InstructionType_lookup[0b100000].encoding()
+        end = Instructions[0b100000].encoding()
 
         # cook the pipe's memory
         my_pipe._memory._RAM[0] = instruction._bits
@@ -51,7 +51,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
 
         # Opcode: 001101 (LOAD)
-        instruction = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction = Instructions[0b001101].encoding()
         instruction['opcode'] = 0b001101
         instruction['dest'] = 3
         instruction['lit'] = False
@@ -61,7 +61,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._memory._RAM[0] = instruction._bits
 
         # cook END instruction to signal pipeline to end
-        end = OpCode_InstructionType_lookup[0b100000].encoding()
+        end = Instructions[0b100000].encoding()
         end['opcode'] = 0b100000
         my_pipe._memory._RAM[1] = end._bits
 
@@ -78,7 +78,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
 
         # Opcode: 001101 (LOAD)
-        instruction = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction = Instructions[0b001101].encoding()
         instruction['opcode'] = 0b001101
         instruction['dest'] = 3
         instruction['lit'] = False
@@ -93,7 +93,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[31] = 12
 
         # Opcode: 001101 (LOAD)
-        instruction2 = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction2 = Instructions[0b001101].encoding()
         instruction2['opcode'] = 0b001101
         instruction2['dest'] = 4
         instruction2['lit'] = False
@@ -106,7 +106,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[30] = 13
 
         # cook END instruction to signal pipeline to end
-        end = OpCode_InstructionType_lookup[0b100000].encoding()
+        end = Instructions[0b100000].encoding()
         end['opcode'] = 0b100000
         my_pipe._memory._RAM[2] = end._bits
 
@@ -124,7 +124,7 @@ class UnittestPipeline(unittest.TestCase):
         # (Register 31) Offset/Literal: 0000000000 (Offset 0) TODO - is this a register number or a literal????
         #  Assuming reg num for now
 
-        instruction = OpCode_InstructionType_lookup[0b001110].encoding()
+        instruction = Instructions[0b001110].encoding()
         instruction['opcode'] = 0b001110
         instruction['src'] = 3
         instruction['base'] = 31
@@ -138,7 +138,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[3] = 256  # storing value in register 3
 
         # cook END instruction to signal pipeline to end
-        end = OpCode_InstructionType_lookup[0b100000].encoding()
+        end = Instructions[0b100000].encoding()
         end['opcode'] = 0b100000
         my_pipe._memory._RAM[1] = end._bits  # END is stored at address (word) 1 in memory
 
@@ -156,7 +156,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
 
         # Opcode: 001101 (LOAD)
-        instruction = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction = Instructions[0b001101].encoding()
         instruction['opcode'] = 0b001101
         instruction['dest'] = 3
         instruction['lit'] = False
@@ -171,7 +171,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[31] = 12
 
         # Opcode: 001101 (LOAD)
-        instruction2 = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction2 = Instructions[0b001101].encoding()
         instruction2['opcode'] = 0b001101
         instruction2['dest'] = 4
         instruction2['lit'] = False
@@ -184,7 +184,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[30] = 13
 
         # Opcode: 000001 (ADD/MOV)
-        instruction3 = OpCode_InstructionType_lookup[0b000001].encoding()
+        instruction3 = Instructions[0b000001].encoding()
         instruction3['opcode'] = 0b000001
         instruction3['dest'] = 24
         instruction3['op1'] = 4  # Destination of the first load
@@ -197,7 +197,7 @@ class UnittestPipeline(unittest.TestCase):
         # (Register 31) Offset/Literal: 0000000000 (Offset 0) TODO - is this a register number or a literal????
         #  Assuming reg num for now
 
-        instruction4 = OpCode_InstructionType_lookup[0b001110].encoding()
+        instruction4 = Instructions[0b001110].encoding()
         instruction4['opcode'] = 0b001110
         instruction4['src'] = 24  # Destination of the add op
         instruction4['base'] = 16  # Register holding the address we want to store the result (Register 16)
@@ -207,7 +207,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[16] = 8
 
         # cook END instruction to signal pipeline to end
-        end = OpCode_InstructionType_lookup[0b100000].encoding()
+        end = Instructions[0b100000].encoding()
         end['opcode'] = 0b100000
         my_pipe._memory._RAM[4] = end._bits  # END is stored at address (word) 1 in memory
 
@@ -227,7 +227,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
 
         # Opcode: 001101 (LOAD)
-        instruction = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction = Instructions[0b001101].encoding()
         instruction['opcode'] = 0b001101
         instruction['dest'] = 3
         instruction['lit'] = False
@@ -242,7 +242,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[31] = 12
 
         # Opcode: 001101 (LOAD)
-        instruction2 = OpCode_InstructionType_lookup[0b001101].encoding()
+        instruction2 = Instructions[0b001101].encoding()
         instruction2['opcode'] = 0b001101
         instruction2['dest'] = 4
         instruction2['lit'] = False
@@ -255,8 +255,9 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[30] = 13
 
         # Opcode: 011110 (B)
-        instructionB = OpCode_InstructionType_lookup[0b011110].encoding()
+        instructionB = Instructions[0b011110].encoding()
         instructionB['opcode'] = 0b011110
+        instructionB['cond'] = ConditionCode.EQ
         instructionB['imm'] = False
         instructionB['base'] = 12
         instructionB['offset'] = 0
@@ -265,7 +266,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._memory._RAM[2] = instructionB._bits
 
         # Opcode: 000001 (ADD/MOV)
-        instruction3 = OpCode_InstructionType_lookup[0b000001].encoding()
+        instruction3 = Instructions[0b000001].encoding()
         instruction3['opcode'] = 0b000001
         instruction3['dest'] = 24
         instruction3['op1'] = 4  # Destination of the first load
@@ -278,7 +279,7 @@ class UnittestPipeline(unittest.TestCase):
         # (Register 31) Offset/Literal: 0000000000 (Offset 0) TODO - is this a register number or a literal????
         #  Assuming reg num for now
 
-        instruction4 = OpCode_InstructionType_lookup[0b001110].encoding()
+        instruction4 = Instructions[0b001110].encoding()
         instruction4['opcode'] = 0b001110
         instruction4['src'] = 24  # Destination of the add op
         instruction4['base'] = 16  # Register holding the address we want to store the result (Register 16)
@@ -288,7 +289,7 @@ class UnittestPipeline(unittest.TestCase):
         my_pipe._registers[16] = 8
 
         # cook END instruction to signal pipeline to end
-        end = OpCode_InstructionType_lookup[0b100000].encoding()
+        end = Instructions[0b100000].encoding()
         end['opcode'] = 0b100000
         my_pipe._memory._RAM[32] = end._bits  # END is stored at address (word) 1 in memory
 
@@ -409,6 +410,106 @@ class UnittestPipeline(unittest.TestCase):
         mem_sub = MemorySubsystem(EISA.ADDRESS_SIZE, 4, 1, 1, 8, 2, 2)
 
         my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
+
+    def test_push_pop_sequential(self):
+        mem_sub = MemorySubsystem(EISA.ADDRESS_SIZE, 4, 1, 1, 8, 2, 2)
+
+        my_pipe = PipeLine(0, [i for i in range(EISA.NUM_GP_REGS)], mem_sub)
+
+        # MOV - Copy R[29] into R[30]
+        instruction1 = Instruction[0b000001].encoding()
+        instruction1['opcode'] = 0b0000001
+        instruction1['dest'] = 30  # Register 30
+        instruction1['op1'] = 29  # Register 29
+        instruction1['op2'] = 0  # IMM 0
+        instruction1['imm'] = True
+
+        # SUB - Reset R[31] to 0
+        instruction2 = Instruction[0b000010].encoding()
+        instruction2['opcode'] = 0b0000010
+        instruction2['dest'] = 31  # Register 31
+        instruction2['op1'] = 31  # Register 31
+        instruction2['op2'] = 31  # IMM 31
+        instruction2['imm'] = True
+
+        # PUSH - Push R[0] to stack
+        instruction3 = Instruction[0b001111].encoding()
+        instruction3['opcode'] = 0b001111
+        instruction3['src'] = 0 # R[0]
+
+        # PUSH - Push R[1] to stack
+        instruction4 = Instruction[0b001111].encoding()
+        instruction4['opcode'] = 0b001111
+        instruction4['src'] = 1  # R[1]
+
+        # PUSH - Push R[2] to stack
+        instruction5 = Instruction[0b001111].encoding()
+        instruction5['opcode'] = 0b001111
+        instruction5['src'] = 2  # R[2]
+
+        # PUSH - Push R[3] to stack
+        instruction6 = Instruction[0b001111].encoding()
+        instruction6['opcode'] = 0b001111
+        instruction6['src'] = 3  # R[3]
+
+        # PUSH - Push R[4] to stack
+        instruction7 = Instruction[0b001111].encoding()
+        instruction7['opcode'] = 0b001111
+        instruction7['src'] = 4  # R[4]
+
+        # POP - Pop R[4] from stack into R[4]
+        instruction8 = Instruction[0b010000].encoding()
+        instruction8['opcode'] = 0b010000
+        instruction8['dest'] = 4  # R[4]
+
+        # POP - Pop R[3] from stack into R[3]
+        instruction9 = Instruction[0b010000].encoding()
+        instruction9['opcode'] = 0b010000
+        instruction9['dest'] = 3  # R[3]
+
+        # POP - Pop R[2] from stack into R[2]
+        instruction10 = Instruction[0b010000].encoding()
+        instruction10['opcode'] = 0b010000
+        instruction10['dest'] = 2  # R[2]
+
+        # POP - Pop R[1] from stack into R[1]
+        instruction11 = Instruction[0b010000].encoding()
+        instruction11['opcode'] = 0b010000
+        instruction11['dest'] = 1  # R[1]
+
+        # POP - Pop R[0] from stack into R[0]
+        instruction12 = Instruction[0b010000].encoding()
+        instruction12['opcode'] = 0b010000
+        instruction12['dest'] = 0  # R[0]
+
+        # END
+        instruction13 = Instruction[0b100000].encoding()
+
+        my_pipe._memory._RAM[0] = instruction1._bits
+        my_pipe._memory._RAM[1] = instruction2._bits
+        my_pipe._memory._RAM[2] = instruction3._bits
+        my_pipe._memory._RAM[3] = instruction4._bits
+        my_pipe._memory._RAM[4] = instruction5._bits
+        my_pipe._memory._RAM[5] = instruction6._bits
+        my_pipe._memory._RAM[6] = instruction7._bits
+        my_pipe._memory._RAM[7] = instruction8._bits
+        my_pipe._memory._RAM[8] = instruction9._bits
+        my_pipe._memory._RAM[9] = instruction10._bits
+        my_pipe._memory._RAM[10] = instruction11._bits
+        my_pipe._memory._RAM[11] = instruction12._bits
+        my_pipe._memory._RAM[12] = instruction13._bits
+
+
+
+        for i in range(5):
+            self.assertEqual(my_pipe._registers[i],i)
+
+        #for i in range(5):
+        #    self.assertEqual(my_pipe._registers[i], 0)
+
+
+
+
 
 
 if __name__ == '__main__':
