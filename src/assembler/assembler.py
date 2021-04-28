@@ -1,6 +1,6 @@
 from argparse import ArgumentParser
 from parse import parse
-import ..pipeline
+from src import pipeline
 
 class AssemblerError(RuntimeError):
     def __init__(self, symbol):
@@ -19,10 +19,12 @@ if __name__ == '__main__':
 
     dst_path = 'a.txt'
 
-    if args.destination is not None:
+    try:
         dst_path = args.destination
+    except AttributeError:
+        pass
 
-    with open(args.source, 'r') as src_file, open(dst_path, 'w+') as dst_file:
+    with open(args.source, 'r+') as src_file, open(dst_path, 'w+') as dst_file:
         # parse the arguments
         for line in src_file:
             # check if the line is a label or an instruction

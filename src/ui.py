@@ -4,7 +4,7 @@ from copy import copy
 from PyQt6.QtCore import Qt, QDir, QEvent
 from PyQt6.QtGui import QStandardItemModel
 from PyQt6.QtWidgets import *
-from PyQt6.uic.properties import QtCore
+from PyQt6.uic.properties import QtCore, QtGui
 
 import memory_devices
 from memory_subsystem import MemorySubsystem
@@ -14,6 +14,12 @@ from eisa import EISA
 
 # from debug import *
 # from main import *
+
+# UI Remaining TODO
+# TODO - Implement line edits for rows and columns of memory tables
+# TODO - Implement line edits for read and write speeds of memory tables
+# TODO - Implement print statements for reads, writes, and each stage -> Reorganize cache + regs tables to be columns
+#  with output as a third column
 
 '''
 class TableModel(QStandardItemModel):
@@ -144,6 +150,9 @@ class MemoryGroup:
                 temp.setData(0, self.cache_table[i][j])
                 self.cache_widget.setItem(i - 1, j - 1, temp)
 
+        self.cache_widget.setHorizontalHeaderLabels(self.cache_table[0])
+        self.cache_widget.setVerticalHeaderLabels(row_headers)
+
     def load_regs(self):
         self.regs_table, row_headers = set_headers(self.regs_rows, self.regs_cols,
                                                    format_list_to_table(self.regs_rows, self.regs_cols, self.regs))
@@ -261,7 +270,12 @@ class Dialog(QMainWindow):
 
         self.setCentralWidget(self.main_widget)
 
-        self.pipeline_group.setMaximumHeight(self.pipeline_group.height())
+        self.memory_group.ram_widget.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
+        self.memory_group.regs_widget.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
+        self.memory_group.cache_widget.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
+
+
+        #self.pipeline_group.setMaximumHeight(self.pipeline_group.height())
 
         self.already_max = False
 
@@ -277,7 +291,7 @@ class Dialog(QMainWindow):
         dlg.show()
         # sys.exit(app.exec_())
     '''
-
+    '''
     def changeEvent(self, a0):
         try:
             if self.isMaximized() and not self.already_max:
@@ -292,6 +306,14 @@ class Dialog(QMainWindow):
                 self.already_max = False
         except AttributeError as e:
             pass
+    '''
+
+    def closeEvent(self, a0):
+        try:
+            self.fp.close()
+        except AttributeError:
+            pass
+        a0.accept()
 
     def update_ui(self):
         self.destroy_stage_fields()
@@ -313,23 +335,22 @@ class Dialog(QMainWindow):
         if self.run_to_completion:
             while self._pipeline._pipeline[4].opcode != 32:
                 self._pipeline.cycle_pipeline()
-                self.update_ui()
                 if self._pipeline._cycles >= EISA.PROGRAM_MAX_CYCLE_LIMIT:
                     self.error_dialog = QMessageBox().critical(self, "Cycle Limit Reached",
                                                                "Maximum number of cycles reached.")
-                    self._pipeline._pc = 0
-                    self.update_ui()
-                    return
+                    break
             self._pipeline.cycle_pipeline()
             self.update_ui()
         else:
             self._pipeline.cycle(cycles)
-            # For later if we want output
-            '''
-            for i in range(cycles):
-                self._pipeline.cycle_pipeline()
-                self.update_ui()
-            '''
+
+        self.update_ui()
+        # For later if we want output
+        '''
+        for i in range(cycles):
+            self._pipeline.cycle_pipeline()
+            self.update_ui()
+        '''
 
     '''
     def build_cycle_button(self):
@@ -392,7 +413,7 @@ class Dialog(QMainWindow):
         counters_layout.addWidget(self.cycle_counter, alignment=Qt.Alignment.AlignLeft)
         counters_layout.addWidget(self.flags, alignment=Qt.Alignment.AlignLeft)
         counters_group.setLayout(counters_layout)
-        counters_group.setMaximumHeight(self.pc_counter.fontMetrics().height() + 20)
+        #counters_group.setMaximumHeight(self.pc_counter.fontMetrics().height() + 20)
 
         options_group = QGroupBox("Options")
         self.options_group = options_group
@@ -451,7 +472,7 @@ class Dialog(QMainWindow):
             pipeline_width += i.stage.width() + 20
 
         pipeline_group.setMaximumWidth(pipeline_group.width() + 40)
-        pipeline_group.setMaximumHeight(pipeline_group.height())
+        #pipeline_group.setMaximumHeight(pipeline_group.height())
 
         self.dlgLayout.addLayout(self.pipeline_options_layout)
 
@@ -495,9 +516,9 @@ class Dialog(QMainWindow):
         cache_width = ((self.memory_group.cache_widget.columnWidth(
             0) * self.memory_group.cache_widget.columnCount()) + self.memory_group.cache_widget.verticalScrollBar().width())
 
-        self.memory_group.ram_box.setMaximumWidth(ram_width)
-        self.memory_group.regs_box.setMaximumWidth(regs_width)
-        self.memory_group.cache_box.setMaximumWidth(cache_width)
+        #self.memory_group.ram_box.setMaximumWidth(ram_width)
+        #self.memory_group.regs_box.setMaximumWidth(regs_width)
+        #self.memory_group.cache_box.setMaximumWidth(cache_width)
 
         # Max tables height
 
@@ -513,13 +534,13 @@ class Dialog(QMainWindow):
 
         # self.memory_group.cache_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
-        self.memory_group.ram_box.setMaximumHeight(ram_height)
-        self.memory_group.regs_box.setMaximumHeight(regs_height)
-        self.memory_group.cache_box.setMaximumHeight(cache_height)
+        #self.memory_group.ram_box.setMaximumHeight(ram_height)
+        #self.memory_group.regs_box.setMaximumHeight(regs_height)
+        #self.memory_group.cache_box.setMaximumHeight(cache_height)
 
     def build_memory_layout(self):
 
-        '''
+
         ram_button_layout = QGridLayout()
         self.reset_ram_button = QPushButton("Reset RAM")
         self.reset_ram_button.clicked.connect(self.reset_ram)
@@ -528,11 +549,11 @@ class Dialog(QMainWindow):
 
         final_ram_layout = self.memory_group.ram_box.layout()
         final_ram_layout.addLayout(ram_button_layout)
-        '''
+
 
         self.whole_layout.addWidget(self.memory_group.ram_box)
 
-        '''
+
         regs_button_layout = QGridLayout()
         self.reset_regs_button = QPushButton("Reset Registers")
         self.reset_regs_button.clicked.connect(self.reset_regs)
@@ -541,24 +562,28 @@ class Dialog(QMainWindow):
 
         final_regs_layout = self.memory_group.regs_box.layout()
         final_regs_layout.addLayout(regs_button_layout)
-        '''
+
 
         self.dlgLayout.addWidget(self.memory_group.regs_box)
 
-        '''
+
         cache_button_layout = QGridLayout()
-        self.reset_cache_button = QPushButton("Reset Registers")
+        self.reset_cache_button = QPushButton("Reset Cache")
         self.reset_cache_button.clicked.connect(self.reset_cache)
         self.reset_cache_button.setAutoDefault(False)
-        cache_button_layout.addWidget(self.reset_cache_button, 1, 3, alignment=Qt.Alignment.AlignRight)
+        cache_button_layout.addWidget(self.reset_cache_button, 1, 5, alignment=Qt.Alignment.AlignRight)
+        cache_button_layout.addWidget(self.reset_regs_button, 1, 2)
 
         final_cache_layout = self.memory_group.cache_box.layout()
         final_cache_layout.addLayout(cache_button_layout)
-        '''
+
 
         self.dlgLayout.addWidget(self.memory_group.cache_box)
 
-        self.resize_tables()
+        self.dlgLayout.addStretch()
+
+        #self.resize_tables()
+
 
         # self.dlgLayout.addSpacerItem(QSpacerItem(self.memory_group.regs_box.width(), self.memory_group.ram_box.height() - 700))
 
@@ -568,8 +593,8 @@ class Dialog(QMainWindow):
         self.update_ui()
 
     def reset_regs(self):
-        for i in range(EISA.RAM_ADDR_SPACE):
-            self.memory._RAM[i] = 0
+        for i in range(len(self._pipeline._registers)):
+            self._pipeline._registers[i] = 0
         self.update_ui()
 
     def reset_cache(self):
