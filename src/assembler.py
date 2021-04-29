@@ -76,6 +76,12 @@ def parse_line(line: str) -> pp.ParseResults:
             lambda num_str: int(num_str[0])) | \
         spec_regs.setParseAction(lambda reg_str: pipeline.SpecialRegister[reg_str[0]])
 
+    # region register test
+    # print('register test')
+    # print('r0')
+    # print('R0')
+    # endregion register test
+
     # region ALU parsing
 
     # binary: 0b[01] 
@@ -225,15 +231,15 @@ def parse_line(line: str) -> pp.ParseResults:
                 reg_mem_access_syntax
         )
 
-    # region MEM test
-    # print('MEM test')
+    # region MEM access test
+    # print('MEM access test')
     # print(mem_access_syntax.parseString('#420'))
     # print(mem_access_syntax.parseString('#0xbeef'))
     # print(mem_access_syntax.parseString('#0b1111'))
-    # print(mem_access_syntax.parseString('[r0]'))
-    # print(mem_access_syntax.parseString('[r0, #420]'))
-    # print(mem_access_syntax.parseString('[r0 , #69]'))
-    # endregion MEM test
+    # print(mem_access_syntax.parseString('[R0]'))
+    # print(mem_access_syntax.parseString('[R0, #420]'))
+    # print(mem_access_syntax.parseString('[R0 , #69]'))
+    # endregion MEM access test
     # region LDR parsing
     LDR_syntax = \
         register_tokens.setResultsName('dest') + \
@@ -269,6 +275,21 @@ def parse_line(line: str) -> pp.ParseResults:
 
     # endregion B parsing
 
+    # region NOOP parsing
+    def check_NOOP():
+        return cur_instruction == pipeline.OpCode.NOOP or cur_instruction == pipeline.OpCode.END
+
+    NOOP_syntax = whitespace[...] | ~whitespace
+
+    # region NOOP test
+    # print('NOOP test')
+    # cur_instruction = pipeline.OpCode.END
+    # print(NOOP_syntax.parseString(''))
+    # cur_instruction = pipeline.OpCode.NOOP
+    # print(NOOP_syntax.parseString(''))
+    # endregion NOOP test
+    # endregion NOOP parsing
+
     instruction_syntax = \
         mnemonic_syntax + \
         (
@@ -283,11 +304,16 @@ def parse_line(line: str) -> pp.ParseResults:
 
     # region instruction test
     # print('Instruction test')
+    #
     # print(instruction_syntax.parseString('CMP r1, r2'))
     # print(instruction_syntax.parseString('CMP r1, 0xbeef'))
     # print(instruction_syntax.parseString('MOV r1, r2'))
     # print(instruction_syntax.parseString('MOV r1, 0xbeef'))
     # print(instruction_syntax.parseString('NOT r1, r2'))
+    # print(instruction_syntax.parseString('LDR r1, [r2]'))
+    # print(instruction_syntax.parseString('STR r3, #4'))
+    # print(instruction_syntax.parseString('END'))
+    # print(instruction_syntax.parseString('NOOP'))
     # endregion instruction test
 
     # endregion instruction parsing

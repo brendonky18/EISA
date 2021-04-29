@@ -66,7 +66,6 @@ class pipeline_stress_test(unittest.TestCase):
 
         # Done
 
-
     def test_load(self):
         # Run the assembler with the dedicated files
         command = 'assembler.py ../asrc/test_load.asm -o ../asrc/test_load.out'
@@ -225,6 +224,56 @@ class pipeline_stress_test(unittest.TestCase):
 
         # Done
 
+    def test_branching_and_link(self):
+        # this test uses order of operations
+        # if branch + link works, it should do R0 = ((10 * 2) + 5) * 2 = 50
+        # if it just does branching it should do R0 = (10 * 2) = 10
+        # if it does not branch it should do R0 = (10 + 5) * 2 = 30
+
+        assembled_lines = verify_assembly('../asrc/test_branch_link', self)
+
+        # write the program to RAM
+        for i in range(len(assembled_lines)):
+            self.memory._RAM[i] = int(assembled_lines[i], 2)
+
+        # run the program
+        cycle_counter = 0
+        while self.pipeline._pipeline[4].opcode != OpCode.END and cycle_counter <= self.max_instructions:
+            self.pipeline.cycle_pipeline()
+            cycle_counter += 1
+
+        self.assertEqual(50, self.memory._RAM[6])
+
+def verify_assembly(path: str, test: unittest.TestCase) -> List[int]:
+    src_path = path + '.asm'
+    dest_path = path + '.out'
+    expected_path = path + '.expected'
+
+    command = f'assembler.py {src_path} -o {dest_path}'
+    os.system(command)
+
+    # Check whether the output file exists and open it
+    assembled_file = open(dest_path)
+
+    # Open the verification file that the output should match
+    verification_file = open(expected_path)
+
+    # Read in the lines for both files and strip the whitespace
+    assembled_lines = [i.strip() for i in assembled_file.readlines()]
+    verified_lines = [i.strip() for i in verification_file.readlines()]
+
+    # Close filepointers
+    assembled_file.close()
+    verification_file.close()
+
+    # Verify that they both have the same number of lines
+    test.assertEqual(len(assembled_lines), len(verified_lines))
+
+    # Compare each line, as the assembled lines should match the verified lines exactly
+    for i in range(len(assembled_lines)):
+        test.assertEqual(verified_lines[i], assembled_lines[i])
+
+    return assembled_lines
 
 if __name__ == '__main__':
     unittest.main()

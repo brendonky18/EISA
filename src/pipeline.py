@@ -870,7 +870,7 @@ class B_Instruction(Instruction):
         raise NotImplementedError
 
     @classmethod
-    def create_instruction(cls, mnemonic: str, on_branch: Callable[[], None] = lambda: None):
+    def create_instruction(cls, mnemonic: str, on_branch: Callable[[PipeLine], None] = lambda: None):
         """creates a new branch instruction type
 
         Parameters
@@ -878,7 +878,7 @@ class B_Instruction(Instruction):
         mnemonic : str
             the mnemonic corresponding to the opcode
         on_branch : Callable[[], None]
-            callback determining what happens when a branch occurs, 
+            callback determining what happens when a branch occurs,
             i.e. whether the link register should be updated
         """
         return type(f'{mnemonic}_Instruction', (cls,), {
@@ -913,7 +913,7 @@ class B_Instruction(Instruction):
 
         if eval_branch[ConditionCode(self['cond'])]():
             # perform the other behavior (ie. update the link register)
-            type(self)._on_branch()
+            type(self)._on_branch(self._pipeline)
 
             # calculate the target address for the new program counter
             if self['imm']:  # immediate value used, PC relative
@@ -924,6 +924,12 @@ class B_Instruction(Instruction):
 
             # squash the pipeline
             self._pipeline.squash(target_address)
+
+def BL_func(pipeline: PipeLine):
+    """function to save the PC location to the link register
+    for the BL instruction
+    """
+    pipeline.lr = pipeline.pc + 1
 
 class MEM_Instruction(Instruction):
     # LDR, STR
@@ -1039,11 +1045,14 @@ class PUSH_Instruction(STR_Instruction):
         self._pipeline._registers[self['src']] = 0
         self._pipeline.sp -= 1
 
+class NOOP_Instruction(Instruction):
+    pass
+
 """dictionary mapping the opcode number to an instruction type
 this is where each of the instruction types and their behaviors are defined
 """
 Instructions: List[Type[Instruction]] = [
-    Instruction.create_instruction('NOOP'),
+    NOOP_Instruction.create_instruction('NOOP'),
     ALU_Instruction.create_instruction('ADD', lambda op1, op2: op1 + op2),
     ALU_Instruction.create_instruction('SUB', lambda op1, op2: op1 - op2),
     CMP_Instruction.create_instruction('CMP', lambda op1, op2: op1 - op2),
@@ -1058,9 +1067,9 @@ Instructions: List[Type[Instruction]] = [
     ALU_Instruction.create_instruction('ORR', lambda op1, op2: op1 | op2),
     LDR_Instruction.create_instruction('LDR'),
     STR_Instruction.create_instruction('STR'),
-    PUSH_Instruction.create_instruction('PUSH'),# TODO implement the rest of the instructions, implemented as NOOPs currently
+    PUSH_Instruction.create_instruction('PUSH'),
     POP_Instruction.create_instruction('POP'),
-    Instruction.create_instruction('MOVAK'),
+    Instruction.create_instruction('MOVAK'),  # TODO implement the rest of the instructions, implemented as NOOPs currently
     Instruction.create_instruction('LDRAK'),
     Instruction.create_instruction('STRAK'),
     Instruction.create_instruction('PUSAK'),
@@ -1074,6 +1083,6 @@ Instructions: List[Type[Instruction]] = [
     Instruction.create_instruction('AESGE'),
     Instruction.create_instruction('AESDE'),
     B_Instruction.create_instruction('B'),
-    B_Instruction.create_instruction('BL'),  # TODO implement
-    Instruction.create_instruction('END')
+    B_Instruction.create_instruction('BL', BL_func),  # TODO implement
+    NOOP_Instruction.create_instruction('END')
 ]
