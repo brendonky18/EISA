@@ -320,7 +320,7 @@ class Dialog(QMainWindow):
         self.load_stages()
         self.update_memory()
         self.pc_counter.setText(f"PC: {self._pipeline._pc}")
-        self.SP.setText(f"Stack Pointer: {str(self._pipeline.SP)}")
+        self.SP.setText(f"Stack Pointer: {str(self._pipeline.sp)}")
         self.cycle_counter.setText(f"Cycles: {self._pipeline._cycles}")
         self.flags.setText(f"Flags: {str(self._pipeline.condition_flags)}")
 
@@ -404,7 +404,7 @@ class Dialog(QMainWindow):
         counters_layout = QHBoxLayout()
 
         self.pc_counter = QLabel(f"PC: {self._pipeline._pc}")
-        self.SP = QLabel(f"Stack Pointer: {self._pipeline.SP}")
+        self.SP = QLabel(f"Stack Pointer: {self._pipeline.sp}")
         self.flags = QLabel(f"Flags: {str(self._pipeline.condition_flags)}")
         self.cycle_counter = QLabel(f"Cycle: {self._pipeline._cycles}")
 

@@ -51,7 +51,7 @@ class pipeline_stress_test(unittest.TestCase):
         #   If no END instruction is encounter within 20k cycles,
         #   report a failure.
         cycle_counter = 0
-        while self.pipeline._pipeline[4].opcode != 32 and cycle_counter <= self.max_instructions:
+        while self.pipeline._pipeline[4].opcode != OpCode.END and cycle_counter <= self.max_instructions:
             self.pipeline.cycle_pipeline()
             cycle_counter += 1
 
@@ -106,7 +106,7 @@ class pipeline_stress_test(unittest.TestCase):
         #   If no END instruction is encounter within 20k cycles,
         #   report a failure.
         cycle_counter = 0
-        while self.pipeline._pipeline[4].opcode != 32 and cycle_counter <= self.max_instructions:
+        while self.pipeline._pipeline[4].opcode != OpCode.END and cycle_counter <= self.max_instructions:
             self.pipeline.cycle_pipeline()
             cycle_counter += 1
 
@@ -158,7 +158,7 @@ class pipeline_stress_test(unittest.TestCase):
         #   If no END instruction is encounter within 20k cycles,
         #   report a failure.
         cycle_counter = 0
-        while self.pipeline._pipeline[4].opcode != 32 and cycle_counter <= self.max_instructions:
+        while self.pipeline._pipeline[4].opcode != OpCode.END and cycle_counter <= self.max_instructions:
             self.pipeline.cycle_pipeline()
             cycle_counter += 1
 
@@ -208,7 +208,7 @@ class pipeline_stress_test(unittest.TestCase):
         #   If no END instruction is encounter within 20k cycles,
         #   report a failure.
         cycle_counter = 0
-        while self.pipeline._pipeline[4].opcode != 32 and cycle_counter <= self.max_instructions:
+        while self.pipeline._pipeline[4].opcode != OpCode.END and cycle_counter <= self.max_instructions:
             self.pipeline.cycle_pipeline()
             cycle_counter += 1
             if self.pipeline.cycle_pipeline()._pc == 10:

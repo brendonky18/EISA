@@ -78,7 +78,7 @@ class PipeLine(object):
     # Hash registers
     # TODO
 
-'''
+    '''
     # special registers
     # program counter
     _pc: int  # TODO refactor '_pc' to 'pc' to make it a public variable
@@ -88,7 +88,7 @@ class PipeLine(object):
     SP: int
     # ALU register
     AR: int  # TODO implement the ALU register with dependencies, rather than using the 'computed' field in 'Instruction'
-'''
+    '''
 
     yes_pipe: bool
 
@@ -117,8 +117,8 @@ class PipeLine(object):
         self._active_registers = [False for i in range(len(registers))]
 
         self._pc = pc
-        self.LR = 0
-        self.SP = 255
+        self.lr = 0
+        self.sp = 255
 
         self._memory = memory
 
@@ -918,7 +918,7 @@ class B_Instruction(Instruction):
             # calculate the target address for the new program counter
             target_address = 0b0
             if self['imm']:  # immediate value used, PC relative
-                target_address = self['offset'] + self._pipeline._pc
+                target_address = self['offset']  # + self._pipeline._pc
             else:  # no immediate, register indirect used
                 base_reg = self['base']
                 target_address = self['offset'] + self._pipeline.get_dependency(base_reg)
@@ -993,7 +993,7 @@ class POP_Instruction(LDR_Instruction):
 
     def __init__(self):
         super(POP_Instruction, self).__init__()
-        if self._pipeline.SP - 1 < 0:
+        if self._pipeline.sp - 1 < 0:
             raise ValueError(f"Pop instruction created that pops from invalid address: {self['base']}")
 
 
@@ -1003,7 +1003,7 @@ class POP_Instruction(LDR_Instruction):
         """
         # uses register direct + offset
         # calculate the address
-        src_addr = self._pipeline.SP + 1
+        src_addr = self._pipeline.sp + 1
 
         # read from that address
         self.computed = self._pipeline._memory[src_addr]
@@ -1013,8 +1013,8 @@ class POP_Instruction(LDR_Instruction):
         """writes the value we got from memory into the specified register
         """
         self._pipeline._registers[self['dest']] = self.computed
-        if self._pipeline.SP < 255:
-            self._pipeline.SP += 1
+        if self._pipeline.sp < 255:
+            self._pipeline.sp += 1
 
 class PUSH_Instruction(STR_Instruction):
 
@@ -1026,7 +1026,7 @@ class PUSH_Instruction(STR_Instruction):
         """
 
         # calculate the address
-        dest_addr = self._pipeline.SP
+        dest_addr = self._pipeline.sp
 
         # get the value to write
         src_val = self._pipeline._registers[self['src']]
@@ -1038,7 +1038,7 @@ class PUSH_Instruction(STR_Instruction):
         """writes the value we got from memory into the specified register
         """
         self._pipeline._registers[self['src']] = 0
-        self._pipeline.SP -= 1
+        self._pipeline.sp -= 1
 
 """dictionary mapping the opcode number to an instruction type
 this is where each of the instruction types and their behaviors are defined

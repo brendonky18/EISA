@@ -57,10 +57,10 @@ class EISA_properties(object):
     def CACHE_WRITE_SPEED(self) -> int: return 1
 
     @const
-    def RAM_READ_SPEED(self) -> int: return 1000
+    def RAM_READ_SPEED(self) -> int: return 2
 
     @const
-    def RAM_WRITE_SPEED(self) -> int: return 1000
+    def RAM_WRITE_SPEED(self) -> int: return 2
 
 # wrappers
     @const
