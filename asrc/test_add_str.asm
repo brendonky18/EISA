@@ -1,0 +1,6 @@
+ADD R1, R1, #20
+ADD R2, R2, #30
+ADD R3, R1, R2
+STR R3, #45
+END
+
