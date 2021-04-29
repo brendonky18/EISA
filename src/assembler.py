@@ -9,7 +9,7 @@ import pipeline
 class AssemblerError(RuntimeError):
     def __init__(self, symbol):
         super().__init__()
-        self.message = f'Unexpected symbol \'{symbol}\' was encountered'
+        self.message = f"Unexpected symbol \'{symbol}\' was encountered"
 
     def __str__(self):
         return self.message
@@ -70,7 +70,7 @@ def parse_line(line: str) -> pp.ParseResults:
     register_num = pp.oneOf(' '.join([str(i) for i in range(32)])) # 0-31, automatically converts to int
     spec_regs = pp.oneOf([sr.name for sr in pipeline.SpecialRegister]) # the special registers: ZR, LR, SP, PC
     register_tokens = \
-        pp.Combine(pp.Suppress('r') + register_num).setParseAction(lambda num_str: int(num_str[0])) | \
+        pp.Combine(pp.Suppress('R') + register_num).setParseAction(lambda num_str: int(num_str[0])) | \
         spec_regs.setParseAction(lambda reg_str: pipeline.SpecialRegister[reg_str[0]])
 
     # region ALU parsing

@@ -1,4 +1,4 @@
-ADD R1, R1, #20
-STR R1, #45
-LOAD R2, #45
+ADD R1, R1, 0x14
+STR R1, 0x2d
+LOAD R2, 0x2d
 END
