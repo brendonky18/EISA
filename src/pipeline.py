@@ -916,7 +916,6 @@ class B_Instruction(Instruction):
             type(self)._on_branch()
 
             # calculate the target address for the new program counter
-            target_address = 0b0
             if self['imm']:  # immediate value used, PC relative
                 target_address = self['offset']  # + self._pipeline._pc
             else:  # no immediate, register indirect used

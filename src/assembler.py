@@ -6,6 +6,7 @@ import os
 from typing import List
 import pipeline
 
+
 class AssemblerError(RuntimeError):
     def __init__(self, symbol):
         super().__init__()
@@ -14,17 +15,20 @@ class AssemblerError(RuntimeError):
     def __str__(self):
         return self.message
 
+
 MOV_dest = -1
+cur_instruction = pipeline.OpCode.NOOP
+
+
 def parse_line(line: str) -> pp.ParseResults:
     # region mnemonic parsing
     conditional_instructions = [pipeline.OpCode.B.name, pipeline.OpCode.BL.name]
     alias_instructions = [pipeline.OpCode.MOV.name, pipeline.OpCode.NOT.name]
     mnemonic_tokens = \
-        pp.oneOf([op for op in pipeline.OpCode.__members__ if op not in conditional_instructions and op not in alias_instructions]) ^ \
+        pp.oneOf([op for op in pipeline.OpCode.__members__ if
+                  op not in conditional_instructions and op not in alias_instructions]) ^ \
         pp.oneOf(alias_instructions)
-    conditional_mnemonic_tokens = pp.oneOf(conditional_instructions) # B and BL
-
-    cur_instruction = pipeline.OpCode.NOOP
+    conditional_mnemonic_tokens = pp.oneOf(conditional_instructions)  # B and BL
 
     def get_instruction(cond_token):
         global cur_instruction
@@ -36,18 +40,17 @@ def parse_line(line: str) -> pp.ParseResults:
 
     whitespace = pp.White()
 
-    condition_tokens = pp.Optional(~whitespace + pp.oneOf([cond.name for cond in pipeline.ConditionCode]), default='AL') # GT, LT, EQ, etc.
+    condition_tokens = pp.Optional(~whitespace + pp.oneOf([cond.name for cond in pipeline.ConditionCode]),
+                                   default='AL')  # GT, LT, EQ, etc.
     condition_tokens.setParseAction(lambda cond_token: pipeline.ConditionCode[cond_token[0]])
 
     conditional_opcode_syntax = \
         conditional_mnemonic_tokens('opcode') + \
-        condition_tokens('cond') # BEQ, BLGT etc.
-        
-    
+        condition_tokens('cond')  # BEQ, BLGT etc.
+
     label_sytax = ~whitespace + pp.Word(pp.alphas) + ':'
     mnemonic_syntax = (mnemonic_tokens('opcode') ^ conditional_opcode_syntax)
 
-    
     # region mnemonic testing
     # print(mnemonic_syntax.parseString('ADD'))
     # print(mnemonic_syntax.parseString('MOV'))
@@ -61,16 +64,16 @@ def parse_line(line: str) -> pp.ParseResults:
     # print(mnemonic_syntax.parseString('BLEQ'))
     # endregion mnemonic testing
 
-
-    #endregion mnemonic parsing
+    # endregion mnemonic parsing
 
     # region instruction parsing
-    comma = pp.Suppress(',') # ignore commas in the final output
+    comma = pp.Suppress(',')  # ignore commas in the final output
 
-    register_num = pp.oneOf(' '.join([str(i) for i in range(32)])) # 0-31, automatically converts to int
-    spec_regs = pp.oneOf([sr.name for sr in pipeline.SpecialRegister]) # the special registers: ZR, LR, SP, PC
+    register_num = pp.oneOf(' '.join([str(i) for i in range(32)]))  # 0-31, automatically converts to int
+    spec_regs = pp.oneOf([sr.name for sr in pipeline.SpecialRegister])  # the special registers: ZR, LR, SP, PC
     register_tokens = \
-        pp.Combine(pp.Suppress('R') + register_num).setParseAction(lambda num_str: int(num_str[0])) | \
+        pp.Combine(pp.Suppress(pp.CaselessLiteral('R')) + register_num).setParseAction(
+            lambda num_str: int(num_str[0])) | \
         spec_regs.setParseAction(lambda reg_str: pipeline.SpecialRegister[reg_str[0]])
 
     # region ALU parsing
@@ -86,8 +89,8 @@ def parse_line(line: str) -> pp.ParseResults:
         pp.Combine('0x' + hex_nums) | \
         pp.Combine(dec_nums)
 
-    literal_syntax.setParseAction(lambda num_str: int(num_str[0], 0)) # will autimatically convert to a number
-    
+    literal_syntax.setParseAction(lambda num_str: int(num_str[0], 0))  # will autimatically convert to a number
+
     # checks if there is an operand, or a literal
     is_op = pp.FollowedBy(register_tokens).setParseAction(lambda x: False)
     is_lit = pp.FollowedBy(literal_syntax).setParseAction(lambda x: True)
@@ -102,8 +105,8 @@ def parse_line(line: str) -> pp.ParseResults:
     operand_2 = \
         lit_or_op('lit') + \
         (
-            register_tokens('op2') | 
-            literal_syntax('literal')
+                register_tokens('op2') |
+                literal_syntax('literal')
         )
 
     # region op 2 test
@@ -117,7 +120,7 @@ def parse_line(line: str) -> pp.ParseResults:
         register_tokens('dest') + \
         comma + register_tokens('op1') + \
         comma + operand_2
-        
+
     # region ALU test
     # print('ALU test')
     # print(ALU_syntax.parseString('r0, r1, r2'))
@@ -134,10 +137,11 @@ def parse_line(line: str) -> pp.ParseResults:
     # region MOV parsing
     # MOV [dest] [op2]
     # op1 is implicitly assumed to be dest
-    
+
     MOV_syntax = \
         register_tokens('dest') + \
-        (whitespace[...] + pp.FollowedBy(comma + operand_2)).setParseAction(lambda: pipeline.SpecialRegister.zr).setResultsName('op1') + \
+        (whitespace[...] + pp.FollowedBy(comma + operand_2)).setParseAction(
+            lambda: pipeline.SpecialRegister.zr).setResultsName('op1') + \
         comma + operand_2
 
     # region MOV test
@@ -165,7 +169,7 @@ def parse_line(line: str) -> pp.ParseResults:
         register_tokens('dest') + \
         comma + register_tokens('op1') + \
         pp.FollowedBy(whitespace[...]).setResultsName('lit').setParseAction(lambda: False) + \
-        pp.FollowedBy(~operand_2).setResultsName('literal').setParseAction(lambda: -1 & 2**32 - 1)
+        pp.FollowedBy(~operand_2).setResultsName('literal').setParseAction(lambda: -1 & 2 ** 32 - 1)
 
     # region NOT test
     # print('NOT test')
@@ -174,12 +178,12 @@ def parse_line(line: str) -> pp.ParseResults:
     # endregion NOT parsing
 
     # region CMP parsing
-    CMP_syntax =  \
+    CMP_syntax = \
         register_tokens('op1') + \
         comma + lit_or_op('lit') + \
         (
-            register_tokens('op2') ^ 
-            literal_syntax('literal')
+                register_tokens('op2') ^
+                literal_syntax('literal')
         )
 
     # region CMP test
@@ -201,11 +205,11 @@ def parse_line(line: str) -> pp.ParseResults:
     # syntax for a register memory access (as opposed to an immediate)
     reg_mem_access_syntax = \
         pp.Suppress('[') + \
-            register_tokens.setResultsName('base') + \
-            (
-                (comma + immediate_syntax) | 
+        register_tokens.setResultsName('base') + \
+        (
+                (comma + immediate_syntax) |
                 (~(comma + immediate_syntax)).setParseAction(lambda x: 0)
-            ).setParseAction(lambda tok: tok[0]).setResultsName('offset') + \
+        ).setParseAction(lambda tok: tok[0]).setResultsName('offset') + \
         pp.Suppress(']')
 
     # checks if there is an immediate or a register
@@ -217,8 +221,8 @@ def parse_line(line: str) -> pp.ParseResults:
     mem_access_syntax = \
         imm_or_reg.setResultsName('imm') + \
         (
-            immediate_syntax.setResultsName('immediate') | 
-            reg_mem_access_syntax
+                immediate_syntax.setResultsName('immediate') | \
+                reg_mem_access_syntax
         )
 
     # region MEM test
@@ -233,33 +237,48 @@ def parse_line(line: str) -> pp.ParseResults:
     # region LDR parsing
     LDR_syntax = \
         register_tokens.setResultsName('dest') + \
-        mem_access_syntax
+        comma + mem_access_syntax
+    LDR_syntax.addCondition(lambda: cur_instruction == pipeline.OpCode.LDR)
+    # region LDR test
+    cur_instruction = pipeline.OpCode.LDR
+    # print('LDR test')
+    # print(LDR_syntax.parseString('R0, #2'))
+    # endregion LDR test
+
     # endregion LDR parsing
 
     # region STR parsing
     STR_syntax = \
         register_tokens.setResultsName('src') + \
-        mem_access_syntax
+        comma + mem_access_syntax
+    STR_syntax.addCondition(lambda: cur_instruction == pipeline.OpCode.STR)
     # endregion STR parsing
-    
+
     MEM_syntax = \
-        (LDR_syntax | STR_syntax) + \
-        mem_access_syntax
+        (LDR_syntax ^ STR_syntax)
+
+    # region MEM test
+    # print('MEM test')
+    cur_instruction = pipeline.OpCode.STR
+    # print(MEM_syntax.parseString('r0, #6'))
+    # endregion MEM test
     # endregion MEM parsing
 
     # region B parsing
-    B_syntax = mem_access_syntax # the condition codes are handled by instruction_syntax
+    B_syntax = mem_access_syntax  # the condition codes are handled by instruction_syntax
+
     # endregion B parsing
 
     instruction_syntax = \
         mnemonic_syntax + \
         (
-            CMP_syntax |            # CMP
-            MOV_syntax |            # MOV
-            NOT_syntax |            # NOT
-            ALU_syntax |            # ALU
-            MEM_syntax |            # Memory (LDR/STR)
-            B_syntax                # B/BL
+                CMP_syntax ^  # CMP
+                MOV_syntax ^  # MOV
+                NOT_syntax ^  # NOT
+                ALU_syntax ^  # ALU
+                MEM_syntax ^  # Memory (LDR/STR)
+                B_syntax ^  # B/BL
+                NOOP_syntax
         )
 
     # region instruction test
@@ -274,6 +293,7 @@ def parse_line(line: str) -> pp.ParseResults:
     # endregion instruction parsing
 
     return instruction_syntax.parseString(line)
+
 
 if __name__ == '__main__':
     # print(parse_line('B [r0]'))
@@ -328,7 +348,7 @@ if __name__ == '__main__':
 
     dest = args.destination
     if dest is not None:
-        sys.stdout = open(dest, 'w+')             
+        sys.stdout = open(dest, 'w+')
 
     with open(args.source, 'r') as in_file:
         for line in in_file:
@@ -339,9 +359,10 @@ if __name__ == '__main__':
             cur_encoding = pipeline.Instructions[parsed['opcode']].encoding
 
             # pass the results to the encoding
-            result = cur_encoding(val=dict(parsed))
+            parsed_dict = dict(parsed)
+            result = cur_encoding(val=parsed_dict)
 
-            print(f'{result._bits:032b}')
+            # print(f'{result._bits:032b}')
 
     # reset stdout back to the terminal
     sys.stdout = os.fdopen(1, 'w', 1)

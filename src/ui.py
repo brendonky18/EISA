@@ -572,7 +572,6 @@ class Dialog(QMainWindow):
         self.reset_cache_button.clicked.connect(self.reset_cache)
         self.reset_cache_button.setAutoDefault(False)
         cache_button_layout.addWidget(self.reset_cache_button, 1, 5, alignment=Qt.Alignment.AlignRight)
-        cache_button_layout.addWidget(self.reset_regs_button, 1, 2)
 
         final_cache_layout = self.memory_group.cache_box.layout()
         final_cache_layout.addLayout(cache_button_layout)
