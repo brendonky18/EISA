@@ -78,8 +78,19 @@ class PipeLine(object):
     # Hash registers
     # TODO
 
+'''
+    # special registers
+    # program counter
+    _pc: int  # TODO refactor '_pc' to 'pc' to make it a public variable
+    # link register
+    LR: int
+    # Stack pointer
+    SP: int
     # ALU register
     AR: int  # TODO implement the ALU register with dependencies, rather than using the 'computed' field in 'Instruction'
+'''
+
+    yes_pipe: bool
 
     # Has to be size 2
     _fd_reg: list[Instruction]  # Fetch/Decode reg
@@ -105,9 +116,9 @@ class PipeLine(object):
         self._registers = registers
         self._active_registers = [False for i in range(len(registers))]
 
-        self._registers[SpecialRegister.pc] = pc
-        self._registers[SpecialRegister.lr] = 0
-        self._registers[SpecialRegister.sp] = 255
+        self._pc = pc
+        self.LR = 0
+        self.SP = 255
 
         self._memory = memory
 
@@ -134,6 +145,7 @@ class PipeLine(object):
             'c': False,
             'v': False
         }
+        self.yes_pipe = True
 
     # region dependencies
     def check_active_dependency(self, reg_addr: Union[int, List[int]]) -> bool:
@@ -234,12 +246,21 @@ class PipeLine(object):
         self._pipeline[1] = Instruction(self)
         self._fd_reg = [Instruction(self), Instruction(self)]
         self._de_reg = [Instruction(self), Instruction(self)]
-        self._pc = newPC - 1  # NOTE - Max added -1 here because fetch increments the PC at the end of the cycle, so
+        self._pc = newPC #- 1  # NOTE - Max added -1 here because fetch increments the PC at the end of the cycle, so
                               #   so the -1 prevents ending up 1 word past where we're supposed to branch to
+
+        self._fetch_isWaiting = False  # TODO - Max added this as a fix for the extra cycles in branch. Needs more
+        # testing to verify correctness
 
         active_regs = [i for i in range(len(self._active_registers)) if self._active_registers[i]]
 
         self.free_dependency(active_regs)
+
+    def check_empty_pipeline(self):
+        for i in self._pipeline:
+            if i.opcode != 0:
+                return False
+        return True
 
     def stage_fetch(self) -> None:
         """function to run the fetch stage
@@ -247,13 +268,20 @@ class PipeLine(object):
 
         instruction = Instruction(self)
 
+        # Send NOOP forward from fetch if the pipeline is disabled and the pipeline is not empty
+        if ((not self.yes_pipe) and (not self.check_empty_pipeline())) or (self._pipeline[2].opcode == 30): # TODO - figure out a way to check whether a branch was taken or not to reduce how much this happens.
+            self._pipeline[0] = instruction
+            self._fd_reg[0] = instruction
+            return
+
+
         if self._fetch_isWaiting:
             instruction = self._pipeline[0]
 
         # Load instruction in MEMORY at the address the PC is pointing to
         if not self._is_finished and not self._fetch_isWaiting:
             try:
-                instruction = Instruction(self, encoded=self._memory[self._pc])
+                instruction = Instruction(self, encoded=self._memory[self._pc % EISA.RAM_ADDR_SPACE])
             except PipelineStall:
                 # instruction = Instruction() # send noop forward on a pipeline stall
                 self._stalled_fetch = True
@@ -338,12 +366,19 @@ class PipeLine(object):
         except PipelineStall:
             if not self._stalled_memory:
                 self._start_stall = True
+
+            #if not self._fetch_isWaiting:
+            #    self._fetch_isWaiting = True
+
             # instruction = Instruction() # send a NOOP forward
             self._mw_reg[0] = Instruction(self)
         else:
             self._mw_reg[0] = instruction
             if self._stalled_memory:
                 self._stall_finished = True
+
+            #if self._fetch_isWaiting:
+            #    self._fetch_isWaiting = False
 
         # Push instruction into the adjacent queue
         # self._mw_reg[0] = instruction
@@ -506,7 +541,6 @@ class OpCode(enum.IntEnum):
 
     def __contains__(self, item):
         return item in self._member_names_
-    
 # endregion Instruction Types
 
 @enum.unique
@@ -553,7 +587,7 @@ class Instruction:
     _pipeline: PipeLine
     # endregion instance vars
 
-    def __init__(self, pipeline: PipeLine, encoded: Optional[int] = None):
+    def __init__(self, pipeline: PipeLine, encoded: Optional[int] = None, fields: Optional[Dict[str, int]] = None):
         """creates a new instance of an instruction
 
         Parameters
@@ -725,7 +759,7 @@ class Instruction:
             reference to the pipeline that the instruction is from
         """
         pass
-     
+
     # region class vars
     mnemonic: str = ''
 
@@ -736,6 +770,7 @@ class Instruction:
     @classmethod
     def create_instruction(cls, mnemonic: str):
         return type(f'{mnemonic}_Instruction', (cls,), {'mnemonic': mnemonic})
+
 
     @classmethod
     def fields(cls) -> List[str]:
@@ -750,7 +785,7 @@ class ALU_Instruction(Instruction):
         .add_field('op1', 16, 5) \
         .add_field('dest', 21, 5)
 
-    @staticmethod 
+    @staticmethod
     def _ALU_func(x: int, y: int) -> int:
         raise NotImplementedError
 
@@ -798,7 +833,7 @@ class CMP_Instruction(ALU_Instruction):
     def execute_stage_func(self) -> None:
         """performs the specified ALU operation, and uses the result to set the pipeline's condition flags
         """
-        res = type(self)._CMP_func(self['op1'], self['op2'])
+        res = type(self)._CMP_func(self._pipeline._registers[self['op1']], self._pipeline._registers[self['op2']])
 
         self._pipeline.condition_flags['n'] = bool(res & (0b1 << (EISA.WORD_SIZE - 1)))  # gets the sign bit (bit 31)
         self._pipeline.condition_flags['z'] = res == 0
@@ -828,7 +863,7 @@ class B_Instruction(Instruction):
         .add_field('offset', 0, 10, overlap=True) \
         .add_field('base', 10, 5, overlap=True) \
         .add_field('imm', 15, 1) \
-        .add_field('cond', 22, 4) 
+        .add_field('cond', 22, 4)
 
     @staticmethod
     def _on_branch():
@@ -859,31 +894,31 @@ class B_Instruction(Instruction):
         # defines all the different ways of evaluating the different condition codes
         # too bad python doesn't have switch statements
         eval_branch: Dict[ConditionCode, Callable[[], bool]] = {
-            ConditionCode.EQ: lambda: self._pipeline.condition_flags['Z'] == 1,
-            ConditionCode.NE: lambda: self._pipeline.condition_flags['Z'] == 0,
-            ConditionCode.CS: lambda: self._pipeline.condition_flags['C'] == 1,
-            ConditionCode.CC: lambda: self._pipeline.condition_flags['C'] == 0,
-            ConditionCode.MI: lambda: self._pipeline.condition_flags['N'] == 1,
-            ConditionCode.PL: lambda: self._pipeline.condition_flags['N'] == 0,
-            ConditionCode.VS: lambda: self._pipeline.condition_flags['V'] == 1,
-            ConditionCode.VC: lambda: self._pipeline.condition_flags['V'] == 0,
-            ConditionCode.HI: lambda: self._pipeline.condition_flags['C'] == 1 and self._pipeline.condition_flags['Z'] == 0,
-            ConditionCode.LS: lambda: self._pipeline.condition_flags['C'] == 0 or  self._pipeline.condition_flags['Z'] == 1,
-            ConditionCode.GE: lambda: self._pipeline.condition_flags['N'] == self._pipeline.condition_flags['V'],
-            ConditionCode.LT: lambda: self._pipeline.condition_flags['N'] != self._pipeline.condition_flags['V'],
-            ConditionCode.GT: lambda: self._pipeline.condition_flags['Z'] == 0 and self._pipeline.condition_flags['N'] == self._pipeline.condition_flags['V'],
-            ConditionCode.LE: lambda: self._pipeline.condition_flags['Z'] == 1 or  self._pipeline.condition_flags['N'] != self._pipeline.condition_flags['V'],
+            ConditionCode.EQ: lambda: self._pipeline.condition_flags['z'] == 1,
+            ConditionCode.NE: lambda: self._pipeline.condition_flags['z'] == 0,
+            ConditionCode.CS: lambda: self._pipeline.condition_flags['c'] == 1,
+            ConditionCode.CC: lambda: self._pipeline.condition_flags['c'] == 0,
+            ConditionCode.MI: lambda: self._pipeline.condition_flags['n'] == 1,
+            ConditionCode.PL: lambda: self._pipeline.condition_flags['n'] == 0,
+            ConditionCode.VS: lambda: self._pipeline.condition_flags['v'] == 1,
+            ConditionCode.VC: lambda: self._pipeline.condition_flags['v'] == 0,
+            ConditionCode.HI: lambda: self._pipeline.condition_flags['c'] == 1 and self._pipeline.condition_flags['z'] == 0,
+            ConditionCode.LS: lambda: self._pipeline.condition_flags['c'] == 0 or self._pipeline.condition_flags['z'] == 1,
+            ConditionCode.GE: lambda: self._pipeline.condition_flags['n'] == self._pipeline.condition_flags['v'],
+            ConditionCode.LT: lambda: self._pipeline.condition_flags['n'] != self._pipeline.condition_flags['v'],
+            ConditionCode.GT: lambda: self._pipeline.condition_flags['z'] == 0 and self._pipeline.condition_flags['n'] == self._pipeline.condition_flags['v'],
+            ConditionCode.LE: lambda: self._pipeline.condition_flags['z'] == 1 or self._pipeline.condition_flags['n'] != self._pipeline.condition_flags['v'],
             ConditionCode.AL: lambda: True
         }
 
-        if eval_branch[ConditionCode(self['cond'])]:
+        if eval_branch[ConditionCode(self['cond'])]():
             # perform the other behavior (ie. update the link register)
             type(self)._on_branch()
 
             # calculate the target address for the new program counter
             target_address = 0b0
             if self['imm']:  # immediate value used, PC relative
-                target_address = self['offset'] + pipeline._pc
+                target_address = self['offset'] + self._pipeline._pc
             else:  # no immediate, register indirect used
                 base_reg = self['base']
                 target_address = self['offset'] + self._pipeline.get_dependency(base_reg)
@@ -912,7 +947,7 @@ class LDR_Instruction(MEM_Instruction):
     encoding.add_field('dest', 21, 5)
 
     def memory_stage_func(self) -> None:
-        """calculates the memory address from which a value should be loaded and 
+        """calculates the memory address from which a value should be loaded and
         gets that value from memory
         """
 
@@ -946,12 +981,64 @@ class STR_Instruction(MEM_Instruction):
             # calculate the address
             base_addr_reg = self['base']
             dest_addr = self._pipeline._memory[base_addr_reg] + self['offset']
-        
+
         # get the value to write
         src_val = self._pipeline._registers[self['src']]
 
         # write to that address
         self._pipeline._memory[dest_addr] = src_val
+
+class POP_Instruction(LDR_Instruction):
+    encoding = LDR_Instruction.encoding.create_subtype('POP_Encoding')
+
+    def __init__(self):
+        super(POP_Instruction, self).__init__()
+        if self._pipeline.SP - 1 < 0:
+            raise ValueError(f"Pop instruction created that pops from invalid address: {self['base']}")
+
+
+    def memory_stage_func(self) -> None:
+        """calulates the memory address to which a value should be stored and
+        loads that value into memory
+        """
+        # uses register direct + offset
+        # calculate the address
+        src_addr = self._pipeline.SP + 1
+
+        # read from that address
+        self.computed = self._pipeline._memory[src_addr]
+        self._pipeline._memory._RAM[src_addr] = 0
+
+    def writeback_stage_func(self) -> None:
+        """writes the value we got from memory into the specified register
+        """
+        self._pipeline._registers[self['dest']] = self.computed
+        if self._pipeline.SP < 255:
+            self._pipeline.SP += 1
+
+class PUSH_Instruction(STR_Instruction):
+
+    encoding = STR_Instruction.encoding.create_subtype('PUSH_Encoding')
+
+    def memory_stage_func(self) -> None:
+        """calulates the memory address to which a value should be stored and
+        loads that value into memory
+        """
+
+        # calculate the address
+        dest_addr = self._pipeline.SP
+
+        # get the value to write
+        src_val = self._pipeline._registers[self['src']]
+
+        # write to that address
+        self._pipeline._memory[dest_addr] = src_val
+
+    def writeback_stage_func(self) -> None:
+        """writes the value we got from memory into the specified register
+        """
+        self._pipeline._registers[self['src']] = 0
+        self._pipeline.SP -= 1
 
 """dictionary mapping the opcode number to an instruction type
 this is where each of the instruction types and their behaviors are defined
@@ -972,8 +1059,8 @@ Instructions: List[Type[Instruction]] = [
     ALU_Instruction.create_instruction('ORR', lambda op1, op2: op1 | op2),
     LDR_Instruction.create_instruction('LDR'),
     STR_Instruction.create_instruction('STR'),
-    Instruction.create_instruction('PUSH'),# TODO implement the rest of the instructions, implemented as NOOPs currently
-    Instruction.create_instruction('POP'),
+    PUSH_Instruction.create_instruction('PUSH'),# TODO implement the rest of the instructions, implemented as NOOPs currently
+    POP_Instruction.create_instruction('POP'),
     Instruction.create_instruction('MOVAK'),
     Instruction.create_instruction('LDRAK'),
     Instruction.create_instruction('STRAK'),

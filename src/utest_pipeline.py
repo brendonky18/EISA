@@ -315,6 +315,7 @@ class UnittestPipeline(unittest.TestCase):
 
         my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
 
+        #  Conditional looping + branching test. Cleared as of 4/24
         my_pipe._registers[2] = 24  # Counter
         my_pipe._registers[0] = 20  # Condition to beat
         my_pipe._registers[1] = 1  # Amount to increment counter by
@@ -341,9 +342,24 @@ class UnittestPipeline(unittest.TestCase):
         instruction3['op2'] = 1  # Register 1 as op1
         instruction3['imm'] = False
 
+        # Opcode: 011110 (CMP)
+        instructionC = OpCode_InstructionType_lookup[0b000011].encoding()
+        instructionC['opcode'] = 0b000011
+        instructionC['op1'] = 31  # Register 31 as op1
+        instructionC['op2'] = 0  # Register 0 as op2
+        instructionC['imm'] = False
+
+        #  Add flag fields to branch instructions
+
+        # .add_field('v', 22, 1)
+        # .add_field('c', 23, 1)
+        # .add_field('z', 24, 1)
+        # .add_field('n', 25, 1)
+
         # Opcode: 011110 (B)
         instructionB = OpCode_InstructionType_lookup[0b011110].encoding()
         instructionB['opcode'] = 0b011110
+
         instructionB.add_field('z', 24, 1)
         instructionB['z'] = 1
 
@@ -357,23 +373,29 @@ class UnittestPipeline(unittest.TestCase):
         instructionB['base'] = 3  # Register 3 has the address to branch back to
         instructionB['offset'] = 0
 
+        instructionBLOCK = OpCode_InstructionType_lookup[0b0].encoding()
+        instructionBLOCK['opcode'] = 0b0
+
         # cook END instruction to signal pipeline to end
         end = OpCode_InstructionType_lookup[0b100000].encoding()
         end['opcode'] = 0b100000
 
-        my_pipe._memory._RAM[0] = instruction1
-        my_pipe._memory._RAM[1] = instruction2
-        my_pipe._memory._RAM[2] = instruction3
-        my_pipe._memory._RAM[3] = instructionB
-        my_pipe._memory._RAM[5] = end
+        my_pipe._memory._RAM[0] = instruction1._bits
+        my_pipe._memory._RAM[1] = instruction2._bits
+        my_pipe._memory._RAM[2] = instruction3._bits
+        my_pipe._memory._RAM[3] = instructionC._bits
+        my_pipe._memory._RAM[4] = instructionB._bits
+        my_pipe._memory._RAM[5] = instructionBLOCK._bits
+        my_pipe._memory._RAM[6] = end._bits
 
         my_pipe._memory._RAM[24] = 5
         my_pipe._memory._RAM[25] = 5
         my_pipe._memory._RAM[26] = 5
         my_pipe._memory._RAM[27] = 5
         my_pipe._memory._RAM[28] = 5
+        my_pipe._memory._RAM[29] = 5
 
-        my_pipe.cycle(33)
+        my_pipe.cycle(77)
 
         self.assertEqual(25, my_pipe._registers[31])
 
@@ -388,6 +410,106 @@ class UnittestPipeline(unittest.TestCase):
         mem_sub = MemorySubsystem(EISA.ADDRESS_SIZE, 4, 1, 1, 8, 2, 2)
 
         my_pipe = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], mem_sub)
+
+    def test_push_pop_sequential(self):
+        mem_sub = MemorySubsystem(EISA.ADDRESS_SIZE, 4, 1, 1, 8, 2, 2)
+
+        my_pipe = PipeLine(0, [i for i in range(EISA.NUM_GP_REGS)], mem_sub)
+
+        # MOV - Copy R[29] into R[30]
+        instruction1 = Instruction[0b000001].encoding()
+        instruction1['opcode'] = 0b0000001
+        instruction1['dest'] = 30  # Register 30
+        instruction1['op1'] = 29  # Register 29
+        instruction1['op2'] = 0  # IMM 0
+        instruction1['imm'] = True
+
+        # SUB - Reset R[31] to 0
+        instruction2 = Instruction[0b000010].encoding()
+        instruction2['opcode'] = 0b0000010
+        instruction2['dest'] = 31  # Register 31
+        instruction2['op1'] = 31  # Register 31
+        instruction2['op2'] = 31  # IMM 31
+        instruction2['imm'] = True
+
+        # PUSH - Push R[0] to stack
+        instruction3 = Instruction[0b001111].encoding()
+        instruction3['opcode'] = 0b001111
+        instruction3['src'] = 0 # R[0]
+
+        # PUSH - Push R[1] to stack
+        instruction4 = Instruction[0b001111].encoding()
+        instruction4['opcode'] = 0b001111
+        instruction4['src'] = 1  # R[1]
+
+        # PUSH - Push R[2] to stack
+        instruction5 = Instruction[0b001111].encoding()
+        instruction5['opcode'] = 0b001111
+        instruction5['src'] = 2  # R[2]
+
+        # PUSH - Push R[3] to stack
+        instruction6 = Instruction[0b001111].encoding()
+        instruction6['opcode'] = 0b001111
+        instruction6['src'] = 3  # R[3]
+
+        # PUSH - Push R[4] to stack
+        instruction7 = Instruction[0b001111].encoding()
+        instruction7['opcode'] = 0b001111
+        instruction7['src'] = 4  # R[4]
+
+        # POP - Pop R[4] from stack into R[4]
+        instruction8 = Instruction[0b010000].encoding()
+        instruction8['opcode'] = 0b010000
+        instruction8['dest'] = 4  # R[4]
+
+        # POP - Pop R[3] from stack into R[3]
+        instruction9 = Instruction[0b010000].encoding()
+        instruction9['opcode'] = 0b010000
+        instruction9['dest'] = 3  # R[3]
+
+        # POP - Pop R[2] from stack into R[2]
+        instruction10 = Instruction[0b010000].encoding()
+        instruction10['opcode'] = 0b010000
+        instruction10['dest'] = 2  # R[2]
+
+        # POP - Pop R[1] from stack into R[1]
+        instruction11 = Instruction[0b010000].encoding()
+        instruction11['opcode'] = 0b010000
+        instruction11['dest'] = 1  # R[1]
+
+        # POP - Pop R[0] from stack into R[0]
+        instruction12 = Instruction[0b010000].encoding()
+        instruction12['opcode'] = 0b010000
+        instruction12['dest'] = 0  # R[0]
+
+        # END
+        instruction13 = Instruction[0b100000].encoding()
+
+        my_pipe._memory._RAM[0] = instruction1._bits
+        my_pipe._memory._RAM[1] = instruction2._bits
+        my_pipe._memory._RAM[2] = instruction3._bits
+        my_pipe._memory._RAM[3] = instruction4._bits
+        my_pipe._memory._RAM[4] = instruction5._bits
+        my_pipe._memory._RAM[5] = instruction6._bits
+        my_pipe._memory._RAM[6] = instruction7._bits
+        my_pipe._memory._RAM[7] = instruction8._bits
+        my_pipe._memory._RAM[8] = instruction9._bits
+        my_pipe._memory._RAM[9] = instruction10._bits
+        my_pipe._memory._RAM[10] = instruction11._bits
+        my_pipe._memory._RAM[11] = instruction12._bits
+        my_pipe._memory._RAM[12] = instruction13._bits
+
+
+
+        for i in range(5):
+            self.assertEqual(my_pipe._registers[i],i)
+
+        #for i in range(5):
+        #    self.assertEqual(my_pipe._registers[i], 0)
+
+
+
+
 
 
 if __name__ == '__main__':
