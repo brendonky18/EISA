@@ -866,7 +866,7 @@ class B_Instruction(Instruction):
         .add_field('cond', 22, 4)
 
     @staticmethod
-    def _on_branch():
+    def _on_branch(pipeline: PipeLine):
         raise NotImplementedError
 
     @classmethod
