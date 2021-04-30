@@ -870,7 +870,7 @@ class B_Instruction(Instruction):
         raise NotImplementedError
 
     @classmethod
-    def create_instruction(cls, mnemonic: str, on_branch: Callable[[PipeLine], None] = lambda: None):
+    def create_instruction(cls, mnemonic: str, on_branch: Callable[[PipeLine], None] = lambda x: None):
         """creates a new branch instruction type
 
         Parameters
