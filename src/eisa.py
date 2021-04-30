@@ -18,7 +18,7 @@ class EISA_properties(object):
     def WORD_SIZE(self) -> int: return 32  # the number of bits in each word
 
     @const
-    def ADDRESS_SIZE(self) -> int: return 8  # the number bits in the address space
+    def ADDRESS_SIZE(self) -> int: return 13  # the number bits in the address space NEEDS TO BE UPDATED WITH RAM_SIZE
 
     @const
     def OFFSET_SIZE(self) -> int: return 2  # the number of bits for the offset in a cache line
@@ -27,7 +27,7 @@ class EISA_properties(object):
     def CACHE_SIZE(self) -> int: return 4  # the number of addressable bits used by the cache
 
     @const
-    def RAM_SIZE(self) -> int: return 8  # the number of addressable bits used by RAM
+    def RAM_SIZE(self) -> int: return self.ADDRESS_SIZE  # the number of addressable bits used by RAM
 
     @const
     def NUM_GP_REGS(self) -> int: return 32 # number of 32-bit general purpose registers

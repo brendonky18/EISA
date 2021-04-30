@@ -274,10 +274,9 @@ class Dialog(QMainWindow):
         self.memory_group.regs_widget.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
         self.memory_group.cache_widget.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
 
+        # self.pipeline_group.setMaximumHeight(self.pipeline_group.height())
 
-        #self.pipeline_group.setMaximumHeight(self.pipeline_group.height())
-
-        self.already_max = False
+        # self.already_max = False
 
         # self.setMaximumHeight(700)#740)
         # self.memory_group.regs_box.maximumHeight() + self.memory_group.cache_box.maximumHeight() + self.pipeline_group.maximumHeight())
@@ -340,7 +339,6 @@ class Dialog(QMainWindow):
                                                                "Maximum number of cycles reached.")
                     break
             self._pipeline.cycle_pipeline()
-            self.update_ui()
         else:
             self._pipeline.cycle(cycles)
 
@@ -389,7 +387,7 @@ class Dialog(QMainWindow):
         self.exch_button = QPushButton("Load Exch. Sort")
         # self.exch_button.clicked.connect(self.load_exchange_demo)  # TODO - Implement Exchange Sort Benchmark/Demo
         self.matrix_button = QPushButton("Load Matrix Mult.")
-        # self.matrix_button.clicked.connect(self.load_matrix_demo)  # TODO - Implement Matrix Multiply Benchmark/Demo
+        self.matrix_button.clicked.connect(self.load_matrix_demo)  # TODO - Implement Matrix Multiply Benchmark/Demo
         self.cycle_button = QPushButton("Cycle")
         self.cycle_button.clicked.connect(self.cycle_ui)
 
@@ -413,7 +411,7 @@ class Dialog(QMainWindow):
         counters_layout.addWidget(self.cycle_counter, alignment=Qt.Alignment.AlignLeft)
         counters_layout.addWidget(self.flags, alignment=Qt.Alignment.AlignLeft)
         counters_group.setLayout(counters_layout)
-        #counters_group.setMaximumHeight(self.pc_counter.fontMetrics().height() + 20)
+        # counters_group.setMaximumHeight(self.pc_counter.fontMetrics().height() + 20)
 
         options_group = QGroupBox("Options")
         self.options_group = options_group
@@ -448,7 +446,6 @@ class Dialog(QMainWindow):
         options_layout.addWidget(self.run_to_completion_enabled_box)
         options_layout.addWidget(self.hex_button_box)
 
-
         options_group.setLayout(options_layout)
 
         pipeline_group = QGroupBox("Pipeline")
@@ -472,7 +469,7 @@ class Dialog(QMainWindow):
             pipeline_width += i.stage.width() + 20
 
         pipeline_group.setMaximumWidth(pipeline_group.width() + 40)
-        #pipeline_group.setMaximumHeight(pipeline_group.height())
+        # pipeline_group.setMaximumHeight(pipeline_group.height())
 
         self.dlgLayout.addLayout(self.pipeline_options_layout)
 
@@ -516,9 +513,9 @@ class Dialog(QMainWindow):
         cache_width = ((self.memory_group.cache_widget.columnWidth(
             0) * self.memory_group.cache_widget.columnCount()) + self.memory_group.cache_widget.verticalScrollBar().width())
 
-        #self.memory_group.ram_box.setMaximumWidth(ram_width)
-        #self.memory_group.regs_box.setMaximumWidth(regs_width)
-        #self.memory_group.cache_box.setMaximumWidth(cache_width)
+        # self.memory_group.ram_box.setMaximumWidth(ram_width)
+        # self.memory_group.regs_box.setMaximumWidth(regs_width)
+        # self.memory_group.cache_box.setMaximumWidth(cache_width)
 
         # Max tables height
 
@@ -534,12 +531,11 @@ class Dialog(QMainWindow):
 
         # self.memory_group.cache_widget.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
 
-        #self.memory_group.ram_box.setMaximumHeight(ram_height)
-        #self.memory_group.regs_box.setMaximumHeight(regs_height)
-        #self.memory_group.cache_box.setMaximumHeight(cache_height)
+        # self.memory_group.ram_box.setMaximumHeight(ram_height)
+        # self.memory_group.regs_box.setMaximumHeight(regs_height)
+        # self.memory_group.cache_box.setMaximumHeight(cache_height)
 
     def build_memory_layout(self):
-
 
         ram_button_layout = QGridLayout()
         self.reset_ram_button = QPushButton("Reset RAM")
@@ -550,9 +546,7 @@ class Dialog(QMainWindow):
         final_ram_layout = self.memory_group.ram_box.layout()
         final_ram_layout.addLayout(ram_button_layout)
 
-
         self.whole_layout.addWidget(self.memory_group.ram_box)
-
 
         regs_button_layout = QGridLayout()
         self.reset_regs_button = QPushButton("Reset Registers")
@@ -563,9 +557,7 @@ class Dialog(QMainWindow):
         final_regs_layout = self.memory_group.regs_box.layout()
         final_regs_layout.addLayout(regs_button_layout)
 
-
         self.dlgLayout.addWidget(self.memory_group.regs_box)
-
 
         cache_button_layout = QGridLayout()
         self.reset_cache_button = QPushButton("Reset Cache")
@@ -576,13 +568,11 @@ class Dialog(QMainWindow):
         final_cache_layout = self.memory_group.cache_box.layout()
         final_cache_layout.addLayout(cache_button_layout)
 
-
         self.dlgLayout.addWidget(self.memory_group.cache_box)
 
         self.dlgLayout.addStretch()
 
-        #self.resize_tables()
-
+        # self.resize_tables()
 
         # self.dlgLayout.addSpacerItem(QSpacerItem(self.memory_group.regs_box.width(), self.memory_group.ram_box.height() - 700))
 
@@ -687,25 +677,19 @@ class Dialog(QMainWindow):
             self.load_stage(i)
 
     def update_ram(self):
-        ram = [i for i in self._pipeline._memory._RAM]
-
         for i in range(1, self.memory_group.ram_rows + 1):
             for j in range(1, self.memory_group.ram_cols + 1):
-                val = ram[((i - 1) * self.memory_group.ram_cols) + (j - 1)]
+                val = self._memory._RAM[((i - 1) * self.memory_group.ram_cols) + (j - 1)]
                 if self._hex:
                     val = hex(val)
-                self.memory_group.ram_table[i][j] = val
                 self.memory_group.ram_widget.item(i - 1, j - 1).setText(str(val))
 
     def update_regs(self):
-        regs = self._pipeline._registers.copy()
-
         for i in range(1, self.memory_group.regs_rows + 1):
             for j in range(1, self.memory_group.regs_cols + 1):
-                val = regs[((i - 1) * self.memory_group.regs_cols) + (j - 1)]
+                val = self._pipeline._registers[((i - 1) * self.memory_group.regs_cols) + (j - 1)]
                 if self._hex:
                     val = hex(val)
-                self.memory_group.regs_table[i][j] = val
                 self.memory_group.regs_widget.item(i - 1, j - 1).setText(str(val))
 
     def update_cache(self):
@@ -717,7 +701,6 @@ class Dialog(QMainWindow):
                 if self._hex:
                     for k in range(len(val)):
                         val[k] = hex(val[k])
-                self.memory_group.cache_table[i][j] = val
                 self.memory_group.cache_widget.item(i - 1, j - 1).setText(str(val))
 
     def update_memory(self):
@@ -781,7 +764,39 @@ class Dialog(QMainWindow):
         pass
 
     def load_matrix_demo(self):  # TODO - implement matrix multiply demo
-        pass
+        self.reinit_pipe_and_memory()
+
+        matrix_fp = "../demos/matrix_multi.expected"
+
+        try:
+            self.fp = open(matrix_fp)
+        except Exception as e:
+            self.error_dialog = QMessageBox().critical(self, "Failed to Load Demo",
+                                                       f"The OS reported the following error while trying to load the "
+                                                       f"demo:\n {e}")
+            try:
+                self.fp.close()
+            except Exception:
+                pass
+            return
+
+        with self.fp as f:
+            content = f.readlines()
+        self.program_lines = [x.strip() for x in content]  # Remove whitespace
+
+        for i in range(len(self.program_lines)):
+            self._memory._RAM[i] = int(self.program_lines[i], 2)
+
+        address_counter = 50
+        value_counter = 0
+        for i in range(50):
+            for j in range(50):
+                self._memory._RAM[address_counter] = value_counter
+                self._memory._RAM[address_counter + 2500] = 2499 - value_counter
+                value_counter += 1
+                address_counter += 1
+
+        self.update_ui()
 
 
 if __name__ == '__main__':
