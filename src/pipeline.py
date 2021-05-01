@@ -985,7 +985,7 @@ class STR_Instruction(MEM_Instruction):
         else:  # uses register direct + offset
             # calculate the address
             base_addr_reg = self['base']
-            dest_addr = self._pipeline._memory[base_addr_reg] + self['offset']
+            dest_addr = self._pipeline._registers[base_addr_reg] + self['offset']
 
         # get the value to write
         src_val = self._pipeline._registers[self['src']]

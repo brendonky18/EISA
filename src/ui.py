@@ -789,10 +789,10 @@ class Dialog(QMainWindow):
 
         address_counter = 50
         value_counter = 0
-        for i in range(50):
-            for j in range(50):
+        for i in range(5):
+            for j in range(5):
                 self._memory._RAM[address_counter] = value_counter
-                self._memory._RAM[address_counter + 2500] = 2499 - value_counter
+                self._memory._RAM[address_counter + 2500] = 24-value_counter
                 value_counter += 1
                 address_counter += 1
 
