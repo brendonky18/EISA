@@ -125,8 +125,6 @@ class MemoryGroup:
         self.cache_box.setLayout(cachevbox)
         self.regs_box.setLayout(regsvbox)
 
-        # self.ram_box.setMinimumWidth(500)
-
     def load_ram(self):
         self.ram_table, row_headers = set_headers(self.ram_rows, self.ram_cols,
                                                   format_list_to_table(self.ram_rows, self.ram_cols, self.ram))
@@ -239,8 +237,6 @@ class Dialog(QMainWindow):
     fp: any
     program_lines: list
 
-    spacer: QSpacerItem
-
     def __init__(self, memory: MemorySubsystem, pipeline: PipeLine, parent=None):
         """Initializer."""
         super().__init__(parent)
@@ -273,6 +269,14 @@ class Dialog(QMainWindow):
         self.memory_group.ram_widget.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
         self.memory_group.regs_widget.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
         self.memory_group.cache_widget.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
+
+        self.already_max = False
+
+    def changeEvent(self, a0) -> None:
+        if self.isMaximized() and not self.already_max:
+            self.memory_group.regs_widget.setMaximumWidth(self.memory_group.regs_widget.width())
+            self.memory_group.cache_widget.setMaximumWidth(self.memory_group.cache_widget.width())
+            self.already_max = True
 
         # self.pipeline_group.setMaximumHeight(self.pipeline_group.height())
 
