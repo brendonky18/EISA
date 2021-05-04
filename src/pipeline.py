@@ -599,11 +599,16 @@ class Instruction:
             will default to 0b0 (No Op) if value is not assigned
         fields: Optional[Dict[str, int]]
             the fields which will attempt to be assigned
+            if both fields and encoded are assigned, fields will take priority
         """
 
         self._scoreboard_index = -1
 
         self._pipeline = pipeline
+
+        if fields is not None:
+            self._encoded = type(self).encoding.encode(fields)
+        else if
 
         self._encoded = 0b0 if encoded is None else encoded  # sets instruction to NOOP if encoded value is not specified
         self._decoded = None  # type: ignore

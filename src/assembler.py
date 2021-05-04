@@ -304,7 +304,7 @@ def parse_line(line: str) -> pp.ParseResults:
 
     # region instruction test
     # print('Instruction test')
-    #
+    
     # print(instruction_syntax.parseString('CMP r1, r2'))
     # print(instruction_syntax.parseString('CMP r1, 0xbeef'))
     # print(instruction_syntax.parseString('MOV r1, r2'))
@@ -312,8 +312,18 @@ def parse_line(line: str) -> pp.ParseResults:
     # print(instruction_syntax.parseString('NOT r1, r2'))
     # print(instruction_syntax.parseString('LDR r1, [r2]'))
     # print(instruction_syntax.parseString('STR r3, #4'))
-    # print(instruction_syntax.parseString('END'))
-    # print(instruction_syntax.parseString('NOOP'))
+
+    # parsed = instruction_syntax.parseString('END')
+    # parsed_dict = dict(parsed)
+    # print(parsed_dict)
+    # result = pipeline.NOOP_Instruction.encoding(val=parsed_dict)
+    # print(f'{result._bits:032b}')
+
+    # parsed = instruction_syntax.parseString('NOOP')
+    # parsed_dict = dict(parsed)
+    # print(parsed_dict)
+    # result = pipeline.NOOP_Instruction.encoding(val=parsed_dict)
+    # print(f'{result._bits:032b}')
     # endregion instruction test
 
     # endregion instruction parsing
@@ -364,33 +374,41 @@ if __name__ == '__main__':
     # print(parse_line('BL [r4] ')['base'])
     # print(parse_line('BL [r4] ')['offset'])
 
+    parsed = parse_line('STR R0, #6')
+    print(parsed)
+    print(parsed['opcode'])
+    print(parsed['src'])
+    print(parsed['imm'])
+    print(parsed['immediate'])
+    pipeline.STR_Instruction.encoding.encode(dict(parsed))
+    print(encoded)
+
     # parse_line('')
 
-    arg_parse = ArgumentParser()
-    arg_parse.add_argument('source', type=str)
-    arg_parse.add_argument('-o', type=str, metavar='destination', dest='destination')
+    # arg_parse = ArgumentParser()
+    # arg_parse.add_argument('source', type=str)
+    # arg_parse.add_argument('-o', type=str, metavar='destination', dest='destination')
 
-    args = arg_parse.parse_args()
+    # args = arg_parse.parse_args()
 
-    dest = args.destination
-    if dest is not None:
-        sys.stdout = open(dest, 'w+')
+    # dest = args.destination
+    # if dest is not None:
+    #     out_file = open(dest, 'w+')
+    # else:
+    #     out_file = sys.stdout
 
-    with open(args.source, 'r') as in_file:
-        for line in in_file:
-            # parse the line
-            parsed = parse_line(line)
+    # with open(args.source, 'r') as in_file:
+    #     for line in in_file:
+    #         # parse the line
+    #         parsed = parse_line(line)
 
-            # get the instruction encoding
-            cur_encoding = pipeline.Instructions[parsed['opcode']].encoding
+    #         # get the instruction encoding
+    #         cur_encoding = pipeline.Instructions[parsed['opcode']].encoding
 
-            # pass the results to the encoding
-            parsed_dict = dict(parsed)
-            result = cur_encoding(val=parsed_dict)
+    #         # pass the results to the encoding
+    #         parsed_dict = dict(parsed)
+    #         result = cur_encoding(val=parsed_dict)
 
-            # print(f'{result._bits:032b}')
+    #         print(f'{result._bits:032b}', file=out_file)
 
-    # reset stdout back to the terminal
-    sys.stdout = os.fdopen(1, 'w', 1)
-
-    print(f'compiled {args.source} to {"stdout" if dest is None else dest}')
+    # print(f'compiled {args.source} to {"stdout" if dest is None else dest}')
