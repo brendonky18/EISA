@@ -608,7 +608,10 @@ class Instruction:
 
         if fields is not None:
             self._encoded = type(self).encoding.encode(fields)
-        else if
+        elif encoded is not None:
+            self._encoded = encoded
+        else:
+            self._encoded = 0b0
 
         self._encoded = 0b0 if encoded is None else encoded  # sets instruction to NOOP if encoded value is not specified
         self._decoded = None  # type: ignore
