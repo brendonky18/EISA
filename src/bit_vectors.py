@@ -179,6 +179,23 @@ class BitVector:
             '_fields'       : cls._fields.copy()
         })
 
+    @classmethod
+    def encode(cls, fields: Dict[str, int]) -> int:
+        """attempts to encode the passed dictionary as a bitvector
+
+        Parameters
+        ----------
+        fields : Dict[str, int]
+            the dictionary of fields
+
+        Returns
+        -------
+        int
+            the integer encoded representation of the fields
+        """
+
+        return cls(fields=fields)._bits
+
 # if __name__ == '__main__':
 #     Instruction = BitVector.create_subtype('Instruction', size=32)
 
