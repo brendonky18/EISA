@@ -188,7 +188,7 @@ def parse_ALU_args(opcode: pipeline.OpCode, args: str) -> Dict[str, int]:
 
     alu_arg_parser = dest_parser + op1_parser + lit_or_reg + (op2_parser | literal_parser.copy()('literal')) + pp.stringEnd()
 
-    return alu_arg_parser.parseString(args).asDict()
+    return alu_arg_parser.ignore(comment).parseString(args).asDict()
 
 # region debugging
 
@@ -263,10 +263,10 @@ def parse_MEM_args(opcode: pipeline.OpCode, args: str) -> Dict[str, int]:
 
     mem_arg_parser = reg_parser(reg_name).setParseAction(lambda result: result[0]) + comma + mem_access_syntax
 
-    return mem_arg_parser.parseString(args).asDict()
+    return mem_arg_parser.ignore(comment).parseString(args).asDict()
 
 def parse_B_args(opcode: pipeline.OpCode, args: str) -> Dict[str, int]:
-    return mem_access_syntax.parseString(args).asDict()
+    return mem_access_syntax.ignore(comment).parseString(args).asDict()
 
 def parse_STK_args(opcode: pipeline.OpCode, args: str) -> Dict[str, int]:
     if opcode is pipeline.OpCode.PUSH:
@@ -278,7 +278,7 @@ def parse_STK_args(opcode: pipeline.OpCode, args: str) -> Dict[str, int]:
     
     stk_arg_parser = reg_parser(reg_name).setParseAction(lambda result: result[0])
 
-    return stk_arg_parser.parseString(args).asDict()
+    return stk_arg_parser.ignore(comment).parseString(args).asDict()
 
 def parse_line(line: str) -> Dict[str, int]:
     # handle blank lines and comments
