@@ -1,8 +1,11 @@
 import unittest
 
+from numpy.random import default_rng
+
 from clock import *
 from eisa import EISA
 from memory_subsystem import MemorySubsystem
+from ui import EISADialog
 from pipeline import *
 import os
 
@@ -11,6 +14,7 @@ class pipeline_stress_test(unittest.TestCase):
     memory = MemorySubsystem(EISA.ADDRESS_SIZE, 4, 1, 1, 8, 2, 2)
     pipeline = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], memory)
     max_instructions = 20000
+    exchange_array_size = 100
 
     def test_add_str(self):
         # Run the assembler with the dedicated files
@@ -243,6 +247,143 @@ class pipeline_stress_test(unittest.TestCase):
             cycle_counter += 1
 
         self.assertEqual(50, self.memory._RAM[6])
+
+    def test_exchange_sort_descending(self):
+        """ Copied and edited from from ui.py (self.load_matrix_demo)"""
+
+        # Filepath to exchange sort binary
+        sort_fp = "../demos/exchange_sort.expected"
+
+        # Try to open the filepath
+        try:
+            self.fp = open(sort_fp)
+        except Exception as e:
+            print(f"Failed to open {sort_fp}")
+            return
+
+        # Read binary lines from exchange_sort.expected
+        with self.fp as f:
+            content = f.readlines()
+        program_lines = [x.strip() for x in content]  # Remove whitespace
+
+        word_counter = 0  # Number of words that are instructions - 1
+        array_size = self.exchange_array_size  # FIXME - How large is the array for the exchange sort demo?
+
+        # Load binary lines into RAM as base 2 integers, converting them to base 10 (decimal) in the process
+        for i in range(len(program_lines)):
+            self.memory._RAM[i] = int(program_lines[i], 2)
+            word_counter += 1  # Increment word counter to insert unsorted data IMMEDIATELY after the instructions
+
+        # Insert 'array_size' random ints after the last instruction for the exchange sort
+        #   Note - I put in a descending ordered list instead of random values
+        for i in range(word_counter, array_size + word_counter):
+            self.memory._RAM[i] = array_size - i
+
+        """ Copied and edited from ui.py (self.cycle_ui) """
+        #  Cycle the pipeline until either an END op is found in writeback or the cycle limit is reached
+        while self.pipeline._pipeline[4].opcode != 32:
+            self.pipeline.cycle_pipeline()
+            if self.pipeline._cycles >= EISA.PROGRAM_MAX_CYCLE_LIMIT:
+                print(f"Error: Exceeded maximum number of program cycles: {self.max_instructions}")
+                break
+        self.pipeline.cycle_pipeline()
+
+        # Verify that each element in the array is less than or equal to its adjacent successor
+        for i in range(word_counter, array_size + word_counter - 1):
+            self.assertLessEqual(self.memory._RAM[i], self.memory._RAM[i+1])
+
+    def test_exchange_sort_same_value(self):
+        """ Copied and edited from from ui.py (self.load_matrix_demo)"""
+
+        # Filepath to exchange sort binary
+        sort_fp = "../demos/exchange_sort.expected"
+
+        # Try to open the filepath
+        try:
+            self.fp = open(sort_fp)
+        except Exception as e:
+            print(f"Failed to open {sort_fp}")
+            return
+
+        # Read binary lines from exchange_sort.expected
+        with self.fp as f:
+            content = f.readlines()
+        program_lines = [x.strip() for x in content]  # Remove whitespace
+
+        word_counter = 0  # Number of words that are instructions - 1
+        array_size = self.exchange_array_size  # FIXME - How large is the array for the exchange sort demo?
+
+        # Load binary lines into RAM as base 2 integers, converting them to base 10 (decimal) in the process
+        for i in range(len(program_lines)):
+            self.memory._RAM[i] = int(program_lines[i], 2)
+            word_counter += 1  # Increment word counter to insert unsorted data IMMEDIATELY after the instructions
+
+        # Insert 'array_size' random ints after the last instruction for the exchange sort
+        #   Note - this test uses values of all 1 for the array to see what happens when only duplicate values exist
+        for i in range(word_counter, array_size + word_counter):
+            self.memory._RAM[i] = 1
+
+        """ Copied and edited from ui.py (self.cycle_ui) """
+        #  Cycle the pipeline until either an END op is found in writeback or the cycle limit is reached
+        while self.pipeline._pipeline[4].opcode != 32:
+            self.pipeline.cycle_pipeline()
+            if self.pipeline._cycles >= EISA.PROGRAM_MAX_CYCLE_LIMIT:
+                print(f"Error: Exceeded maximum number of program cycles: {self.max_instructions}")
+                break
+        self.pipeline.cycle_pipeline()
+
+        # Verify that each element in the array is less than or equal to its adjacent successor
+        for i in range(word_counter, array_size + word_counter - 1):
+            self.assertEqual(self.memory._RAM[i], self.memory._RAM[i+1])
+
+    def test_exchange_sort_mixed(self):
+        """ Copied and edited from from ui.py (self.load_matrix_demo)"""
+
+        # Filepath to exchange sort binary
+        sort_fp = "../demos/exchange_sort.expected"
+
+        # Try to open the filepath
+        try:
+            self.fp = open(sort_fp)
+        except Exception as e:
+            print(f"Failed to open {sort_fp}")
+            return
+
+        # Read binary lines from exchange_sort.expected
+        with self.fp as f:
+            content = f.readlines()
+        program_lines = [x.strip() for x in content]  # Remove whitespace
+
+        word_counter = 0  # Number of words that are instructions - 1
+        array_size = self.exchange_array_size  # FIXME - How large is the array for the exchange sort demo?
+
+        # Load binary lines into RAM as base 2 integers, converting them to base 10 (decimal) in the process
+        for i in range(len(program_lines)):
+            self.memory._RAM[i] = int(program_lines[i], 2)
+            word_counter += 1  # Increment word counter to insert unsorted data IMMEDIATELY after the instructions
+
+        # Insert 'array_size' random ints after the last instruction for the exchange sort
+        #   Note - this test mixes 1s and 0s randomly
+        for i in range(word_counter, array_size + word_counter):
+            rng = default_rng(12345)
+            rints = rng.integers(low=0, high=10, size=1)
+            if rints[0] >= 5:
+                self.memory._RAM[i] = 1
+            else:
+                self.memory._RAM[i] = 0
+
+        """ Copied and edited from ui.py (self.cycle_ui) """
+        #  Cycle the pipeline until either an END op is found in writeback or the cycle limit is reached
+        while self.pipeline._pipeline[4].opcode != 32:
+            self.pipeline.cycle_pipeline()
+            if self.pipeline._cycles >= EISA.PROGRAM_MAX_CYCLE_LIMIT:
+                print(f"Error: Exceeded maximum number of program cycles: {self.max_instructions}")
+                break
+        self.pipeline.cycle_pipeline()
+
+        # Verify that each element in the array is less than or equal to its adjacent successor
+        for i in range(word_counter, array_size + word_counter - 1):
+            self.assertLessEqual(self.memory._RAM[i], self.memory._RAM[i+1])
 
 def verify_assembly(path: str, test: unittest.TestCase) -> List[int]:
     src_path = path + '.asm'

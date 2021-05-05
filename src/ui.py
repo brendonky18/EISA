@@ -205,7 +205,7 @@ class StageGroup:
         self.stage.setLayout(vbox)
 
 
-class Dialog(QMainWindow):
+class EISADialog(QMainWindow):
     """Dialog."""
 
     _memory: MemorySubsystem
@@ -248,13 +248,12 @@ class Dialog(QMainWindow):
         self.memory_group.regs_widget.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
         self.memory_group.cache_widget.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
 
-        self.already_max = False
-
     def changeEvent(self, a0) -> None:
-        if self.isMaximized() and not self.already_max:
-            self.memory_group.regs_widget.setMaximumWidth(self.memory_group.regs_widget.width())
-            self.memory_group.cache_widget.setMaximumWidth(self.memory_group.cache_widget.width())
-            self.already_max = True
+        try:
+            self.memory_group.regs_widget.setMaximumWidth(self.memory_group.regs_box.width()-20)
+            self.memory_group.cache_widget.setMaximumWidth(self.memory_group.cache_box.width()-20)
+        except AttributeError:
+            pass
 
     def closeEvent(self, a0):
         try:
@@ -695,7 +694,7 @@ if __name__ == '__main__':
     my_pipe = PipeLine(0, [0] * 32, memory)
 
     # Build UI dialog box
-    dlg = Dialog(memory, my_pipe)
+    dlg = EISADialog(memory, my_pipe)
 
     dlg.show()
 
