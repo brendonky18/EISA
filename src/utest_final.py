@@ -17,29 +17,6 @@ class pipeline_stress_test(unittest.TestCase):
     def test_add_str(self):
         # Run the assembler with the dedicated files
         assembled_lines = verify_assembly('test_add_str', self)
-        # Read in the lines for both files and strip the whitespace
-        assembled_lines = [i.strip() for i in assembled_file.readlines()]
-        verified_lines = [i.strip() for i in verification_file.readlines()]
-
-        # Close filepointers
-        assembled_file.close()
-        verification_file.close()
-
-        # Verify that they both have the same number of lines
-        self.assertEqual(len(assembled_lines), len(verified_lines))
-
-        # Compare each line, as the assembled lines should match the verified lines exactly
-        for i in range(len(assembled_lines)):
-            self.assertEqual(verified_lines[i], assembled_lines[i])
-
-        #############################################################################
-        ##### Now that the lines have been verified, load them into the pipeline#####
-        #############################################################################
-
-        # Loop over the assembled lines and convert them into ints by reading them as base 2,
-        #   loading directly into ram
-        for i in range(len(assembled_lines)):
-            self.memory._RAM[i] = int(assembled_lines[i], 2)
 
         # Cycle until an END instruction is found in writeback
         #   If no END instruction is encounter within 20k cycles,
@@ -64,30 +41,6 @@ class pipeline_stress_test(unittest.TestCase):
         # Run the assembler with the dedicated files
         assembled_lines = verify_assembly('test_load', self)
 
-        # Read in the lines for both files and strip the whitespace
-        assembled_lines = [i.strip() for i in assembled_file.readlines()]
-        verified_lines = [i.strip() for i in verification_file.readlines()]
-
-        # Close filepointers
-        assembled_file.close()
-        verification_file.close()
-
-        # Verify that they both have the same number of lines
-        self.assertEqual(len(assembled_lines), len(verified_lines))
-
-        # Compare each line, as the assembled lines should match the verified lines exactly
-        for i in range(len(assembled_lines)):
-            self.assertEqual(verified_lines[i], assembled_lines[i])
-
-        #############################################################################
-        ##### Now that the lines have been verified, load them into the pipeline#####
-        #############################################################################
-
-        # Loop over the assembled lines and convert them into ints by reading them as base 2,
-        #   loading directly into ram
-        for i in range(len(assembled_lines)):
-            self.memory._RAM[i] = int(assembled_lines[i], 2)
-
         # Cycle until an END instruction is found in writeback.
         #   If no END instruction is encounter within 20k cycles,
         #   report a failure.
@@ -109,30 +62,6 @@ class pipeline_stress_test(unittest.TestCase):
         # Run the assembler with the dedicated files
         assembled_lines = verify_assembly('test_conditional_branch', self)
 
-        # Read in the lines for both files and strip the whitespace
-        assembled_lines = [i.strip() for i in assembled_file.readlines()]
-        verified_lines = [i.strip() for i in verification_file.readlines()]
-
-        # Close filepointers
-        assembled_file.close()
-        verification_file.close()
-
-        # Verify that they both have the same number of lines
-        self.assertEqual(len(assembled_lines), len(verified_lines))
-
-        # Compare each line, as the assembled lines should match the verified lines exactly
-        for i in range(len(assembled_lines)):
-            self.assertEqual(verified_lines[i], assembled_lines[i])
-
-        #############################################################################
-        ##### Now that the lines have been verified, load them into the pipeline#####
-        #############################################################################
-
-        # Loop over the assembled lines and convert them into ints by reading them as base 2,
-        #   loading directly into ram
-        for i in range(len(assembled_lines)):
-            self.memory._RAM[i] = int(assembled_lines[i], 2)
-
         # Cycle until an END instruction is found in writeback.
         #   If no END instruction is encounter within 20k cycles,
         #   report a failure.
@@ -150,31 +79,7 @@ class pipeline_stress_test(unittest.TestCase):
 
     def test_unconditional_branching(self):
         # Run the assembler with the dedicated files
-        assembled_lines = verify_assembly('test_unconditional_branching', self)
-
-        # Read in the lines for both files and strip the whitespace
-        assembled_lines = [i.strip() for i in assembled_file.readlines()]
-        verified_lines = [i.strip() for i in verification_file.readlines()]
-
-        # Close filepointers
-        assembled_file.close()
-        verification_file.close()
-
-        # Verify that they both have the same number of lines
-        self.assertEqual(len(assembled_lines), len(verified_lines))
-
-        # Compare each line, as the assembled lines should match the verified lines exactly
-        for i in range(len(assembled_lines)):
-            self.assertEqual(verified_lines[i], assembled_lines[i])
-
-        #############################################################################
-        ##### Now that the lines have been verified, load them into the pipeline#####
-        #############################################################################
-
-        # Loop over the assembled lines and convert them into ints by reading them as base 2,
-        #   loading directly into ram
-        for i in range(len(assembled_lines)):
-            self.memory._RAM[i] = int(assembled_lines[i], 2)
+        assembled_lines = verify_assembly('test_unconditional_branching', self)    
 
         # Cycle until an END instruction is found in writeback.
         #   If no END instruction is encounter within 20k cycles,
@@ -249,6 +154,15 @@ def verify_assembly(path: str, test: unittest.TestCase) -> List[int]:
     # Compare each line, as the assembled lines should match the verified lines exactly
     for i in range(len(assembled_lines)):
         test.assertEqual(verified_lines[i], assembled_lines[i])
+
+    #############################################################################
+    ##### Now that the lines have been verified, load them into the pipeline#####
+    #############################################################################
+
+    # Loop over the assembled lines and convert them into ints by reading them as base 2,
+    #   loading directly into ram
+    for i in range(len(assembled_lines)):
+        self.memory._RAM[i] = int(assembled_lines[i], 2)
 
     return assembled_lines
 
