@@ -9,6 +9,8 @@ from ui import EISADialog
 from pipeline import *
 import os
 
+dir_name = os.path.dirname(__file__)
+assembler_path = os.path.join(dir_name, 'assembler.py')
 class pipeline_stress_test(unittest.TestCase):
 
     memory = MemorySubsystem(EISA.ADDRESS_SIZE, 4, 1, 1, 8, 2, 2)
@@ -18,15 +20,7 @@ class pipeline_stress_test(unittest.TestCase):
 
     def test_add_str(self):
         # Run the assembler with the dedicated files
-        command = 'assembler.py ../asrc/test_add_str.asm -o ../asrc/test_add_str.out'
-        os.system(command)
-
-        # Check whether the output file exists and open it
-        assembled_file = open('../asrc/test_add_str.out')
-
-        # Open the verification file that the output should match
-        verification_file = open('../asrc/test_add_str.expected')
-
+        assembled_lines = verify_assembly('test_add_str', self)
         # Read in the lines for both files and strip the whitespace
         assembled_lines = [i.strip() for i in assembled_file.readlines()]
         verified_lines = [i.strip() for i in verification_file.readlines()]
@@ -72,14 +66,7 @@ class pipeline_stress_test(unittest.TestCase):
 
     def test_load(self):
         # Run the assembler with the dedicated files
-        command = 'assembler.py ../asrc/test_load.asm -o ../asrc/test_load.out'
-        os.system(command)
-
-        # Check whether the output file exists and open it
-        assembled_file = open('../asrc/test_load.out')
-
-        # Open the verification file that the output should match
-        verification_file = open('../asrc/test_load.expected')
+        assembled_lines = verify_assembly('test_load', self)
 
         # Read in the lines for both files and strip the whitespace
         assembled_lines = [i.strip() for i in assembled_file.readlines()]
@@ -124,14 +111,7 @@ class pipeline_stress_test(unittest.TestCase):
 
     def test_conditional_branch(self):
         # Run the assembler with the dedicated files
-        command = 'assembler.py ../asrc/test_conditional_branch.asm -o ../asrc/test_conditional_branch.out'
-        os.system(command)
-
-        # Check whether the output file exists and open it
-        assembled_file = open('../asrc/test_conditional_branch.out')
-
-        # Open the verification file that the output should match
-        verification_file = open('../asrc/test_conditional_branch.expected')
+        assembled_lines = verify_assembly('test_conditional_branch', self)
 
         # Read in the lines for both files and strip the whitespace
         assembled_lines = [i.strip() for i in assembled_file.readlines()]
@@ -174,14 +154,7 @@ class pipeline_stress_test(unittest.TestCase):
 
     def test_unconditional_branching(self):
         # Run the assembler with the dedicated files
-        command = 'assembler.py ../asrc/test_unconditional_branching.asm -o ../asrc/test_unconditional_branching.out'
-        os.system(command)
-
-        # Check whether the output file exists and open it
-        assembled_file = open('../asrc/test_unconditional_branching.out')
-
-        # Open the verification file that the output should match
-        verification_file = open('../asrc/test_unconditional_branching.expected')
+        assembled_lines = verify_assembly('test_unconditional_branching', self)
 
         # Read in the lines for both files and strip the whitespace
         assembled_lines = [i.strip() for i in assembled_file.readlines()]
@@ -234,7 +207,7 @@ class pipeline_stress_test(unittest.TestCase):
         # if it just does branching it should do R0 = (10 * 2) = 10
         # if it does not branch it should do R0 = (10 + 5) * 2 = 30
 
-        assembled_lines = verify_assembly('../asrc/test_branch_link', self)
+        assembled_lines = verify_assembly('test_branch_link', self)
 
         # write the program to RAM
         for i in range(len(assembled_lines)):
@@ -386,11 +359,15 @@ class pipeline_stress_test(unittest.TestCase):
             self.assertLessEqual(self.memory._RAM[i], self.memory._RAM[i+1])
 
 def verify_assembly(path: str, test: unittest.TestCase) -> List[int]:
-    src_path = path + '.asm'
-    dest_path = path + '.out'
-    expected_path = path + '.expected'
+    src_file = path + '.asm'
+    dest_file = path + '.out'
+    expected_file = path + '.expected'
 
-    command = f'assembler.py {src_path} -o {dest_path}'
+    src_path = os.path.join(dir_name, f'../asrc/{src_file}')
+    dest_path = os.path.join(dir_name, f'../asrc/{dest_file}')
+    expected_path = os.path.join(dir_name, f'../asrc/{expected_file}')
+
+    command = f'python {assembler_path} {src_path} -o {dest_path}'
     os.system(command)
 
     # Check whether the output file exists and open it
