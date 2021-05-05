@@ -11,6 +11,7 @@ from memory_subsystem import MemorySubsystem, PipelineStall
 from functools import reduce
 from threading import Lock
 import enum
+import aenum
 
 
 class Queue(deque):
@@ -477,7 +478,6 @@ class PipeLine(object):
         return out
 
     def __getattr__(self, attr):
-        print(f'getting attr {attr}')
         if attr == '_pc':
             return self._registers[SpecialRegister.pc]
         elif attr in SpecialRegister._member_names_:
@@ -486,7 +486,6 @@ class PipeLine(object):
             raise AttributeError(f'{attr} is not an attribute of {type(self)}')
 
     def __setattr__(self, attr, val):
-        print(f'setting attr {attr}')
         if attr == '_pc': # TODO refactor all references of _pc to pc
             self._registers[SpecialRegister.pc] = val
         elif attr in SpecialRegister._member_names_:
@@ -502,7 +501,8 @@ class SpecialRegister(enum.IntEnum):
     lr = 30  # Link Register
     pc = 31  # Program Counter
 
-class OpCode(enum.IntEnum):
+class OpCode(aenum.IntEnum):
+    _settings_ = aenum.NoAlias
     NOOP  = 0b000000
     ADD   = 0b000001
     MOV   = 0b000001  # MOV is an alias for ADD 0

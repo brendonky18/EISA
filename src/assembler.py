@@ -3,10 +3,52 @@ from parse import parse
 import pyparsing as pp
 import sys
 import os
-from typing import List
+from typing import List, Union, Dict
 import pipeline
+from eisa import EISA
+from termcolor import cprint
 
+# region instruction formats
+# ALU
+"""Format:
+<mnemonic> <dest: reg>, <op1: reg>, <op2: reg | op2: literal>
+"""
 
+# Special
+"""Format
+NOT
+---
+NOT <dest: reg>, <op2: reg | op2: literal>
+"op1" is implicitly -1
+
+MOV
+---
+MOV <dest: reg>, <op2: reg | op2: literal>
+"op1" is implicitly 0
+
+CMP
+---
+CMP <op1: reg>, <op2: reg | op2: literal>
+CMP instruction does not have a "dest" field
+"""
+
+# Branch
+"""Format:
+(B | BL)<cond> (#<immediate: literal> | \[<base: reg>[, # <offset: literal>]\])
+"""
+
+# Load/Store
+"""Format:
+LDR <dest: reg> (#<immediate: literal> | \[<base: reg>[, # <offset: literal>]\])
+STR <src: reg> (#<immediate: literal> | \[<base: reg>[, # <offset: literal>]\])
+"""
+
+# Push/Pop
+"""Format:
+PUSH (<src: reg> | \[<src 1: reg>, ... , <src n: reg>\])
+POP (<dest: reg> | \[<dest 1: reg>, ... , <dest n: reg>\])
+"""
+# endregion instruction formats
 class AssemblerError(RuntimeError):
     def __init__(self, symbol):
         super().__init__()
@@ -17,398 +59,361 @@ class AssemblerError(RuntimeError):
 
 
 MOV_dest = -1
-cur_instruction = pipeline.OpCode.NOOP
+cur_instruction = pipeline.OpCode.NOOP  # type: pipeline.OpCode
 
+whitespace = pp.White()
+whitespace.setName('whitespace')
 
-def parse_line(line: str) -> pp.ParseResults:
-    # region mnemonic parsing
-    conditional_instructions = [pipeline.OpCode.B.name, pipeline.OpCode.BL.name]
-    alias_instructions = [pipeline.OpCode.MOV.name, pipeline.OpCode.NOT.name]
-    mnemonic_tokens = \
-        pp.oneOf([op for op in pipeline.OpCode.__members__ if
-                  op not in conditional_instructions and op not in alias_instructions]) ^ \
-        pp.oneOf(alias_instructions)
-    conditional_mnemonic_tokens = pp.oneOf(conditional_instructions)  # B and BL
+def parse_mnemonic(mnemonic: str) -> Dict[str, int]:
+    """parses the input string for the mnemonic, and also condition code if relevant
 
-    def get_instruction(cond_token):
-        global cur_instruction
-        cur_instruction = pipeline.OpCode[cond_token[0]]
-        return cur_instruction
+    Parameters
+    ----------
+    parse_string : str
+        the string to parse
 
-    mnemonic_tokens.setParseAction(get_instruction)
-    conditional_mnemonic_tokens.setParseAction(get_instruction)
+    Returns
+    -------
+    dict
+        the dictionary
+    """
 
-    whitespace = pp.White()
+    # parse the strings backwards, that way the condition codes will always be parsed first
 
-    condition_tokens = pp.Optional(~whitespace + pp.oneOf([cond.name for cond in pipeline.ConditionCode]),
-                                   default='AL')  # GT, LT, EQ, etc.
-    condition_tokens.setParseAction(lambda cond_token: pipeline.ConditionCode[cond_token[0]])
+    # reverse the original string
+    mnemonic = mnemonic[::-1]
 
-    conditional_opcode_syntax = \
-        conditional_mnemonic_tokens('opcode') + \
-        condition_tokens('cond')  # BEQ, BLGT etc.
+    # gets the condition code if there is one
+    cond_code_toks_rev = [cc.name[::-1] for cc in pipeline.ConditionCode]
+    op_code_toks_rev = [op[::-1] for op in pipeline.OpCode.__members__]
 
-    label_sytax = ~whitespace + pp.Word(pp.alphas) + ':'
-    mnemonic_syntax = (mnemonic_tokens('opcode') ^ conditional_opcode_syntax)
+    # gets the opcode
+    op_code_parser = pp.oneOf(op_code_toks_rev).setName('mnemonic')
+    op_code_parser.setParseAction(lambda result: pipeline.OpCode[result[0][::-1]])  # revrse the string so it's the correct way around
 
-    # region mnemonic testing
-    # print(mnemonic_syntax.parseString('ADD'))
-    # print(mnemonic_syntax.parseString('MOV'))
-    # print(mnemonic_syntax.parseString('CMP'))
-    # print(mnemonic_syntax.parseString('LDR'))
-    # print(mnemonic_syntax.parseString('STR'))
-    # print(mnemonic_syntax.parseString('B '))
-    # print(mnemonic_syntax.parseString('BL'))
-    # print(mnemonic_syntax.parseString('BAL'))
-    # print(mnemonic_syntax.parseString('BGT'))
-    # print(mnemonic_syntax.parseString('BLEQ'))
-    # endregion mnemonic testing
+    # combines condition code and opcode parsing
+    cond_code_parser = pp.Optional(
+        pp.Optional(
+            pp.oneOf(cond_code_toks_rev).setName('condition code')
+            , default='LA'  # AL backwards
+        ).setParseAction(
+            lambda result: pipeline.ConditionCode[result[0][::-1]]
+        ) + pp.FollowedBy(
+            pp.oneOf('B LB').setName('branch instruction') + pp.stringEnd() # B or BL, since they're the only conditional instructions
+        ) 
+    )
+    cond_code_parser.setParseAction(lambda result: None if not result else result[0])  # revrse the string so it's the correct way around
 
-    # endregion mnemonic parsing
+    mnemonic_parser = cond_code_parser('cond') + op_code_parser('opcode')
 
-    # region instruction parsing
-    comma = pp.Suppress(',')  # ignore commas in the final output
+    return mnemonic_parser.parseString(mnemonic).asDict()
 
-    register_num = pp.oneOf(' '.join([str(i) for i in range(32)]))  # 0-31, automatically converts to int
-    spec_regs = pp.oneOf([sr.name for sr in pipeline.SpecialRegister])  # the special registers: ZR, LR, SP, PC
-    register_tokens = \
-        pp.Combine(pp.Suppress(pp.CaselessLiteral('R')) + register_num).setParseAction(
-            lambda num_str: int(num_str[0])) | \
-        spec_regs.setParseAction(lambda reg_str: pipeline.SpecialRegister[reg_str[0]])
+# syntax for parsing registers
+gp_reg_parser = pp.Suppress(pp.CaselessLiteral('r')) + pp.oneOf([str(i) for i in range(EISA.NUM_GP_REGS)])
+gp_reg_parser.setParseAction(lambda result: int(result[0]))
 
-    # region register test
-    # print('register test')
-    # print('r0')
-    # print('R0')
-    # endregion register test
+# syntax for parsing special registers
+spec_reg_parser = pp.oneOf([sr.name for sr in pipeline.SpecialRegister])
+spec_reg_parser.setParseAction(lambda result: pipeline.SpecialRegister[result[0]])
 
-    # region ALU parsing
+# combine both register syntaxes
+reg_parser = gp_reg_parser | spec_reg_parser
+reg_parser.setName('register')
 
-    # binary: 0b[01] 
-    # decimal: [0d][0-9]
-    # hexadecimal: 0x[0-f]
-    bin_nums = pp.Word('01')
-    dec_nums = pp.Word(pp.nums)
-    hex_nums = pp.Word(pp.hexnums)
-    literal_syntax = \
-        pp.Combine('0b' + bin_nums) | \
-        pp.Combine('0x' + hex_nums) | \
-        pp.Combine(dec_nums)
+# syntax for parsing literals (binary, hexadecimal, and decimal)
+bin_parser = pp.Combine('0b' + pp.Word('01'))       # 0b00000000 indicates binary numbers
+# bin_parser.setName('binary literal')
+dec_parser = pp.Word(pp.nums)                       #   00000000 indicates decimal numbers
+dec_parser.setName('decimal literal')
+hex_parser = pp.Combine('0x' + pp.Word(pp.hexnums)) # 0x00000000 indicates hexadecimal numbers
+hex_parser.setName('hexadecimal literal')
 
-    literal_syntax.setParseAction(lambda num_str: int(num_str[0], 0))  # will autimatically convert to a number
+literal_parser = (bin_parser | hex_parser | dec_parser)
+literal_parser.setName('literal')
+literal_parser.setParseAction(lambda num_str: int(num_str[0], 0))  # will autimatically convert to a number
 
-    # checks if there is an operand, or a literal
-    is_op = pp.FollowedBy(register_tokens).setParseAction(lambda x: False)
-    is_lit = pp.FollowedBy(literal_syntax).setParseAction(lambda x: True)
-    lit_or_op = (is_lit ^ is_op)
+# tells the parser to not include commas in the final output
+comma = pp.Suppress(',')
+comma.setName(',')
 
-    # region lit or op test
-    # print(lit_or_op.parseString('r2'))
-    # print(lit_or_op.parseString('0b1111'))
-    # print(lit_or_op.parseString(''))
-    # endregion lit or op test
+comment = ';' + pp.restOfLine
 
-    operand_2 = \
-        lit_or_op('lit') + \
-        (
-                register_tokens('op2') |
-                literal_syntax('literal')
-        )
+def parse_ALU_args(opcode: pipeline.OpCode, args: str) -> Dict[str, int]:
+    # determines whether op1 is a literal or register
+    is_lit = pp.FollowedBy(literal_parser).setParseAction(lambda: True)
+    is_reg = pp.FollowedBy(reg_parser).setParseAction(lambda: False)
+    lit_or_reg = (is_lit ^ is_reg)('lit')
+    lit_or_reg.setParseAction(lambda result: result[0])
 
-    # region op 2 test
-    # print('op 2 test')
-    # print(operand_2.parseString('r2'))
-    # print(operand_2.parseString('0b1111'))
-    # endregion op 2 test
-
-    # [dest], [op1], [op2] or [lit]
-    ALU_syntax = \
-        register_tokens('dest') + \
-        comma + register_tokens('op1') + \
-        comma + operand_2
-
-    # region ALU test
-    # print('ALU test')
-    # print(ALU_syntax.parseString('r0, r1, r2'))
-    # print(ALU_syntax.parseString('r0, r1, 0b1111'))
-    # print(ALU_syntax.parseString('r0, r1, 420'))
-    # print(ALU_syntax.parseString('r0, r1, 0xDEAD'))
-    # print(ALU_syntax.parseString('r0, r1, 0xbeef'))
-    # cur_instruction = pipeline.OpCode.MOV
-    # print(ALU_syntax.parseString('r0, r1'))
-    # cur_instruction = pipeline.OpCode.NOT
-    # print(ALU_syntax.parseString('r0, r1'))
-    # endregion ALU test
-
-    # region MOV parsing
-    # MOV [dest] [op2]
-    # op1 is implicitly assumed to be dest
-
-    MOV_syntax = \
-        register_tokens('dest') + \
-        (whitespace[...] + pp.FollowedBy(comma + operand_2)).setParseAction(
-            lambda: pipeline.SpecialRegister.zr).setResultsName('op1') + \
-        comma + operand_2
-
-    # region MOV test
-    # print('MOV test')
-    # res = MOV_syntax.parseString('r2, r4')
-    # print(res)
-    # print(f"dest: {res['dest']}")
-    # print(f"op1: {res['op1']}")
-    # print(f"lit: {res['lit']}")
-    # print(f"op2: {res['op2']}")
-
-    # res = MOV_syntax.parseString('r2, 0xbeef')
-    # print(res)
-    # print(f"dest: {res['dest']}")
-    # print(f"op1: {res['op1']}")
-    # print(f"lit: {res['lit']}")
-    # print(f"literal: {res['literal']}")
-    # endregion MOV test
-    # endregion MOV parsing
-
-    # region NOT parsing
-    # NOT [dest] [op1]
-    # op2 is implicitly assumed to be 0b1111111...
-    NOT_syntax = \
-        register_tokens('dest') + \
-        comma + register_tokens('op1') + \
-        pp.FollowedBy(whitespace[...]).setResultsName('lit').setParseAction(lambda: False) + \
-        pp.FollowedBy(~operand_2).setResultsName('literal').setParseAction(lambda: -1 & 2 ** 32 - 1)
-
-    # region NOT test
-    # print('NOT test')
-    # print(NOT_syntax.parseString('r0, r1'))
-    # endregion NOT test
-    # endregion NOT parsing
-
-    # region CMP parsing
-    CMP_syntax = \
-        register_tokens('op1') + \
-        comma + lit_or_op('lit') + \
-        (
-                register_tokens('op2') ^
-                literal_syntax('literal')
-        )
-
-    # region CMP test
-    # print('CMP test')
-    # print(CMP_syntax.parseString('r1, r2'))
-    # print(CMP_syntax.parseString('r1, 0b1111'))
-    # print(CMP_syntax.parseString('r1, 420'))
-    # print(CMP_syntax.parseString('r1, 0xDEAD'))
-    # print(CMP_syntax.parseString('r1, 0xbeef'))
-    # endregion CMP test
-    # endregion CMP parsing
-    # endregion ALU parsing
-
-    # region MEM parsing
-    # #[lit]
-    immediate_syntax = pp.Combine(pp.Suppress('#') + literal_syntax)
-    immediate_syntax.setParseAction(lambda x: int(x[0]))
-
-    # syntax for a register memory access (as opposed to an immediate)
-    reg_mem_access_syntax = \
-        pp.Suppress('[') + \
-        register_tokens.setResultsName('base') + \
-        (
-                (comma + immediate_syntax) |
-                (~(comma + immediate_syntax)).setParseAction(lambda x: 0)
-        ).setParseAction(lambda tok: tok[0]).setResultsName('offset') + \
-        pp.Suppress(']')
-
-    # checks if there is an immediate or a register
-    is_imm = pp.FollowedBy(immediate_syntax).setParseAction(lambda x: True)
-    is_reg = pp.FollowedBy(reg_mem_access_syntax).setParseAction(lambda x: False)
-    imm_or_reg = (is_imm ^ is_reg).setParseAction(lambda tok: tok[0])
-
-    # [immediate] or [[reg]<, [immediate]>]
-    mem_access_syntax = \
-        imm_or_reg.setResultsName('imm') + \
-        (
-                immediate_syntax.setResultsName('immediate') | \
-                reg_mem_access_syntax
-        )
-
-    # region MEM access test
-    # print('MEM access test')
-    # print(mem_access_syntax.parseString('#420'))
-    # print(mem_access_syntax.parseString('#0xbeef'))
-    # print(mem_access_syntax.parseString('#0b1111'))
-    # print(mem_access_syntax.parseString('[R0]'))
-    # print(mem_access_syntax.parseString('[R0, #420]'))
-    # print(mem_access_syntax.parseString('[R0 , #69]'))
-    # endregion MEM access test
-    # region LDR parsing
-    LDR_syntax = \
-        register_tokens.setResultsName('dest') + \
-        comma + mem_access_syntax
-    LDR_syntax.addCondition(lambda: cur_instruction == pipeline.OpCode.LDR)
-    # region LDR test
-    cur_instruction = pipeline.OpCode.LDR
-    # print('LDR test')
-    # print(LDR_syntax.parseString('R0, #2'))
-    # endregion LDR test
-
-    # endregion LDR parsing
-
-    # region STR parsing
-    STR_syntax = \
-        register_tokens.setResultsName('src') + \
-        comma + mem_access_syntax
-    STR_syntax.addCondition(lambda: cur_instruction == pipeline.OpCode.STR)
-    # endregion STR parsing
-
-    MEM_syntax = \
-        (LDR_syntax ^ STR_syntax)
-
-    # region MEM test
-    # print('MEM test')
-    cur_instruction = pipeline.OpCode.STR
-    # print(MEM_syntax.parseString('r0, #6'))
-    # endregion MEM test
-    # endregion MEM parsing
-
-    # region B parsing
-    B_syntax = mem_access_syntax  # the condition codes are handled by instruction_syntax
-
-    # endregion B parsing
-
-    # region NOOP parsing
-    def check_NOOP():
-        return cur_instruction == pipeline.OpCode.NOOP or cur_instruction == pipeline.OpCode.END
-
-    NOOP_syntax = whitespace[...] | ~whitespace
-
-    # region NOOP test
-    # print('NOOP test')
-    # cur_instruction = pipeline.OpCode.END
-    # print(NOOP_syntax.parseString(''))
-    # cur_instruction = pipeline.OpCode.NOOP
-    # print(NOOP_syntax.parseString(''))
-    # endregion NOOP test
-    # endregion NOOP parsing
-
-    instruction_syntax = \
-        mnemonic_syntax + \
-        (
-                CMP_syntax ^  # CMP
-                MOV_syntax ^  # MOV
-                NOT_syntax ^  # NOT
-                ALU_syntax ^  # ALU
-                MEM_syntax ^  # Memory (LDR/STR)
-                B_syntax ^  # B/BL
-                NOOP_syntax
-        )
-
-    # region instruction test
-    # print('Instruction test')
+    def op1_parse_action(result: pp.ParseResults):
+        # print(f'op1: {result}')
+        if opcode is pipeline.OpCode.MOV or opcode is pipeline.OpCode.NOT:
+            raise pp.ParseException
+        else:
+            return result[0]
     
-    # print(instruction_syntax.parseString('CMP r1, r2'))
-    # print(instruction_syntax.parseString('CMP r1, 0xbeef'))
-    # print(instruction_syntax.parseString('MOV r1, r2'))
-    # print(instruction_syntax.parseString('MOV r1, 0xbeef'))
-    # print(instruction_syntax.parseString('NOT r1, r2'))
-    # print(instruction_syntax.parseString('LDR r1, [r2]'))
-    # print(instruction_syntax.parseString('STR r3, #4'))
+    # op1 parsing
+    def MOV_NOT_op1_parse_action(result):
+        # print(f'MOV: {result} {opcode is pipeline.OpCode.MOV}')
+        # print(f'NOT: {result} {opcode is pipeline.OpCode.NOT}')
+        
+        if opcode is pipeline.OpCode.MOV:
+            # handles NOT
+            return pipeline.SpecialRegister.zr
+        elif opcode is pipeline.OpCode.NOT:
+            # handles MOV
+            return -1 & EISA.ADDRESS_MASK
 
-    # parsed = instruction_syntax.parseString('END')
-    # parsed_dict = dict(parsed)
-    # print(parsed_dict)
-    # result = pipeline.NOOP_Instruction.encoding(val=parsed_dict)
-    # print(f'{result._bits:032b}')
+    MOV_NOT_op1_parser = whitespace[...].setParseAction(MOV_NOT_op1_parse_action)
+    
+    op1_parser = (
+        whitespace[...].setParseAction(MOV_NOT_op1_parse_action).addCondition(lambda: opcode is pipeline.OpCode.MOV or opcode is pipeline.OpCode.NOT) | 
+        (reg_parser + comma).setParseAction(op1_parse_action)
+    )('op1')
+    op1_parser.setParseAction(lambda result: result[0])
 
-    # parsed = instruction_syntax.parseString('NOOP')
-    # parsed_dict = dict(parsed)
-    # print(parsed_dict)
-    # result = pipeline.NOOP_Instruction.encoding(val=parsed_dict)
-    # print(f'{result._bits:032b}')
-    # endregion instruction test
+    # op2 parsing
+    op2_parser = reg_parser.setResultsName('op2') 
+    op2_parser.setParseAction(lambda result: result[0])    
 
-    # endregion instruction parsing
+    # dest parsing
+    def dest_parse_action(result: pp.ParseResults):
+        # print(f'dest: {result} {opcode}')
+        if opcode is not pipeline.OpCode.CMP:
+            return result[0]
+        else:
+             raise pp.ParseException
+    
+    dest_parser = (~whitespace).addCondition(lambda: opcode is pipeline.OpCode.CMP) | (reg_parser + comma).setParseAction(dest_parse_action)('dest') 
 
-    return instruction_syntax.parseString(line)
+    alu_arg_parser = dest_parser + op1_parser + lit_or_reg + (op2_parser | literal_parser.copy()('literal')) + pp.stringEnd()
 
+    return alu_arg_parser.parseString(args).asDict()
+
+# region debugging
+
+# print('testing special ALU ops')
+# print('testing MOV')
+# print(parse_ALU_args(pipeline.OpCode.MOV, 'r0, r1'))
+# print(parse_ALU_args(pipeline.OpCode.MOV, 'r0, 10'))
+# print(parse_ALU_args(pipeline.OpCode.MOV, 'r0, 0b10'))
+# print(parse_ALU_args(pipeline.OpCode.MOV, 'r0, 0x10'))
+# print('testing NOT')
+# print(parse_ALU_args(pipeline.OpCode.NOT, 'r1, r1'))
+# print(parse_ALU_args(pipeline.OpCode.NOT, 'r1, 10'))
+# print(parse_ALU_args(pipeline.OpCode.NOT, 'r1, 0b10'))
+# print(parse_ALU_args(pipeline.OpCode.NOT, 'r1, 0x10'))
+# print('testing CMP')
+# print(parse_ALU_args(pipeline.OpCode.CMP, 'r2, r1'))
+# print(parse_ALU_args(pipeline.OpCode.CMP, 'r2, 10'))
+# print(parse_ALU_args(pipeline.OpCode.CMP, 'r2, 0b10'))
+# print(parse_ALU_args(pipeline.OpCode.CMP, 'r2, 0x10'))
+# print('testing regular ALU ops')
+# print('testing ADD')
+# print(parse_ALU_args(pipeline.OpCode.ADD, 'r0, r1, r1'))
+# print(parse_ALU_args(pipeline.OpCode.ADD, 'r0, r1, 10'))
+# print(parse_ALU_args(pipeline.OpCode.ADD, 'r0, r1, 0b10'))
+# print(parse_ALU_args(pipeline.OpCode.ADD, 'r0, r1, 0x10'))
+# print('testing XOR')
+# print(parse_ALU_args(pipeline.OpCode.XOR, 'r0, r1, r1'))
+# print(parse_ALU_args(pipeline.OpCode.XOR, 'r0, r1, 10'))
+# print(parse_ALU_args(pipeline.OpCode.XOR, 'r0, r1, 0b10'))
+# print(parse_ALU_args(pipeline.OpCode.XOR, 'r0, r1, 0x10'))
+
+# endregion debugging
+
+# syntax for an immediate memory access
+immediate_parser = pp.Combine(
+    pp.Suppress('#').setName('#') + 
+    literal_parser
+).setResultsName('immediate')
+immediate_parser.setParseAction(lambda result: int(result[0]))
+
+# syntax for a register memory access (as opposed to an immediate)
+reg_mem_access_parser = \
+    pp.Suppress('[').setName('[') + \
+    reg_parser('base').setParseAction(lambda result: result[0]) + \
+    (
+            (comma + immediate_parser) |
+            (~(comma + immediate_parser)).setParseAction(lambda x: 0)
+    ).setParseAction(lambda tok: tok[0]).setResultsName('offset') + \
+    pp.Suppress(']').setName(']')
+
+# checks if there is an immediate or a register
+is_imm = pp.FollowedBy(immediate_parser).setParseAction(lambda x: True)
+is_reg = pp.FollowedBy(reg_mem_access_parser).setParseAction(lambda x: False)
+imm_or_reg = (is_imm ^ is_reg).setParseAction(lambda tok: tok[0])
+
+# [immediate] or [[reg]<, [immediate]>]
+mem_access_syntax = \
+    imm_or_reg.setResultsName('imm') + \
+    (
+            immediate_parser | \
+            reg_mem_access_parser
+    )
+def parse_MEM_args(opcode: pipeline.OpCode, args: str) -> Dict[str, int]:
+    # evaluates the src/dest register for memory acces
+    if opcode is pipeline.OpCode.LDR:
+        reg_name ='dest'
+    elif opcode is pipeline.OpCode.STR:
+        reg_name = 'src'
+    else:
+        raise pp.ParseFatalException
+
+
+    mem_arg_parser = reg_parser(reg_name).setParseAction(lambda result: result[0]) + comma + mem_access_syntax
+
+    return mem_arg_parser.parseString(args).asDict()
+
+def parse_B_args(opcode: pipeline.OpCode, args: str) -> Dict[str, int]:
+    return mem_access_syntax.parseString(args).asDict()
+
+def parse_STK_args(opcode: pipeline.OpCode, args: str) -> Dict[str, int]:
+    if opcode is pipeline.OpCode.PUSH:
+        reg_name = 'src'
+    elif opcode is pipeline.OpCode.POP:
+        reg_name = 'dest'
+    else:
+        raise pp.ParseFatalException
+    
+    stk_arg_parser = reg_parser(reg_name).setParseAction(lambda result: result[0])
+
+    return stk_arg_parser.parseString(args).asDict()
+
+def parse_line(line: str) -> Dict[str, int]:
+    # handle blank lines and comments
+    everything = ... + pp.LineEnd()
+    everything.ignore(comment)
+
+    parsed_line, *_ = everything.parseString(line).asList() 
+
+    if not parsed_line:
+        # the line is empty and can be ignored
+        return {}
+
+    # separate the args from the mnemonic
+    mnemonic, args = (line.split(' ', maxsplit=1) + [None])[:2]  
+    # the weirdness with + [None] is so we can still unpack the variables 
+    # even if the string can't be split such as when parsing END or NOOP instructions
+
+    mnemonic_dict = parse_mnemonic(mnemonic)
+
+    opcode = mnemonic_dict['opcode']
+
+    # OpCodes 1-12 correspond to ALU ops
+    if opcode in list(pipeline.OpCode)[1:13]:  
+        # parse ALU args
+        arg_dict = parse_ALU_args(opcode, args)
+    elif opcode in [pipeline.OpCode.LDR, pipeline.OpCode.STR]:
+        # parse LDR/STR args
+        arg_dict = parse_MEM_args(opcode, args)
+    elif opcode in [pipeline.OpCode.B, pipeline.OpCode.BL]:
+        # parse Branch args
+        arg_dict = parse_B_args(opcode, args)
+    elif opcode in [pipeline.OpCode.NOOP, pipeline.OpCode.END]:
+        # parse NOOP args (there are none)
+        arg_dict = {}
+    elif opcode in [pipeline.OpCode.PUSH, pipeline.OpCode.POP]:
+        arg_dict = parse_STK_args(opcode, args)
+    else:
+        # we missed something, uh oh
+        raise pp.ParseFatalException(msg=f'\'{opcode}\' not recognized')
+
+    return mnemonic_dict | arg_dict
+
+    
+# region debugging
+
+# print(parse_ALU_args(pipeline.OpCode.ADD, 'r0, r1, r15'))
+# print(parse_ALU_args(pipeline.OpCode.ADD, 'r0, r1, 0b1111'))
+# print(parse_ALU_args(pipeline.OpCode.ADD, 'r0, r1, 0xf'))
+# print(parse_ALU_args(pipeline.OpCode.ADD, 'r0, r1, 15'))
+# print(parse_ALU_args(pipeline.OpCode.CMP, 'r2, r16'))
+# print(parse_ALU_args(pipeline.OpCode.CMP, 'r2, 16'))
+# print(parse_ALU_args(pipeline.OpCode.CMP, 'r0, r1'))
+# print(parse_MEM_args(pipeline.OpCode.LDR, 'r0, [r1]'))
+# print(parse_MEM_args(pipeline.OpCode.LDR, 'r0, [r1, #10]'))
+# print(parse_MEM_args(pipeline.OpCode.LDR, 'r0, [r1, #0x10]'))
+# print(parse_MEM_args(pipeline.OpCode.LDR, 'r0, [r1, #0b10]'))
+# print(parse_MEM_args(pipeline.OpCode.LDR, 'r0, #10'))
+# print(parse_MEM_args(pipeline.OpCode.STR, 'r2, [r1]'))
+# print(parse_MEM_args(pipeline.OpCode.STR, 'r2, [r1, #10]'))
+# print(parse_MEM_args(pipeline.OpCode.STR, 'r2, #10'))
+# print(parse_B_args(pipeline.OpCode.B, '[r1]'))
+# print(parse_B_args(pipeline.OpCode.B, '[r1, #10]'))
+# print(parse_B_args(pipeline.OpCode.B, '#10'))
+# print(parse_B_args(pipeline.OpCode.BL, '[r1]'))
+# print(parse_B_args(pipeline.OpCode.BL, '[r1, #10]'))
+# print(parse_B_args(pipeline.OpCode.BL, '#10'))
+
+# print(parse_line('ADD r0, r1, r15'))
+# print(parse_line('ADD r0, r1, 0b1111'))
+# print(parse_line('ADD r0, r1, 0xf'))
+# print(parse_line('ADD r0, r1, 15'))
+# print(parse_line('CMP r2, r16'))
+# print(parse_line('CMP r2, 16'))
+# print(parse_line('CMP r0, r1'))
+# print(parse_line('LDR r0, [r1]'))
+# print(parse_line('LDR r0, [r1, #10]'))
+# print(parse_line('LDR r0, [r1, #0x10]'))
+# print(parse_line('LDR r0, [r1, #0b10]'))
+# print(parse_line('LDR r0, #10'))
+# print(parse_line('STR r2, [r1]'))
+# print(parse_line('STR r2, [r1, #10]'))
+# print(parse_line('STR r2, #10'))
+# print(parse_line('B [r1]'))
+# print(parse_line('B [r1, #10]'))
+# print(parse_line('B #10'))
+# print(parse_line('BL [r1]'))
+# print(parse_line('BL [r1, #10]'))
+# print(parse_line('BL #10'))
+# print(parse_line('BLT [r1]'))
+# print(parse_line('BLT [r1, #10]'))
+# print(parse_line('BLT #10'))
+# print(parse_line('BLLT [r1]'))
+# print(parse_line('BLLT [r1, #10]'))
+# print(parse_line('BLLT #10'))
+# print(parse_line('BLEQ [r1]'))
+# print(parse_line('BLEQ [r1, #10]'))
+# print(parse_line('BLEQ #10'))
+# print(parse_line('    ; line with space and comment'))
+# print(parse_line('; line with only comment'))
+# print(parse_line('    '))
+# print(parse_line('  '))
+# print(parse_line('PUSH r10'))
+# print(parse_line('POP r10'))
+
+# endregion debugging
 
 if __name__ == '__main__':
-    # print(parse_line('B [r0]'))
-    # print(parse_line('B [r0, #0xC0FFEE]'))
-    # print(parse_line('BEQ [r0, #0xC0FFEE]'))
-    # print(parse_line('B #0xC0FFEE'))
-    # print(parse_line('CMP r0, 0xDEAD'))
-    # print(parse_line('CMP r2, r3'))
+    arg_parse = ArgumentParser()
+    arg_parse.add_argument('source', type=str)
+    arg_parse.add_argument('-o', type=str, metavar='destination', dest='destination')
 
-    # print(parse_line('NOT r2, r3 '))
-    # print(parse_line('NOT r2, r3 ')['opcode'])
-    # print(parse_line('NOT r2, r3 ')['dest'])
-    # print(parse_line('NOT r2, r3 ')['op1'])
-    # print(parse_line('NOT r2, r3 ')['lit'])
-    # print(parse_line('NOT r2, r3 ')['literal'])
+    args = arg_parse.parse_args()
 
-    # print(parse_line('MOV r2, r3 '))
-    # print(parse_line('MOV r2, r3 ')['opcode'])
-    # print(parse_line('MOV r2, r3 ')['dest'])
-    # print(parse_line('MOV r2, r3 ')['op1'])
-    # print(parse_line('MOV r2, r3 ')['lit'])
-    # print(parse_line('MOV r2, r3 ')['literal'])
+    dest = args.destination
+    if dest is not None:
+        out_file = open(dest, 'w+')
+    else:
+        out_file = sys.stdout
 
-    # print(parse_line('ADD r2, r3, 0xC0FFEE '))
-    # print(parse_line('ADD r2, r3, 0xC0FFEE ')['opcode'])
-    # print(parse_line('ADD r2, r3, 0xC0FFEE ')['dest'])
-    # print(parse_line('ADD r2, r3, 0xC0FFEE ')['op1'])
-    # print(parse_line('ADD r2, r3, 0xC0FFEE ')['lit'])
-    # print(parse_line('ADD r2, r3, 0xC0FFEE ')['literal'])
+    with open(args.source, 'r') as in_file:
+        for line in in_file:
+            print(f'\nparsing line \'{line.rstrip()}\'')
 
-    # print(parse_line('ADD r2, r3, r4 '))
-    # print(parse_line('ADD r2, r3, r4 ')['opcode'])
-    # print(parse_line('ADD r2, r3, r4 ')['dest'])
-    # print(parse_line('ADD r2, r3, r4 ')['op1'])
-    # print(parse_line('ADD r2, r3, r4 ')['lit'])
-    # print(parse_line('ADD r2, r3, r4 ')['op2'])
+            # parse the line
+            parsed = parse_line(line)
 
-    # print(parse_line('BL [r4] '))
-    # print(parse_line('BL [r4] ')['opcode'])
-    # print(parse_line('BL [r4] ')['cond'])
-    # print(parse_line('BL [r4] ')['imm'])
-    # print(parse_line('BL [r4] ')['base'])
-    # print(parse_line('BL [r4] ')['offset'])
+            if parsed:  # only parse lines with things in it
+                # get the instruction encoding
+                cur_encoding = pipeline.Instructions[parsed['opcode']].encoding
 
-    parsed = parse_line('STR R0, #6')
-    print(parsed)
-    print(parsed['opcode'])
-    print(parsed['src'])
-    print(parsed['imm'])
-    print(parsed['immediate'])
-    pipeline.STR_Instruction.encoding.encode(dict(parsed))
-    print(encoded)
+                # pass the results to the encoding
+                parsed_dict = dict(parsed)
+                print(parsed_dict)
+                result = cur_encoding(val=parsed_dict)
 
-    # parse_line('')
+                print(f'{result._bits:032b}', file=out_file)
 
-    # arg_parse = ArgumentParser()
-    # arg_parse.add_argument('source', type=str)
-    # arg_parse.add_argument('-o', type=str, metavar='destination', dest='destination')
-
-    # args = arg_parse.parse_args()
-
-    # dest = args.destination
-    # if dest is not None:
-    #     out_file = open(dest, 'w+')
-    # else:
-    #     out_file = sys.stdout
-
-    # with open(args.source, 'r') as in_file:
-    #     for line in in_file:
-    #         # parse the line
-    #         parsed = parse_line(line)
-
-    #         # get the instruction encoding
-    #         cur_encoding = pipeline.Instructions[parsed['opcode']].encoding
-
-    #         # pass the results to the encoding
-    #         parsed_dict = dict(parsed)
-    #         result = cur_encoding(val=parsed_dict)
-
-    #         print(f'{result._bits:032b}', file=out_file)
-
-    # print(f'compiled {args.source} to {"stdout" if dest is None else dest}')
+    cprint(f'compiled {args.source} to {"stdout" if dest is None else dest}', color='green')
