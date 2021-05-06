@@ -649,10 +649,10 @@ class EISADialog(QMainWindow):
 
         for i in range(1, self.memory_group.cache_rows + 1):
             for j in range(1, self.memory_group.cache_cols + 1):
-                val = [i for i in cache[((i - 1) * self.memory_group.cache_cols) + (j - 1)]._data]
+                val = [i._data for i in cache[((i - 1) * self.memory_group.cache_cols) + (j - 1)]]
                 if self._hex:
                     for k in range(len(val)):
-                        val[k] = hex(val[k])
+                        val[k] = val[k]
                 self.memory_group.cache_widget.item(i - 1, j - 1).setText(str(val))
 
     def update_cache2(self):
@@ -660,10 +660,10 @@ class EISADialog(QMainWindow):
 
         for i in range(1, self.memory_group.cache2_rows + 1):
             for j in range(1, self.memory_group.cache2_cols + 1):
-                val = [i for i in cache2[((i - 1) * self.memory_group.cache2_cols) + (j - 1)]._data]
+                val = [i._data for i in cache2[((i - 1) * self.memory_group.cache2_cols) + (j - 1)]]
                 if self._hex:
                     for k in range(len(val)):
-                        val[k] = hex(val[k])
+                        val[k] = val[k]
                 self.memory_group.cache2_widget.item(i - 1, j - 1).setText(str(val))
 
     def update_memory(self):
@@ -684,8 +684,8 @@ class EISADialog(QMainWindow):
                                        EISA.CACHE_WRITE_SPEED, EISA.RAM_SIZE, EISA.RAM_READ_SPEED, EISA.RAM_WRITE_SPEED)
         self._pipeline = PipeLine(0, [0] * 32, self._memory)
 
-        self.cache_enabled_box.toggled(False)
-        self.pipeline_enabled.toggled(False)
+        self.cache_enabled_box.setChecked(False)
+        self.pipeline_enabled.setChecked(False)
 
     def load_program_from_file(self):
 

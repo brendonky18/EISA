@@ -27,6 +27,12 @@ class EISA_properties(object):
     def CACHE_SIZE(self) -> int: return 4  # the number of addressable bits used by the cache
 
     @const
+    def CACHE_BLOCK_SIZE(self) -> int: return 1  # the number of addressable bits used by the cache BLOCK
+
+    @const
+    def CACHE_WAY_SIZE(self) -> int: return 2  # the number of addressable bits used by the cache BLOCK
+
+    @const
     def CACHE2_SIZE(self) -> int: return 5  # the number of addressable bits used by the cache
 
     @const

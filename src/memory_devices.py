@@ -166,7 +166,35 @@ class MemoryDevice(ABC):
 
 # TODO: extra credit, use to implement associative caches instead of direct-mapped
 class CacheBlock:
-    pass
+
+    def __init__(self, set, cache_size_bits):
+        self.set_num = set
+        self.ways = [CacheWay(1, EISA.CACHE_WAY_SIZE).index(i) for i in range(2)]
+        self.pointer = 0
+
+    def __getitem__(self, address):
+        return self.ways[address]
+
+    def update_pointer(self):
+        self.pointer = abs(self.pointer-1)
+
+    def insert_word(self, address, word, cache_space_bits):
+        self.ways[self.pointer] = CacheWay(cache_space_bits, EISA.CACHE_WAY_SIZE)
+        self.ways[self.pointer][address] = word
+        self.update_pointer()
+
+    def insert_way(self, way: CacheWay):
+        self.ways[self.pointer] = way
+        self.update_pointer()
+
+    def get_way(self, address):
+        for i in self.ways:
+            if (i is not None) and i.check_hit(address):
+                return i
+        toReturn = self.ways[self.pointer]
+        self.update_pointer()
+        return toReturn
+
 
 class CacheWay:
     """
@@ -251,9 +279,6 @@ class CacheWay:
         address >>= self._index_bits
         tag = address & (2**self._tag_bits - 1)
 
-        if index != self.index():
-            raise ValueError('Indicies no not match')
-
         if tag != self.tag() or not self.valid():
             raise MemoryMissError('Read miss')
 
@@ -272,8 +297,6 @@ class CacheWay:
         address >>= self._index_bits
         tag = address & (2**self._tag_bits - 1)
 
-        if index != self.index():
-            raise ValueError('Vaues for index do not match')
 
         if tag != self.tag():
             raise MemoryMissError('Write miss')
@@ -326,9 +349,6 @@ class CacheWay:
         # get the tag
         address >>= self._index_bits
         tag = address & (2**self._tag_bits - 1)
-
-        if index != self.index():
-            raise ValueError('Indicies no not match')
 
         # update the tag
         self.tag(tag)
@@ -500,9 +520,9 @@ class Cache(MemoryDevice):
         self._offset_size = offset_size
         self._offset_space = 2**offset_size
         if level:
-            self._cache = [CacheWay(self._local_addr_size, offset_size).index(i) for i in range(EISA.CACHE2_ADDR_SPACE)]
+            self._cache = [CacheBlock(i, 5) for i in range(EISA.CACHE2_ADDR_SPACE)]
         else:
-            self._cache = [CacheWay(self._local_addr_size, offset_size).index(i) for i in range(EISA.CACHE_ADDR_SPACE)]
+            self._cache = [CacheBlock(i, 4) for i in range(EISA.CACHE_ADDR_SPACE)]
 
         if evict_cb is not None:
             self._on_evict = evict_cb # type: ignore
@@ -552,8 +572,12 @@ class Cache(MemoryDevice):
 
         self.get_cacheway(address).replace(address_block, data)
 
+
     def check_hit(self, address: int) -> bool:
-        return self.get_cacheway(address).check_hit(address)
+        try:
+            return self.get_cacheway(address).check_hit(address)
+        except MemoryMissError:
+            return False
 
     def get_cacheway(self, address: int) -> CacheWay:
         """function to expose individual cache ways so that they can be viewed
@@ -565,7 +589,8 @@ class Cache(MemoryDevice):
             ignores all but the index bits in the specified address
         """
 
-        return self._cache[(address >> self._offset_size) & (self._local_addr_space - 1)]
+        return self._cache[((address >> 2) & ((len(self._cache))-1))].get_way(address)
+
 
     def offset_align(self, address: int) -> slice:
         """helper function that takes in an address and gives an offset-aligned slice 
