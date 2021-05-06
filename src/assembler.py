@@ -1,12 +1,10 @@
 from argparse import ArgumentParser
-from parse import parse
 import pyparsing as pp
 import sys
 import os
 from typing import List, Union, Dict
 import pipeline
 from eisa import EISA
-from termcolor import cprint
 
 # region instruction formats
 # ALU
@@ -416,4 +414,4 @@ if __name__ == '__main__':
 
                 print(f'{result._bits:032b}', file=out_file)
 
-    cprint(f'compiled {args.source} to {"stdout" if dest is None else dest}', color='green')
+    #cprint(f'compiled {args.source} to {"stdout" if dest is None else dest}', color='green')

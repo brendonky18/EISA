@@ -119,7 +119,7 @@ class PipeLine(object):
 
         self._pc = pc
         self.lr = 0
-        self.sp = 255
+        self.sp = int(SpecialRegister['bp'])
 
         self._memory = memory
 
@@ -500,6 +500,7 @@ class SpecialRegister(enum.IntEnum):
     sp = 29  # Stack Pointer
     lr = 30  # Link Register
     pc = 31  # Program Counter
+    bp = EISA.RAM_ADDR_SPACE-1
 
 class OpCode(aenum.IntEnum):
     _settings_ = aenum.NoAlias
@@ -1026,7 +1027,7 @@ class POP_Instruction(LDR_Instruction):
         """writes the value we got from memory into the specified register
         """
         self._pipeline._registers[self['dest']] = self.computed
-        if self._pipeline.sp < 255:
+        if self._pipeline.sp < int(SpecialRegister['bp']):
             self._pipeline.sp += 1
 
 class PUSH_Instruction(STR_Instruction):
