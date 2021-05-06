@@ -684,8 +684,8 @@ class EISADialog(QMainWindow):
                                        EISA.CACHE_WRITE_SPEED, EISA.RAM_SIZE, EISA.RAM_READ_SPEED, EISA.RAM_WRITE_SPEED)
         self._pipeline = PipeLine(0, [0] * 32, self._memory)
 
-        self.cache_enabled_box.toggled(False)
-        self.pipeline_enabled.toggled(False)
+        self.cache_enabled_box.setChecked(False)
+        self.pipeline_enabled.setChecked(False)
 
     def load_program_from_file(self):
 
