@@ -27,6 +27,9 @@ class EISA_properties(object):
     def CACHE_SIZE(self) -> int: return 4  # the number of addressable bits used by the cache
 
     @const
+    def CACHE2_SIZE(self) -> int: return 5  # the number of addressable bits used by the cache
+
+    @const
     def RAM_SIZE(self) -> int: return self.ADDRESS_SIZE  # the number of addressable bits used by RAM
 
     @const
@@ -57,14 +60,22 @@ class EISA_properties(object):
     def CACHE_WRITE_SPEED(self) -> int: return 1
 
     @const
+    def CACHE2_READ_SPEED(self) -> int: return 4
+
+    @const
+    def CACHE2_WRITE_SPEED(self) -> int: return 4
+
+    @const
     def RAM_READ_SPEED(self) -> int: return 100
 
     @const
     def RAM_WRITE_SPEED(self) -> int: return 100
 
 # wrappers
+
     @const
     def ADDRESS_SPACE(self) -> int: return 2 ** self.ADDRESS_SIZE  # the number of valid addresses
+
     @const
     def ADDRESS_MASK(self) -> int: return (2 ** self.ADDRESS_SIZE) - 1
 
@@ -73,6 +84,9 @@ class EISA_properties(object):
 
     @const
     def CACHE_ADDR_SPACE(self) -> int: return 2 ** self.CACHE_SIZE  # the number of cache lines
+
+    @const
+    def CACHE2_ADDR_SPACE(self) -> int: return 2 ** self.CACHE2_SIZE  # the number of cache lines
 
     @const
     def RAM_ADDR_SPACE(self) -> int: return 2 ** self.RAM_SIZE  # the range of valid RAM addresses

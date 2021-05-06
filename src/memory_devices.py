@@ -17,8 +17,8 @@ class MemoryMissError(ValueError):
 
 class Policy():
     def __init__(
-        self, 
-        device: MemoryDevice, 
+        self,
+        device: MemoryDevice,
         read_hit_policy: Callable[[Union[int, slice]], int], read_miss_policy: Callable[[Union[int, slice]], int],
         write_hit_policy: Callable[[Union[int, slice], int], None], write_miss_policy: Callable[[Union[int, slice], int], None]
     ):
@@ -219,7 +219,7 @@ class CacheWay:
         self._tag = 0
         self._index = 0
         self._data = [0, 0, 0, 0]
-    
+
     def __str__(self) -> str:
         """to string method
         """
@@ -250,7 +250,7 @@ class CacheWay:
         # get the tag
         address >>= self._index_bits
         tag = address & (2**self._tag_bits - 1)
-        
+
         if index != self.index():
             raise ValueError('Indicies no not match')
 
@@ -271,13 +271,13 @@ class CacheWay:
         # get the tag
         address >>= self._index_bits
         tag = address & (2**self._tag_bits - 1)
-        
+
         if index != self.index():
             raise ValueError('Vaues for index do not match')
 
         if tag != self.tag():
             raise MemoryMissError('Write miss')
-        
+
         # self._clock.wait(1, wait_event_name='Cache write')
         self._data[offset] = value
         self.valid(True)
@@ -301,7 +301,7 @@ class CacheWay:
         tag = address & (2**self._tag_bits - 1)
 
         return (tag == self.tag()) and bool(self.valid())
-        
+
     # replace/evict
     def replace(self, address_block: slice, data: int):
         """performs a cache eviction by replacing the data in a cache way
@@ -319,14 +319,14 @@ class CacheWay:
             if the index of the cache way being replaced, does not match the index of the incoming address block
         """
         address = address_block.start
-    
+
         # get the index
         address >>= self._offset_bits
         index = address & (2**self._index_bits - 1)
         # get the tag
         address >>= self._index_bits
         tag = address & (2**self._tag_bits - 1)
-    
+
         if index != self.index():
             raise ValueError('Indicies no not match')
 
@@ -380,7 +380,7 @@ class CacheWay:
         else:
             self._dirty = value
             return self
-    
+
     def tag(self, value: Optional[int]=None):
         """accessor function for the tag field
 
@@ -403,7 +403,7 @@ class CacheWay:
         else:
             self._tag = value
             return self
-    
+
     def index(self, value: Optional[int]=None):
         """accessor function for the index field
 
@@ -420,13 +420,13 @@ class CacheWay:
             the value stored in the index field if the access is a `get` operation
         """
         CacheWay
-            
+
         if value is None:
             return self._index
         else:
             self._index = value
             return self
-    
+
     # TODO implement this function inside __setitem__ and __getitem__
     # it will check for replacement vs assignment by using slices for replacement, and ints for assignment
     def data(self, value: Optional[int]=None):
@@ -470,13 +470,14 @@ class Cache(MemoryDevice):
     _on_evict: Callable[[MemoryDevice], Any]
 
     def __init__(
-        self, 
-        local_addr_size: int, 
-        offset_size: int, 
-        next_device: MemoryDevice, 
-        read_speed: int, 
-        write_speed: int, 
-        evict_cb: Optional[Callable[[], Any]]=None
+        self,
+        local_addr_size: int,
+        offset_size: int,
+        next_device: MemoryDevice,
+        read_speed: int,
+        write_speed: int,
+        evict_cb: Optional[Callable[[], Any]]=None,
+        level=0,
     ):
         """Constructor for a cache
 
@@ -498,7 +499,10 @@ class Cache(MemoryDevice):
         super().__init__(local_addr_size, next_device, read_speed, write_speed)
         self._offset_size = offset_size
         self._offset_space = 2**offset_size
-        self._cache = [CacheWay(self._local_addr_size, offset_size).index(i) for i in range(EISA.CACHE_ADDR_SPACE)]
+        if level:
+            self._cache = [CacheWay(self._local_addr_size, offset_size).index(i) for i in range(EISA.CACHE2_ADDR_SPACE)]
+        else:
+            self._cache = [CacheWay(self._local_addr_size, offset_size).index(i) for i in range(EISA.CACHE_ADDR_SPACE)]
 
         if evict_cb is not None:
             self._on_evict = evict_cb # type: ignore
@@ -561,7 +565,7 @@ class Cache(MemoryDevice):
             ignores all but the index bits in the specified address
         """
 
-        return self._cache[(address >> self._offset_size) & (self._local_addr_space - 1)] 
+        return self._cache[(address >> self._offset_size) & (self._local_addr_space - 1)]
 
     def offset_align(self, address: int) -> slice:
         """helper function that takes in an address and gives an offset-aligned slice 

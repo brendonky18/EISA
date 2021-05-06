@@ -72,6 +72,7 @@ def set_headers(rows: int, cols: int, table: list[list]) -> list[list]:
 class MemoryGroup:
     ram_table: list[list]
     cache_table: list[list]
+    cache2_table: list[list]
     regs_table: list[list]
 
     ram_rows: int
@@ -80,6 +81,9 @@ class MemoryGroup:
     cache_rows: int
     cache_cols: int
 
+    cache2_rows: int
+    cache2_cols: int
+
     regs_rows: int
     regs_cols: int
 
@@ -87,6 +91,7 @@ class MemoryGroup:
 
     ram_widget: QTableWidget
     cache_widget: QTableWidget
+    cache2_widget: QTableWidget
     regs_widget: QTableWidget
 
     def __init__(self, regs: list[int], memory_subsystem: MemorySubsystem):
@@ -97,14 +102,20 @@ class MemoryGroup:
         self.cache_rows = 2
         self.cache_cols = 8
 
+        self.cache2_rows = 4
+        self.cache2_cols = 8
+
         self.regs_rows = 4
         self.regs_cols = 8
 
         self.ram_box = QGroupBox("Memory")
         ramvbox = QVBoxLayout()
 
-        self.cache_box = QGroupBox("Cache")
+        self.cache_box = QGroupBox("L1 - Cache")
         cachevbox = QVBoxLayout()
+
+        self.cache2_box = QGroupBox("L2 - Cache")
+        cache2vbox = QVBoxLayout()
 
         self.regs_box = QGroupBox("Registers")
         regsvbox = QVBoxLayout()
@@ -113,18 +124,21 @@ class MemoryGroup:
 
         self.ram = self.memory._RAM
         self.cache = self.memory._cache._cache  # NOTE - List of Cacheways
+        self.cache2 = self.memory._cache2._cache
         self.regs = regs
 
         self.load_memory()
 
         ramvbox.addWidget(self.ram_widget)
         cachevbox.addWidget(self.cache_widget)
+        cache2vbox.addWidget(self.cache2_widget)
         regsvbox.addWidget(self.regs_widget)
 
         ramvbox.setSpacing(0)
 
         self.ram_box.setLayout(ramvbox)
         self.cache_box.setLayout(cachevbox)
+        self.cache2_box.setLayout(cache2vbox)
         self.regs_box.setLayout(regsvbox)
 
     def load_ram(self):
@@ -157,6 +171,22 @@ class MemoryGroup:
                 temp.setData(0, self.cache_table[i][j])
                 self.cache_widget.setItem(i - 1, j - 1, temp)
 
+    def load_cache2(self):
+        self.cache2_table, row2_headers = set_headers(self.cache2_rows, self.cache2_cols,
+                                                    format_list_to_table(self.cache2_rows, self.cache2_cols, self.cache2))
+        self.cache2_widget = QTableWidget(self.cache2_rows, self.cache2_cols)
+        self.cache2_widget.setHorizontalHeaderLabels(self.cache2_table[0])
+        self.cache2_widget.setVerticalHeaderLabels(row2_headers)
+        for i in range(self.cache2_cols):
+            self.cache2_widget.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
+        for i in range(self.cache2_rows):
+            self.cache2_widget.verticalHeader().setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
+        for i in range(1, self.cache2_rows + 1):
+            for j in range(1, self.cache2_cols + 1):
+                temp = QTableWidgetItem()
+                temp.setData(0, self.cache2_table[i][j])
+                self.cache2_widget.setItem(i - 1, j - 1, temp)
+
     def load_regs(self):
         self.regs_table, row_headers = set_headers(self.regs_rows, self.regs_cols,
                                                    format_list_to_table(self.regs_rows, self.regs_cols, self.regs))
@@ -178,6 +208,7 @@ class MemoryGroup:
     def load_memory(self):
         self.load_ram()
         self.load_cache()
+        self.load_cache2()
         self.load_regs()
 
 
@@ -249,11 +280,13 @@ class EISADialog(QMainWindow):
         self.memory_group.ram_widget.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
         self.memory_group.regs_widget.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
         self.memory_group.cache_widget.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
+        self.memory_group.cache2_widget.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
 
     def changeEvent(self, a0) -> None:
         try:
             self.memory_group.regs_widget.setMaximumWidth(self.memory_group.regs_box.width()-20)
             self.memory_group.cache_widget.setMaximumWidth(self.memory_group.cache_box.width()-20)
+            self.memory_group.cache2_widget.setMaximumWidth(self.memory_group.cache2_box.width() - 20)
         except AttributeError:
             pass
 
@@ -428,9 +461,15 @@ class EISADialog(QMainWindow):
             self._memory._cache = memory_devices.Cache(self._memory.cache_size_original, 2, self._memory._RAM,
                                                        self._memory.cache_read_speed, self._memory.cache_write_speed,
                                                        self._memory.cache_evict_cb)
+            self._memory._cache2 = memory_devices.Cache(self._memory.cache2_size_original, 2, self._memory._RAM,
+                                                       self._memory.cache2_read_speed, self._memory.cache2_write_speed,
+                                                       self._memory.cache_evict_cb, level=2)
         else:
             self._memory._cache = memory_devices.Cache(0, 0, self._memory._RAM, self._memory.cache_read_speed,
                                                        self._memory.cache_write_speed, self._memory.cache_evict_cb)
+            self._memory._cache2 = memory_devices.Cache(0, 0, self._memory._RAM, self._memory.cache2_read_speed,
+                                                       self._memory.cache2_write_speed, self._memory.cache_evict_cb, level=2)
+
         self.update_ui()
 
     def toggle_pipeline(self):
@@ -493,15 +532,26 @@ class EISADialog(QMainWindow):
         self.dlgLayout.addWidget(self.memory_group.regs_box)
 
         cache_button_layout = QGridLayout()
-        self.reset_cache_button = QPushButton("Reset Cache")
+        self.reset_cache_button = QPushButton("Reset L1 Cache")
         self.reset_cache_button.clicked.connect(self.reset_cache)
         self.reset_cache_button.setAutoDefault(False)
-        cache_button_layout.addWidget(self.reset_cache_button, 1, 5, alignment=Qt.Alignment.AlignRight)
+        cache_button_layout.addWidget(self.reset_cache_button, 1, 3, alignment=Qt.Alignment.AlignRight)
 
         final_cache_layout = self.memory_group.cache_box.layout()
         final_cache_layout.addLayout(cache_button_layout)
 
         self.dlgLayout.addWidget(self.memory_group.cache_box)
+
+        cache2_button_layout = QGridLayout()
+        self.reset_cache2_button = QPushButton("Reset L2 Cache")
+        self.reset_cache2_button.clicked.connect(self.reset_cache2)  # TODO - Implement reset_cache2
+        self.reset_cache2_button.setAutoDefault(False)
+        cache2_button_layout.addWidget(self.reset_cache2_button, 1, 3, alignment=Qt.Alignment.AlignRight)
+
+        final_cache2_layout = self.memory_group.cache2_box.layout()
+        final_cache2_layout.addLayout(cache2_button_layout)
+
+        self.dlgLayout.addWidget(self.memory_group.cache2_box)
 
         self.dlgLayout.addStretch()
 
@@ -519,6 +569,20 @@ class EISADialog(QMainWindow):
         self._memory._cache = memory_devices.Cache(self._memory.cache_size_original, 2, self._memory._RAM,
                                                    self._memory.cache_read_speed, self._memory.cache_write_speed,
                                                    self._memory.cache_evict_cb)
+        self._memory._cache2 = memory_devices.Cache(self._memory.cache2_size_original, 2, self._memory._RAM,
+                                                    self._memory.cache2_read_speed, self._memory.cache2_write_speed,
+                                                    self._memory.cache_evict_cb, level=2)
+        self.cache_enabled_box.setChecked(False)
+        self.update_ui()
+
+    def reset_cache2(self):
+        self._memory._cache2 = memory_devices.Cache(self._memory.cache2_size_original, 2, self._memory._RAM,
+                                                   self._memory.cache2_read_speed, self._memory.cache2_write_speed,
+                                                   self._memory.cache_evict_cb, level=2)
+        self._memory._cache = memory_devices.Cache(self._memory.cache_size_original, 2, self._memory._RAM,
+                                                   self._memory.cache_read_speed, self._memory.cache_write_speed,
+                                                   self._memory.cache_evict_cb)
+        self.cache_enabled_box.setChecked(False)
         self.update_ui()
 
     def destroy_stage_fields(self):
@@ -591,10 +655,22 @@ class EISADialog(QMainWindow):
                         val[k] = hex(val[k])
                 self.memory_group.cache_widget.item(i - 1, j - 1).setText(str(val))
 
+    def update_cache2(self):
+        cache2 = self._pipeline._memory._cache2._cache
+
+        for i in range(1, self.memory_group.cache2_rows + 1):
+            for j in range(1, self.memory_group.cache2_cols + 1):
+                val = [i for i in cache2[((i - 1) * self.memory_group.cache2_cols) + (j - 1)]._data]
+                if self._hex:
+                    for k in range(len(val)):
+                        val[k] = hex(val[k])
+                self.memory_group.cache2_widget.item(i - 1, j - 1).setText(str(val))
+
     def update_memory(self):
         self.update_ram()
         self.update_regs()
         self.update_cache()
+        self.update_cache2()
 
     def hex_toggle(self):
         self._hex = not (self._hex)
@@ -607,6 +683,9 @@ class EISADialog(QMainWindow):
         self._memory = MemorySubsystem(EISA.ADDRESS_SIZE, EISA.CACHE_SIZE, EISA.CACHE_READ_SPEED,
                                        EISA.CACHE_WRITE_SPEED, EISA.RAM_SIZE, EISA.RAM_READ_SPEED, EISA.RAM_WRITE_SPEED)
         self._pipeline = PipeLine(0, [0] * 32, self._memory)
+
+        self.cache_enabled_box.toggled(False)
+        self.pipeline_enabled.toggled(False)
 
     def load_program_from_file(self):
 
@@ -654,13 +733,13 @@ class EISADialog(QMainWindow):
         exchange_sort_path = '../demos/exchange_sort.out'
 
         with open(exchange_sort_path, 'r') as exchange_sort_file:
-            ARRAY_SIZE = 32
-            RAND_ARRAY = True
+            ARRAY_SIZE = 64
+            RAND_ARRAY = False
 
             i = 0
             for line in exchange_sort_file:
                 # load each line into memory
-                self._memory._RAM[i] = int(line, 2)  
+                self._memory._RAM[i] = int(line, 2)
                 i += 1
 
         # load the array into memory
