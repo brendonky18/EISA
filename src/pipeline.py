@@ -545,21 +545,21 @@ class OpCode(aenum.IntEnum):
 
 @enum.unique
 class ConditionCode(enum.IntEnum):
-    EQ = 0b0000 # EQ meaning Equal with Zero flag set.
-    NE = 0b0001 # NE meaning Not equal with the Zero clear.
-    CS = 0b0010 # CS meaning Carry set or HS meaning unsigned higher or same with Carry set.
-    CC = 0b0011 # CC meaning Carry clear or LO meaning unsigned lower with Carry clear.
-    MI = 0b0100 # MI meaning Minus or negative with the Negative flag set.
-    PL = 0b0101 # PL meaning Plus (including zero) with the Negative flag clear.
-    VS = 0b0110 # VS meaning Overflow with the Overflow flag set.
-    VC = 0b0111 # VC meaning No overflow with the Overflow clear.
-    HI = 0b1000 # HI meaning an Unsigned higher with Carry set AND Zero clear.
-    LS = 0b1001 # LS meaning Unsigned lower or same with Carry clear AND Zero set.
-    GE = 0b1010 # GE meaning Signed greater than or equal with Negative equal to Overflow.
-    LT = 0b1011 # LT meaning Signed less than with Negative not equal to Overflow.
-    GT = 0b1100 # GT meaning Signed greater than with Zero clear AND Negative equal to Overflow.
-    LE = 0b1101 # LE meaning Signed less than or equal with Zero set AND Negative not equal to Overflow.
-    AL = 0b1110 # AL meaning Always. If there is no conditional part in assembler this encoding is used.
+    EQ = 0b0000  #  0: EQ meaning Equal with Zero flag set.
+    NE = 0b0001  #  1: NE meaning Not equal with the Zero clear.
+    CS = 0b0010  #  2: CS meaning Carry set or HS meaning unsigned higher or same with Carry set.
+    CC = 0b0011  #  3: CC meaning Carry clear or LO meaning unsigned lower with Carry clear.
+    MI = 0b0100  #  4: MI meaning Minus or negative with the Negative flag set.
+    PL = 0b0101  #  5: PL meaning Plus (including zero) with the Negative flag clear.
+    VS = 0b0110  #  6: VS meaning Overflow with the Overflow flag set.
+    VC = 0b0111  #  7: VC meaning No overflow with the Overflow clear.
+    HI = 0b1000  #  8: HI meaning an Unsigned higher with Carry set AND Zero clear.
+    LS = 0b1001  #  9: LS meaning Unsigned lower or same with Carry clear AND Zero set.
+    GE = 0b1010  # 10: GE meaning Signed greater than or equal with Negative equal to Overflow.
+    LT = 0b1011  # 11: LT meaning Signed less than with Negative not equal to Overflow.
+    GT = 0b1100  # 12: GT meaning Signed greater than with Zero clear AND Negative equal to Overflow.
+    LE = 0b1101  # 13: LE meaning Signed less than or equal with Zero set AND Negative not equal to Overflow.
+    AL = 0b1110  # 14: AL meaning Always. If there is no conditional part in assembler this encoding is used.
     # NV = 0b1111 # NV meaning Never; this is historical and deprecated, but for ARMv3 it meant never. Ie a nop. For newer ARMs (ARMv5+), this extends the op-code range.
 
 # TODO refactor InstructionType into the Instruction class
