@@ -2,7 +2,7 @@ from __future__ import annotations  # must be first import, allows type hinting 
 
 from abc import ABC, abstractmethod  # Abstract Base Class
 from functools import reduce
-from typing import Union, Optional, Callable, Any
+from typing import Union, Optional, Callable, Any, Dict, Tuple
 
 from tabulate import tabulate  # pip install tabulate
 
@@ -10,6 +10,7 @@ from tabulate import tabulate  # pip install tabulate
 from eisa import EISA
 from math import ceil
 
+from bit_vectors import BitVector
 
 class MemoryMissError(ValueError):
     # raised on a cache miss
@@ -166,7 +167,57 @@ class MemoryDevice(ABC):
 
 # TODO: extra credit, use to implement associative caches instead of direct-mapped
 class CacheBlock:
-    pass
+    AddressFormat = BitVector.create_subtype('AddressFormat', EISA.ADDRESS_SIZE)
+    AddressFormat.add_field('offset', 0, EISA.CACHE_OFFSET_SIZE)
+    index_start = EISA.CACHE_OFFSET_SIZE
+    AddressFormat.add_field('index', index_start, EISA.CACHE_INDEX_SIZE)
+    tag_start = index_start + EISA.CACHE_INDEX_SIZE
+    AddressFormat.add_field('tag', tag_start, EISA.CACHE_TAG_SIZE)
+
+
+    cacheway_size = EISA.CACHE_OFFSET_SPACE * EISA.WORD_SIZE + EISA.ADDRESS_SIZE - EISA.CACHE_OFFSET_SIZE
+    CacheWay = BitVector.create_subtype('CacheWay', size=cacheway_size)
+    # add the 4 words per line
+    for word_num in range(EISA.CACHE_OFFSET_SIZE):
+        CacheWay.add_field(f'{word_num}', word_num * EISA.WORD_SIZE, EISA.WORD_SIZE)
+
+    # index
+    index_start = EISA.CACHE_OFFSET_SPACE * EISA.WORD_SIZE
+    CacheWay.add_field('index', index_start, EISA.CACHE_INDEX_SIZE)
+    
+    # tag
+    tag_start = index_start + EISA.CACHE_INDEX_SIZE
+    CacheWay.add_field('tag', tag_start, EISA.CACHE_TAG_SIZE)
+
+    # valid
+    valid_start = tag_start + EISA.CACHE_TAG_SIZE
+    CacheWay.add_field('valid', valid_start, 1)
+
+    # instance vars
+    ways: Tuple[CacheWay]
+    index: int
+    index_size: int
+    offset_size: int
+
+    def __init__(self, index, index_size, offset_size):
+        self.index = index
+        self.index_size = index_size
+        self.index_space = 2** index_size
+
+        self.offset_size = offset_size
+        self.offset_space = 2**offset_size
+
+        # initialize a tuple of n Cache ways
+        self.ways = (*[CacheWay({'valid': False, 'index': index}) for _ in range(EISA.CACHE_OFFSET_SPACE)],)
+
+    # read
+    def __getitem__(self, address) -> int:
+        pass
+
+    # write
+    def __setitem__(self, address, val) -> None:
+        pass
+    
 
 class CacheWay:
     """
@@ -188,6 +239,8 @@ class CacheWay:
     _tag: int
     _index: int
     _data: list[int] = [0, 0, 0, 0]
+
+    _data = BitVector.create_subtype(CacheWay)
     # _clock: Clock = Clock()
     # </instance variables>
 

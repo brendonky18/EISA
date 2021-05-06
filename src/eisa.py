@@ -21,10 +21,13 @@ class EISA_properties(object):
     def ADDRESS_SIZE(self) -> int: return 13  # the number bits in the address space NEEDS TO BE UPDATED WITH RAM_SIZE
 
     @const
-    def OFFSET_SIZE(self) -> int: return 2  # the number of bits for the offset in a cache line
+    def CACHE_OFFSET_SIZE(self) -> int: return 2  # the number of bits for the offset in a cache line
 
     @const
-    def CACHE_SIZE(self) -> int: return 4  # the number of addressable bits used by the cache
+    def CACHE_INDEX_SIZE(self) -> int: return 4  # the number of addressable bits used by the cache
+
+    @const
+    def CACHE_TAG_SIZE(self) -> int: return self.ADDRESS_SIZE - (self.CACHE_INDEX_SIZE + self.CACHE_OFFSET_SIZE)
 
     @const
     def RAM_SIZE(self) -> int: return self.ADDRESS_SIZE  # the number of addressable bits used by RAM
@@ -69,10 +72,10 @@ class EISA_properties(object):
     def ADDRESS_MASK(self) -> int: return (2 ** self.ADDRESS_SIZE) - 1
 
     @const
-    def OFFSET_SPACE(self) -> int: return 2 ** self.OFFSET_SIZE  # the number of words per line
+    def CACHE_OFFSET_SPACE(self) -> int: return 2 ** self.CACHE_OFFSET_SIZE  # the number of words per line
 
     @const
-    def CACHE_ADDR_SPACE(self) -> int: return 2 ** self.CACHE_SIZE  # the number of cache lines
+    def CACHE_ADDR_SPACE(self) -> int: return 2 ** self.CACHE_INDEX_SIZE  # the number of cache lines
 
     @const
     def RAM_ADDR_SPACE(self) -> int: return 2 ** self.RAM_SIZE  # the range of valid RAM addresses
