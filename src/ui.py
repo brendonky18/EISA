@@ -539,6 +539,7 @@ class EISADialog(QMainWindow):
 
     def toggle_cache(self):
         self._memory.cache_enabled = not self._memory.cache_enabled
+        self._memory.cache2_enabled = not self._memory.cache2_enabled
         if self._memory.cache_enabled:
             self._memory._cache = memory_devices.Cache(self._memory.cache_size_original, 2, self._memory._RAM,
                                                        self._memory.cache_read_speed, self._memory.cache_write_speed,
@@ -853,7 +854,7 @@ class EISADialog(QMainWindow):
         exchange_sort_path = '../demos/exchange_sort.out'
 
         with open(exchange_sort_path, 'r') as exchange_sort_file:
-            ARRAY_SIZE = 64
+            ARRAY_SIZE = 32
             RAND_ARRAY = False
 
             i = 0

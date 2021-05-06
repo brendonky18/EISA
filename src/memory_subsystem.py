@@ -118,7 +118,7 @@ class MemorySubsystem:
 
             # self._future_read = self._io_executor.submit(get_func)
             if self.waiting_on_reading == -1:
-                if not self._cache.check_hit(address) and not self._cache2.check_hit(address):
+                if (not self.cache_enabled and not self.cache2_enabled) or (not self._cache.check_hit(address) and not self._cache2.check_hit(address)):
                     # cache miss
 
                     # mark this address as stalled, and set the stalls remaining to the RAM's read speed only if we
@@ -175,7 +175,7 @@ class MemorySubsystem:
 
             # self._future_write = self._io_executor.submit(set_func)
             if self.waiting_on_writing == -1:
-                if not self._cache.check_hit(address) and not self._cache2.check_hit(address):
+                if (not self.cache_enabled and not self.cache2_enabled) or not self._cache.check_hit(address) and not self._cache2.check_hit(address):
                     # cache miss
 
                     # mark this address as stalled, and set the stalls remaining to the RAM's read speed
