@@ -6,6 +6,7 @@ from clock import *
 from eisa import EISA
 from memory_subsystem import MemorySubsystem
 from ui import EISADialog
+import aenum
 from pipeline import *
 import os
 import subprocess, shlex
@@ -15,13 +16,21 @@ assembler_path = os.path.join(dir_name, 'assembler.py')
 
 
 class pipeline_stress_test(unittest.TestCase):
-    memory = MemorySubsystem(EISA.ADDRESS_SIZE, 4, 1, 1, 8, 2, 2)
-    pipeline = PipeLine(0, [1 for i in range(EISA.NUM_GP_REGS)], memory)
-    max_instructions = 10
+    memory = MemorySubsystem(EISA.ADDRESS_SIZE, 4, 1, 1, EISA.ADDRESS_SIZE, 2, 2)
+    pipeline = PipeLine(0, [0 for i in range(EISA.NUM_GP_REGS)], memory)
+    max_instructions = 20000
     exchange_array_size = 100
     exchange_sort_length = 0
 
     def test_add_str(self):
+
+        # Reset the PC, cycle counter, and the 'finished' status for the next test
+        self.pipeline._pc = 0
+        self.pipeline._cycles = 0
+        self.pipeline._is_finished = False
+        self.pipeline._pipeline = [Instruction(self.pipeline) for i in range(len(self.pipeline._pipeline))]
+        self.pipeline._registers = [0 for i in range(len(self.pipeline._registers))]
+        self.pipeline._registers[SpecialRegister.sp] = int(SpecialRegister['bp'])
 
         test_name = "test_add_str"
 
@@ -49,6 +58,14 @@ class pipeline_stress_test(unittest.TestCase):
 
     def test_load(self):
 
+        # Reset the PC, cycle counter, and the 'finished' status for the next test
+        self.pipeline._pc = 0
+        self.pipeline._cycles = 0
+        self.pipeline._is_finished = False
+        self.pipeline._pipeline = [Instruction(self.pipeline) for i in range(len(self.pipeline._pipeline))]
+        self.pipeline._registers = [0 for i in range(len(self.pipeline._registers))]
+        self.pipeline._registers[SpecialRegister.sp] = int(SpecialRegister['bp'])
+
         test_name = "test_load"
 
         # Run the assembler with the dedicated files, and load the binary into RAM
@@ -73,6 +90,14 @@ class pipeline_stress_test(unittest.TestCase):
 
     def test_conditional_branch(self):
 
+        # Reset the PC, cycle counter, and the 'finished' status for the next test
+        self.pipeline._pc = 0
+        self.pipeline._cycles = 0
+        self.pipeline._is_finished = False
+        self.pipeline._pipeline = [Instruction(self.pipeline) for i in range(len(self.pipeline._pipeline))]
+        self.pipeline._registers = [0 for i in range(len(self.pipeline._registers))]
+        self.pipeline._registers[SpecialRegister.sp] = int(SpecialRegister['bp'])
+
         test_name = "test_conditional_branch"
 
         # Run the assembler with the dedicated files, and load the binary into RAM
@@ -95,6 +120,14 @@ class pipeline_stress_test(unittest.TestCase):
 
     def test_unconditional_branching(self):
 
+        # Reset the PC, cycle counter, and the 'finished' status for the next test
+        self.pipeline._pc = 0
+        self.pipeline._cycles = 0
+        self.pipeline._is_finished = False
+        self.pipeline._pipeline = [Instruction(self.pipeline) for i in range(len(self.pipeline._pipeline))]
+        self.pipeline._registers = [0 for i in range(len(self.pipeline._registers))]
+        self.pipeline._registers[SpecialRegister.sp] = int(SpecialRegister['bp'])
+
         test_name = "test_unconditional_branching"
 
         # Run the assembler with the dedicated files, and load the binary into RAM
@@ -104,15 +137,20 @@ class pipeline_stress_test(unittest.TestCase):
         #   If no END instruction is encounter within 20k cycles,
         #   report a failure.
         cycle_counter = 0
+        validated_last_push = False
         while self.pipeline._pipeline[4].opcode != OpCode.END and cycle_counter <= self.max_instructions:
             self.pipeline.cycle_pipeline()
             cycle_counter += 1
-            if self.pipeline.cycle_pipeline()._pc == 10:
-                self.assertEqual(253, self.pipeline.sp)  # Verify that the stack pointer changed after 2 pushes
-                self.assertEqual(10, self.memory._RAM[255])  # Verify that the initial position of the stack pointer is
+            if self.pipeline._cycles == 24:
+                self.assertEqual(8189, self.pipeline.sp)  # Verify that the stack pointer changed after 2 pushes
+                self.assertEqual(10, self.memory._RAM[8191])  # Verify that the initial position of the stack pointer is
                 #   loaded with the correct value
+            if self.pipeline.sp == 8188 and self.memory._RAM[8189] == 20:
+                validated_last_push = True
+
 
         self.assertLessEqual(cycle_counter, self.max_instructions)
+        self.assertTrue(validated_last_push)
 
         # Verify arithmetic
         self.assertEqual(10, self.pipeline._registers[
@@ -127,6 +165,14 @@ class pipeline_stress_test(unittest.TestCase):
         # if branch + link works, it should do R0 = ((10 * 2) + 5) * 2 = 50
         # if it just does branching it should do R0 = (10 * 2) = 10
         # if it does not branch it should do R0 = (10 + 5) * 2 = 30
+
+        # Reset the PC, cycle counter, and the 'finished' status for the next test
+        self.pipeline._pc = 0
+        self.pipeline._cycles = 0
+        self.pipeline._is_finished = False
+        self.pipeline._pipeline = [Instruction(self.pipeline) for i in range(len(self.pipeline._pipeline))]
+        self.pipeline._registers = [0 for i in range(len(self.pipeline._registers))]
+        self.pipeline._registers[SpecialRegister.sp] = int(SpecialRegister['bp'])
 
         test_name = "test_branch_link"
 
@@ -144,7 +190,17 @@ class pipeline_stress_test(unittest.TestCase):
         # Verify arithmetic
         self.assertEqual(50, self.memory._RAM[6])
 
+        # Done
+
     def test_exchange_sort_descending(self):
+
+        # Reset the PC, cycle counter, and the 'finished' status for the next test
+        self.pipeline._pc = 0
+        self.pipeline._cycles = 0
+        self.pipeline._is_finished = False
+        self.pipeline._pipeline = [Instruction(self.pipeline) for i in range(len(self.pipeline._pipeline))]
+        self.pipeline._registers = [0 for i in range(len(self.pipeline._registers))]
+        self.pipeline._registers[SpecialRegister.sp] = int(SpecialRegister['bp'])
 
         test_name = "test_exchange_sort"
 
@@ -172,7 +228,17 @@ class pipeline_stress_test(unittest.TestCase):
         for i in range(word_counter, array_size + word_counter - 1):
             self.assertLessEqual(self.memory._RAM[i], self.memory._RAM[i + 1])
 
+        # Done
+
     def test_exchange_sort_same_value(self):
+
+        # Reset the PC, cycle counter, and the 'finished' status for the next test
+        self.pipeline._pc = 0
+        self.pipeline._cycles = 0
+        self.pipeline._is_finished = False
+        self.pipeline._pipeline = [Instruction(self.pipeline) for i in range(len(self.pipeline._pipeline))]
+        self.pipeline._registers = [0 for i in range(len(self.pipeline._registers))]
+        self.pipeline._registers[SpecialRegister.sp] = int(SpecialRegister['bp'])
 
         test_name = "test_exchange_sort"
 
@@ -200,7 +266,17 @@ class pipeline_stress_test(unittest.TestCase):
         for i in range(word_counter, array_size + word_counter - 1):
             self.assertEqual(self.memory._RAM[i], self.memory._RAM[i + 1])
 
+        # Done
+
     def test_exchange_sort_mixed(self):
+
+        # Reset the PC, cycle counter, and the 'finished' status for the next test
+        self.pipeline._pc = 0
+        self.pipeline._cycles = 0
+        self.pipeline._is_finished = False
+        self.pipeline._pipeline = [Instruction(self.pipeline) for i in range(len(self.pipeline._pipeline))]
+        self.pipeline._registers = [0 for i in range(len(self.pipeline._registers))]
+        self.pipeline._registers[SpecialRegister.sp] = int(SpecialRegister['bp'])
 
         test_name = "test_exchange_sort"
 
@@ -232,6 +308,8 @@ class pipeline_stress_test(unittest.TestCase):
         # Verify that each element in the array is less than or equal to its adjacent successor
         for i in range(word_counter, array_size + word_counter - 1):
             self.assertLessEqual(self.memory._RAM[i], self.memory._RAM[i + 1])
+
+        # Done
 
     def verify_assembly(self, path: str) -> List[int]:
         src_file = path + '.asm'
