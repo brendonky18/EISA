@@ -1,6 +1,8 @@
 import sys
 from copy import copy
 
+from random import randint as rand
+
 from PyQt6.QtCore import Qt, QDir, QEvent
 from PyQt6.QtGui import QStandardItemModel
 from PyQt6.QtWidgets import *
@@ -320,7 +322,7 @@ class EISADialog(QMainWindow):
         self.load_button = QPushButton("Load Program")
         self.load_button.clicked.connect(self.load_program_from_file)
         self.exch_button = QPushButton("Load Exch. Sort")
-        # self.exch_button.clicked.connect(self.load_exchange_demo)  # TODO - Implement Exchange Sort Benchmark/Demo
+        self.exch_button.clicked.connect(self.load_exchange_demo)  # TODO - Implement Exchange Sort Benchmark/Demo
         self.matrix_button = QPushButton("Load Matrix Mult.")
         self.matrix_button.clicked.connect(self.load_matrix_demo)
         self.cycle_button = QPushButton("Cycle")
@@ -647,7 +649,35 @@ class EISADialog(QMainWindow):
                                                        "Please load a program into EISA before reloading.")
 
     def load_exchange_demo(self):  # TODO - implement exchange demo
-        pass
+        self.reinit_pipe_and_memory()
+
+        exchange_sort_path = '../demos/exchange_sort.out'
+
+        with open(exchange_sort_path, 'r') as exchange_sort_file:
+            ARRAY_SIZE = 32
+            RAND_ARRAY = True
+
+            i = 0
+            for line in exchange_sort_file:
+                # load each line into memory
+                self._memory._RAM[i] = int(line, 2)  
+                i += 1
+
+        # load the array into memory
+        self._memory._RAM[i] = ARRAY_SIZE
+        i+=1
+
+        if RAND_ARRAY:
+            # populate the array with random numbers
+            for i in range(i, i + ARRAY_SIZE):
+                self._memory._RAM[i] = rand(0, 999)
+        else:
+            # populate the array with decreasing numbers
+            for i, j in zip(range(i, i + ARRAY_SIZE), range(ARRAY_SIZE, 0, -1)):
+                self._memory._RAM[i] = j
+
+        self.update_ui()
+
 
     def load_matrix_demo(self):
         self.reinit_pipe_and_memory()
