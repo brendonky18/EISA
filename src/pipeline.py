@@ -11,6 +11,7 @@ from memory_subsystem import MemorySubsystem, PipelineStall
 from functools import reduce
 from threading import Lock
 import enum
+import aenum
 
 
 class Queue(deque):
@@ -44,7 +45,7 @@ class DecodeError(Exception):
         return self.message
 
 
-class PipeLine:
+class PipeLine(object):
     """The pipeline for the simulation
     """
 
@@ -78,6 +79,7 @@ class PipeLine:
     # Hash registers
     # TODO
 
+    '''
     # special registers
     # program counter
     _pc: int  # TODO refactor '_pc' to 'pc' to make it a public variable
@@ -87,6 +89,7 @@ class PipeLine:
     SP: int
     # ALU register
     AR: int  # TODO implement the ALU register with dependencies, rather than using the 'computed' field in 'Instruction'
+    '''
 
     yes_pipe: bool
 
@@ -115,8 +118,8 @@ class PipeLine:
         self._active_registers = [False for i in range(len(registers))]
 
         self._pc = pc
-        self.LR = 0
-        self.SP = 255
+        self.lr = 0
+        self.sp = int(SpecialRegister['bp'])
 
         self._memory = memory
 
@@ -408,7 +411,6 @@ class PipeLine:
     def cycle_pipeline(self):
         """function to run a single cycle of the pipeline - NOT THREADSAFE -> Call cycle(int cycles) instead
         """
-
         # self._stalled_fetch = False
         # self._stalled_memory = False
 
@@ -475,8 +477,33 @@ class PipeLine:
 
         return out
 
+    def __getattr__(self, attr):
+        if attr == '_pc':
+            return self._registers[SpecialRegister.pc]
+        elif attr in SpecialRegister._member_names_:
+            return self._registers[SpecialRegister[attr]]
+        else:
+            raise AttributeError(f'{attr} is not an attribute of {type(self)}')
 
-class OpCode(enum.IntEnum):
+    def __setattr__(self, attr, val):
+        if attr == '_pc': # TODO refactor all references of _pc to pc
+            self._registers[SpecialRegister.pc] = val
+        elif attr in SpecialRegister._member_names_:
+            self._registers[SpecialRegister[attr]] = val
+        else:
+            super().__setattr__(attr, val)
+        #     self.attr = val
+            # raise AttributeError(f'{attr} is not an attribute of {type(self)}')
+
+class SpecialRegister(enum.IntEnum):
+    zr = 28  # Zero Register
+    sp = 29  # Stack Pointer
+    lr = 30  # Link Register
+    pc = 31  # Program Counter
+    bp = EISA.RAM_ADDR_SPACE-1
+
+class OpCode(aenum.IntEnum):
+    _settings_ = aenum.NoAlias
     NOOP  = 0b000000
     ADD   = 0b000001
     MOV   = 0b000001  # MOV is an alias for ADD 0
@@ -519,27 +546,27 @@ class OpCode(enum.IntEnum):
 
 @enum.unique
 class ConditionCode(enum.IntEnum):
-    EQ = 0b0000 # EQ meaning Equal with Zero flag set.
-    NE = 0b0001 # NE meaning Not equal with the Zero clear.
-    CS = 0b0010 # CS meaning Carry set or HS meaning unsigned higher or same with Carry set.
-    CC = 0b0011 # CC meaning Carry clear or LO meaning unsigned lower with Carry clear.
-    MI = 0b0100 # MI meaning Minus or negative with the Negative flag set.
-    PL = 0b0101 # PL meaning Plus (including zero) with the Negative flag clear.
-    VS = 0b0110 # VS meaning Overflow with the Overflow flag set.
-    VC = 0b0111 # VC meaning No overflow with the Overflow clear.
-    HI = 0b1000 # HI meaning an Unsigned higher with Carry set AND Zero clear.
-    LS = 0b1001 # LS meaning Unsigned lower or same with Carry clear AND Zero set.
-    GE = 0b1010 # GE meaning Signed greater than or equal with Negative equal to Overflow.
-    LT = 0b1011 # LT meaning Signed less than with Negative not equal to Overflow.
-    GT = 0b1100 # GT meaning Signed greater than with Zero clear AND Negative equal to Overflow.
-    LE = 0b1101 # LE meaning Signed less than or equal with Zero set AND Negative not equal to Overflow.
-    AL = 0b1110 # AL meaning Always. If there is no conditional part in assembler this encoding is used.
+    EQ = 0b0000  #  0: EQ meaning Equal with Zero flag set.
+    NE = 0b0001  #  1: NE meaning Not equal with the Zero clear.
+    CS = 0b0010  #  2: CS meaning Carry set or HS meaning unsigned higher or same with Carry set.
+    CC = 0b0011  #  3: CC meaning Carry clear or LO meaning unsigned lower with Carry clear.
+    MI = 0b0100  #  4: MI meaning Minus or negative with the Negative flag set.
+    PL = 0b0101  #  5: PL meaning Plus (including zero) with the Negative flag clear.
+    VS = 0b0110  #  6: VS meaning Overflow with the Overflow flag set.
+    VC = 0b0111  #  7: VC meaning No overflow with the Overflow clear.
+    HI = 0b1000  #  8: HI meaning an Unsigned higher with Carry set AND Zero clear.
+    LS = 0b1001  #  9: LS meaning Unsigned lower or same with Carry clear AND Zero set.
+    GE = 0b1010  # 10: GE meaning Signed greater than or equal with Negative equal to Overflow.
+    LT = 0b1011  # 11: LT meaning Signed less than with Negative not equal to Overflow.
+    GT = 0b1100  # 12: GT meaning Signed greater than with Zero clear AND Negative equal to Overflow.
+    LE = 0b1101  # 13: LE meaning Signed less than or equal with Zero set AND Negative not equal to Overflow.
+    AL = 0b1110  # 14: AL meaning Always. If there is no conditional part in assembler this encoding is used.
     # NV = 0b1111 # NV meaning Never; this is historical and deprecated, but for ARMv3 it meant never. Ie a nop. For newer ARMs (ARMv5+), this extends the op-code range.
 
 # TODO refactor InstructionType into the Instruction class
 class Instruction:
-    """class for an instance of an instruction,
-    containing the raw encoded bits of the instruction,
+    """class for an instance of an instruction, 
+    containing the raw encoded bits of the instruction, 
     as well as helper functions for processing the instruction at the different pipeline stages
     """
     # region instance vars
@@ -559,7 +586,6 @@ class Instruction:
     input_regs: List[int]  # list of registers that the instruction reads from
 
     _pipeline: PipeLine
-
     # endregion instance vars
 
     def __init__(self, pipeline: PipeLine, encoded: Optional[int] = None, fields: Optional[Dict[str, int]] = None):
@@ -574,11 +600,19 @@ class Instruction:
             will default to 0b0 (No Op) if value is not assigned
         fields: Optional[Dict[str, int]]
             the fields which will attempt to be assigned
+            if both fields and encoded are assigned, fields will take priority
         """
 
         self._scoreboard_index = -1
 
         self._pipeline = pipeline
+
+        if fields is not None:
+            self._encoded = type(self).encoding.encode(fields)
+        elif encoded is not None:
+            self._encoded = encoded
+        else:
+            self._encoded = 0b0
 
         self._encoded = 0b0 if encoded is None else encoded  # sets instruction to NOOP if encoded value is not specified
         self._decoded = None  # type: ignore
@@ -738,7 +772,7 @@ class Instruction:
     # region class vars
     mnemonic: str = ''
 
-    encoding = BitVector.create_subtype('InstructionEncoding', 32)
+    encoding: BitVector = BitVector.create_subtype('InstructionEncoding', 32)
     encoding.add_field('opcode', 26, 6)
     # endregion class vars
 
@@ -746,12 +780,17 @@ class Instruction:
     def create_instruction(cls, mnemonic: str):
         return type(f'{mnemonic}_Instruction', (cls,), {'mnemonic': mnemonic})
 
+
+    @classmethod
+    def fields(cls) -> List[str]:
+        return cls.encoding.keys()
+ #FIXME: change immediate field to a literal field
 class ALU_Instruction(Instruction):
     encoding = Instruction.encoding.create_subtype('InstructionEncoding', 32)
     encoding \
-        .add_field('immediate', 0, 15, overlap=True) \
+        .add_field('literal', 0, 15, overlap=True) \
         .add_field('op2', 10, 5, overlap=True) \
-        .add_field('imm', 15, 1) \
+        .add_field('lit', 15, 1) \
         .add_field('op1', 16, 5) \
         .add_field('dest', 21, 5)
 
@@ -771,9 +810,9 @@ class ALU_Instruction(Instruction):
         """
         val1 = self._pipeline.get_dependency(self['op1'])
 
-        if self['imm']:
+        if self['lit']:
             # immediate value used
-            val2 = self['immediate']
+            val2 = self['literal']
         else:
             # register direct
             val2 = self._pipeline.get_dependency(self['op2'])
@@ -781,7 +820,7 @@ class ALU_Instruction(Instruction):
         self.computed = type(self)._ALU_func(val1, val2)
 
     def writeback_stage_func(self) -> None:
-        """write's the computed result to the destination register
+        """write's the computed result to the destination register  
         """
         self._pipeline._registers[self['dest']] = self.computed
 
@@ -836,11 +875,11 @@ class B_Instruction(Instruction):
         .add_field('cond', 22, 4)
 
     @staticmethod
-    def _on_branch():
+    def _on_branch(pipeline: PipeLine):
         raise NotImplementedError
 
     @classmethod
-    def create_instruction(cls, mnemonic: str, on_branch: Callable[[], None] = lambda: None):
+    def create_instruction(cls, mnemonic: str, on_branch: Callable[[PipeLine], None] = lambda x: None):
         """creates a new branch instruction type
 
         Parameters
@@ -883,12 +922,11 @@ class B_Instruction(Instruction):
 
         if eval_branch[ConditionCode(self['cond'])]():
             # perform the other behavior (ie. update the link register)
-            type(self)._on_branch()
+            type(self)._on_branch(self._pipeline)
 
             # calculate the target address for the new program counter
-            target_address = 0b0
             if self['imm']:  # immediate value used, PC relative
-                target_address = self['offset'] + self._pipeline._pc
+                target_address = self['offset']  # + self._pipeline._pc
             else:  # no immediate, register indirect used
                 base_reg = self['base']
                 target_address = self['offset'] + self._pipeline.get_dependency(base_reg)
@@ -896,12 +934,20 @@ class B_Instruction(Instruction):
             # squash the pipeline
             self._pipeline.squash(target_address)
 
+def BL_func(pipeline: PipeLine):
+    """function to save the PC location to the link register
+    for the BL instruction
+    """
+    pipeline.lr = pipeline.pc + 1
+
 class MEM_Instruction(Instruction):
     # LDR, STR
     encoding = Instruction.encoding.create_subtype('MEM_Encoding')
     encoding \
         .add_field('offset', 0, 10) \
-        .add_field('base', 10, 5)
+        .add_field('base', 10, 5) \
+        .add_field('immediate', 0, 15, overlap=True) \
+        .add_field('imm', 15, 1) \
 
     @classmethod
     def create_instruction(cls, mnemonic: str):
@@ -912,25 +958,22 @@ class MEM_Instruction(Instruction):
 class LDR_Instruction(MEM_Instruction):
     # LDR
     encoding = MEM_Instruction.encoding.create_subtype('LDR_Encoding')
-    encoding \
-        .add_field('literal', 0, 15, overlap=True) \
-        .add_field('lit', 15, 1) \
-        .add_field('dest', 21, 5)
+    encoding.add_field('dest', 21, 5)
 
     def memory_stage_func(self) -> None:
         """calculates the memory address from which a value should be loaded and
         gets that value from memory
         """
 
-        if self['lit'] == 1:  # contains a literal value
-            self.computed = self['literal']
+        if self['imm'] == 1:  # contains an immediate value
+            src_addr = self['immediate']
         else:  # uses register direct + offset
             # calculate the address
             base_addr_reg = self['base']
             src_addr = self._pipeline._registers[base_addr_reg] + self['offset']
 
-            # read from that address
-            self.computed = self._pipeline._memory[src_addr]
+        # read from that address
+        self.computed = self._pipeline._memory[src_addr]
 
     def writeback_stage_func(self) -> None:
         """writes the value we got from memory into the specified register
@@ -946,10 +989,12 @@ class STR_Instruction(MEM_Instruction):
         """calulates the memory address to which a value should be stored and
         loads that value into memory
         """
-
-        # calculate the address
-        base_addr_reg = self['base']
-        dest_addr = self._pipeline._registers[base_addr_reg] + self['offset']
+        if self['imm'] == 1:  # contains an immediate value
+            dest_addr = self['immediate']
+        else:  # uses register direct + offset
+            # calculate the address
+            base_addr_reg = self['base']
+            dest_addr = self._pipeline._registers[base_addr_reg] + self['offset']
 
         # get the value to write
         src_val = self._pipeline._registers[self['src']]
@@ -962,7 +1007,7 @@ class POP_Instruction(LDR_Instruction):
 
     def __init__(self):
         super(POP_Instruction, self).__init__()
-        if self._pipeline.SP - 1 < 0:
+        if self._pipeline.sp - 1 < 0:
             raise ValueError(f"Pop instruction created that pops from invalid address: {self['base']}")
 
 
@@ -972,7 +1017,7 @@ class POP_Instruction(LDR_Instruction):
         """
         # uses register direct + offset
         # calculate the address
-        src_addr = self._pipeline.SP + 1
+        src_addr = self._pipeline.sp + 1
 
         # read from that address
         self.computed = self._pipeline._memory[src_addr]
@@ -982,8 +1027,8 @@ class POP_Instruction(LDR_Instruction):
         """writes the value we got from memory into the specified register
         """
         self._pipeline._registers[self['dest']] = self.computed
-        if self._pipeline.SP < 255:
-            self._pipeline.SP += 1
+        if self._pipeline.sp < int(SpecialRegister['bp']):
+            self._pipeline.sp += 1
 
 class PUSH_Instruction(STR_Instruction):
 
@@ -995,7 +1040,7 @@ class PUSH_Instruction(STR_Instruction):
         """
 
         # calculate the address
-        dest_addr = self._pipeline.SP
+        dest_addr = self._pipeline.sp
 
         # get the value to write
         src_val = self._pipeline._registers[self['src']]
@@ -1007,13 +1052,16 @@ class PUSH_Instruction(STR_Instruction):
         """writes the value we got from memory into the specified register
         """
         self._pipeline._registers[self['src']] = 0
-        self._pipeline.SP -= 1
+        self._pipeline.sp -= 1
+
+class NOOP_Instruction(Instruction):
+    pass
 
 """dictionary mapping the opcode number to an instruction type
 this is where each of the instruction types and their behaviors are defined
 """
 Instructions: List[Type[Instruction]] = [
-    Instruction.create_instruction('NOOP'),
+    NOOP_Instruction.create_instruction('NOOP'),
     ALU_Instruction.create_instruction('ADD', lambda op1, op2: op1 + op2),
     ALU_Instruction.create_instruction('SUB', lambda op1, op2: op1 - op2),
     CMP_Instruction.create_instruction('CMP', lambda op1, op2: op1 - op2),
@@ -1028,9 +1076,9 @@ Instructions: List[Type[Instruction]] = [
     ALU_Instruction.create_instruction('ORR', lambda op1, op2: op1 | op2),
     LDR_Instruction.create_instruction('LDR'),
     STR_Instruction.create_instruction('STR'),
-    PUSH_Instruction.create_instruction('PUSH'),# TODO implement the rest of the instructions, implemented as NOOPs currently
+    PUSH_Instruction.create_instruction('PUSH'),
     POP_Instruction.create_instruction('POP'),
-    Instruction.create_instruction('MOVAK'),
+    Instruction.create_instruction('MOVAK'),  # TODO implement the rest of the instructions, implemented as NOOPs currently
     Instruction.create_instruction('LDRAK'),
     Instruction.create_instruction('STRAK'),
     Instruction.create_instruction('PUSAK'),
@@ -1044,6 +1092,6 @@ Instructions: List[Type[Instruction]] = [
     Instruction.create_instruction('AESGE'),
     Instruction.create_instruction('AESDE'),
     B_Instruction.create_instruction('B'),
-    B_Instruction.create_instruction('BL'),  # TODO implement
-    Instruction.create_instruction('END')
+    B_Instruction.create_instruction('BL', BL_func),  # TODO implement
+    NOOP_Instruction.create_instruction('END')
 ]

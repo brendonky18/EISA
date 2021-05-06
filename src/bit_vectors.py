@@ -1,6 +1,6 @@
 from __future__ import annotations  # must be first import, allows type hinting of next_device to be the enclosing class
 
-from typing import Dict, Type, Optional
+from typing import Dict, Type, Optional, Union
 
 from eisa import EISA
 
@@ -24,8 +24,15 @@ class BitVector:
     _size: int = EISA.WORD_SIZE
     _fields: Dict[str, BitVectorField] = {}
 
-    def __init__(self, val: int=0b0):
-        self._bits = val
+    def __init__(self, val: Union[int, Dict[str, int]]=0b0):
+        if isinstance(val, int):
+            self._bits = val
+        elif isinstance(val, dict):
+            self._bits = 0b0  # initialize bits
+            for key in val.keys():
+                self[key] = val[key]
+        else:
+            raise ValueError('val must be an int or dictionary')
 
     def __str__(self):
         new_line_char = '\n'
@@ -171,6 +178,23 @@ class BitVector:
             '_size'         : size if size is not None else cls._size,
             '_fields'       : cls._fields.copy()
         })
+
+    @classmethod
+    def encode(cls, fields: Dict[str, int]) -> int:
+        """attempts to encode the passed dictionary as a bitvector
+
+        Parameters
+        ----------
+        fields : Dict[str, int]
+            the dictionary of fields
+
+        Returns
+        -------
+        int
+            the integer encoded representation of the fields
+        """
+
+        return cls(fields=fields)._bits
 
 # if __name__ == '__main__':
 #     Instruction = BitVector.create_subtype('Instruction', size=32)

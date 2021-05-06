@@ -1,0 +1,6 @@
+MOV R0, 10
+BL #3
+ADD R0, R0, 5
+MULT R0, R0, 2
+STR R0, #6
+END

@@ -18,7 +18,7 @@ class EISA_properties(object):
     def WORD_SIZE(self) -> int: return 32  # the number of bits in each word
 
     @const
-    def ADDRESS_SIZE(self) -> int: return 8  # the number bits in the address space
+    def ADDRESS_SIZE(self) -> int: return 13  # the number bits in the address space NEEDS TO BE UPDATED WITH RAM_SIZE
 
     @const
     def OFFSET_SIZE(self) -> int: return 2  # the number of bits for the offset in a cache line
@@ -27,7 +27,7 @@ class EISA_properties(object):
     def CACHE_SIZE(self) -> int: return 4  # the number of addressable bits used by the cache
 
     @const
-    def RAM_SIZE(self) -> int: return 8  # the number of addressable bits used by RAM
+    def RAM_SIZE(self) -> int: return self.ADDRESS_SIZE  # the number of addressable bits used by RAM
 
     @const
     def NUM_GP_REGS(self) -> int: return 32 # number of 32-bit general purpose registers
@@ -48,7 +48,7 @@ class EISA_properties(object):
     def MAX_INSTRUCTION_FIELDS(self) -> int: return 7 # max number of fields in an instruction's dictionary. used for ui
 
     @const
-    def PROGRAM_MAX_CYCLE_LIMIT(self) -> int: return 15000  # As of now, no program should take more than ~1k cycles to complete. This may change for the demos
+    def PROGRAM_MAX_CYCLE_LIMIT(self) -> int: return 2e6  # As of now, no program should take more than ~1k cycles to complete. This may change for the demos
 
     @const
     def CACHE_READ_SPEED(self) -> int: return 1
@@ -57,10 +57,10 @@ class EISA_properties(object):
     def CACHE_WRITE_SPEED(self) -> int: return 1
 
     @const
-    def RAM_READ_SPEED(self) -> int: return 1000
+    def RAM_READ_SPEED(self) -> int: return 100
 
     @const
-    def RAM_WRITE_SPEED(self) -> int: return 1000
+    def RAM_WRITE_SPEED(self) -> int: return 100
 
 # wrappers
     @const
