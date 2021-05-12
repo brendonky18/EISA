@@ -48,7 +48,7 @@ class EISA_properties(object):
     def MAX_INSTRUCTION_FIELDS(self) -> int: return 7 # max number of fields in an instruction's dictionary. used for ui
 
     @const
-    def PROGRAM_MAX_CYCLE_LIMIT(self) -> int: return 2e6  # As of now, no program should take more than ~1k cycles to complete. This may change for the demos
+    def PROGRAM_MAX_CYCLE_LIMIT(self) -> int: return 2e12  # As of now, no program should take more than ~1k cycles to complete. This may change for the demos
 
     @const
     def CACHE_READ_SPEED(self) -> int: return 1
