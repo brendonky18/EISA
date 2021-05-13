@@ -125,16 +125,17 @@ class MemorySubsystem:
                     # aren't waiting on an address currently
                     self.stalls_remaining_reading = self._RAM._read_speed - 1 # NOTE - _read_speed is num of cycles required for a read
                 elif self._cache2.check_hit(address):
-                    # cache2 hit
-                    self.stalls_remaining = self._cache2._read_speed - 1
-                    # set l2 hit flag to true
-                    self.l2_hit = True
-                else:
                     # cache hit
+                    self.stalls_remaining = self._cache._read_speed - 1
+
+                else:
+                    # cache2 hit
 
                     # mark this address as stalled, and only stall for a single cycle because of a cache hit only if we
                     # aren't waiting on an address currently
-                    self.stalls_remaining_reading = self._cache._read_speed - 1
+                    self.stalls_remaining_reading = self._cache2._read_speed - 1
+                    # set l2 hit flag to true
+                    self.l2_hit = True
 
             # set the address we are waiting on
             self.waiting_on_reading = address
@@ -181,16 +182,17 @@ class MemorySubsystem:
                     # mark this address as stalled, and set the stalls remaining to the RAM's read speed
                     self.stalls_remaining_writing = self._RAM._write_speed - 1 # NOTE - _read_speed is num of cycles required for a write
                     self._write_miss = True
-                elif self._cache2.check_hit(address):
+                elif self._cache.check_hit(address):
                     # cache2 hit
-                    self.stalls_remaining_writing = self._cache2._write_speed - 1
-                    # set l2 hit flag to true
-                    self.l2_hit_writing = True
+                    self.stalls_remaining_writing = self._cache._write_speed - 1
+
                 else:
-                    # cache hit
+                    # cache2 hit
 
                     # mark this address as stalled, and set the stalls remaining to the RAM's read speed
-                    self.stalls_remaining_writing = self._cache._write_speed  # NOTE - _read_speed is num of cycles required for a write
+                    self.stalls_remaining_writing = self._cache2._write_speed  # NOTE - _read_speed is num of cycles required for a write
+                    # set l2 hit flag to true
+                    self.l2_hit_writing = True
 
             # set the address we are waiting on
             self.waiting_on_writing = address
