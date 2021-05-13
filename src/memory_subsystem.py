@@ -223,6 +223,7 @@ class MemorySubsystem:
             self._is_writing = False
             self.waiting_on_writing = -1
             self._write_miss = False
+            self.l2_hit_writing = False
 
     def __enter__(self):
         pass
