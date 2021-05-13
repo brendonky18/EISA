@@ -156,36 +156,66 @@ class MemoryGroup:
                 self.ram_widget.setItem(i - 1, j - 1, temp)
 
     def load_cache(self):
-        self.cache_table, row_headers = set_headers(self.cache_rows, self.cache_cols,
-                                                    format_list_to_table(self.cache_rows, self.cache_cols, self.cache))
-        self.cache_widget = QTableWidget(self.cache_rows, self.cache_cols)
-        self.cache_widget.setHorizontalHeaderLabels(self.cache_table[0])
+        self.cache_table, not_needed = set_headers(self.cache_rows, self.cache_cols,
+                                                   format_list_to_table(self.cache_rows, self.cache_cols, self.cache))
+        self.cache_widget = QTableWidget(len(self.cache), 4)
+
+        col_headers = ["Word 1", "Word 2", "Word 3", "Word 4"]
+        self.cache_widget.setHorizontalHeaderLabels(col_headers)
+        row_headers = []
+        for i in range(len(self.cache)):
+            row_headers.append(f"Set {i}")
         self.cache_widget.setVerticalHeaderLabels(row_headers)
-        for i in range(self.cache_cols):
+
+        for i in range(len(self.cache)):
+            temp = QTableWidgetItem()
+            temp.setData(0, self.cache[i]._data[0])
+            self.cache_widget.setItem(i, 0, temp)
+            temp = QTableWidgetItem()
+            temp.setData(0, self.cache[i]._data[1])
+            self.cache_widget.setItem(i, 1, temp)
+            temp = QTableWidgetItem()
+            temp.setData(0, self.cache[i]._data[2])
+            self.cache_widget.setItem(i, 2, temp)
+            temp = QTableWidgetItem()
+            temp.setData(0, self.cache[i]._data[3])
+            self.cache_widget.setItem(i, 3, temp)
+
+        for i in range(5):
             self.cache_widget.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
-        for i in range(self.cache_rows):
+        for i in range(16):
             self.cache_widget.verticalHeader().setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
-        for i in range(1, self.cache_rows + 1):
-            for j in range(1, self.cache_cols + 1):
-                temp = QTableWidgetItem()
-                temp.setData(0, self.cache_table[i][j])
-                self.cache_widget.setItem(i - 1, j - 1, temp)
 
     def load_cache2(self):
-        self.cache2_table, row2_headers = set_headers(self.cache2_rows, self.cache2_cols,
-                                                    format_list_to_table(self.cache2_rows, self.cache2_cols, self.cache2))
-        self.cache2_widget = QTableWidget(self.cache2_rows, self.cache2_cols)
-        self.cache2_widget.setHorizontalHeaderLabels(self.cache2_table[0])
-        self.cache2_widget.setVerticalHeaderLabels(row2_headers)
-        for i in range(self.cache2_cols):
+        self.cache2_table, not_needed = set_headers(self.cache2_rows, self.cache2_cols,
+                                                   format_list_to_table(self.cache2_rows, self.cache2_cols, self.cache2))
+        self.cache2_widget = QTableWidget(len(self.cache2), 4)
+
+        col_headers = ["Word 1", "Word 2", "Word 3", "Word 4"]
+        self.cache2_widget.setHorizontalHeaderLabels(col_headers)
+        row_headers = []
+        for i in range(len(self.cache2)):
+            row_headers.append(f"Set {i}")
+        self.cache2_widget.setVerticalHeaderLabels(row_headers)
+
+        for i in range(len(self.cache2)):
+            temp = QTableWidgetItem()
+            temp.setData(0, self.cache2[i]._data[0])
+            self.cache2_widget.setItem(i, 0, temp)
+            temp = QTableWidgetItem()
+            temp.setData(0, self.cache2[i]._data[1])
+            self.cache2_widget.setItem(i, 1, temp)
+            temp = QTableWidgetItem()
+            temp.setData(0, self.cache2[i]._data[2])
+            self.cache2_widget.setItem(i, 2, temp)
+            temp = QTableWidgetItem()
+            temp.setData(0, self.cache2[i]._data[3])
+            self.cache2_widget.setItem(i, 3, temp)
+
+        for i in range(5):
             self.cache2_widget.horizontalHeader().setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
-        for i in range(self.cache2_rows):
+        for i in range(16):
             self.cache2_widget.verticalHeader().setSectionResizeMode(i, QHeaderView.ResizeMode.Stretch)
-        for i in range(1, self.cache2_rows + 1):
-            for j in range(1, self.cache2_cols + 1):
-                temp = QTableWidgetItem()
-                temp.setData(0, self.cache2_table[i][j])
-                self.cache2_widget.setItem(i - 1, j - 1, temp)
 
     def load_regs(self):
         self.regs_table, row_headers = set_headers(self.regs_rows, self.regs_cols,
@@ -287,6 +317,9 @@ class EISADialog(QMainWindow):
             self.memory_group.regs_widget.setMaximumWidth(self.memory_group.regs_box.width()-20)
             self.memory_group.cache_widget.setMaximumWidth(self.memory_group.cache_box.width()-20)
             self.memory_group.cache2_widget.setMaximumWidth(self.memory_group.cache2_box.width() - 20)
+            self.memory_group.regs_widget.setMinimumHeight(self.height() / 5)
+            self.memory_group.cache_widget.setMinimumHeight(self.height() / 5)
+            self.memory_group.cache2_widget.setMinimumHeight(self.height() / 5)
         except AttributeError:
             pass
 
@@ -646,25 +679,19 @@ class EISADialog(QMainWindow):
 
     def update_cache(self):
         cache = self._pipeline._memory._cache._cache
-
-        for i in range(1, self.memory_group.cache_rows + 1):
-            for j in range(1, self.memory_group.cache_cols + 1):
-                val = [i for i in cache[((i - 1) * self.memory_group.cache_cols) + (j - 1)]._data]
-                if self._hex:
-                    for k in range(len(val)):
-                        val[k] = hex(val[k])
-                self.memory_group.cache_widget.item(i - 1, j - 1).setText(str(val))
+        for i in range(0, len(cache)):
+            self.memory_group.cache_widget.item(i, 0).setText(str(cache[i]._data[0]))
+            self.memory_group.cache_widget.item(i, 1).setText(str(cache[i]._data[1]))
+            self.memory_group.cache_widget.item(i, 2).setText(str(cache[i]._data[2]))
+            self.memory_group.cache_widget.item(i, 3).setText(str(cache[i]._data[3]))
 
     def update_cache2(self):
         cache2 = self._pipeline._memory._cache2._cache
-
-        for i in range(1, self.memory_group.cache2_rows + 1):
-            for j in range(1, self.memory_group.cache2_cols + 1):
-                val = [i for i in cache2[((i - 1) * self.memory_group.cache2_cols) + (j - 1)]._data]
-                if self._hex:
-                    for k in range(len(val)):
-                        val[k] = hex(val[k])
-                self.memory_group.cache2_widget.item(i - 1, j - 1).setText(str(val))
+        for i in range(0, len(cache2)):
+            self.memory_group.cache2_widget.item(i, 0).setText(str(cache2[i]._data[0]))
+            self.memory_group.cache2_widget.item(i, 1).setText(str(cache2[i]._data[1]))
+            self.memory_group.cache2_widget.item(i, 2).setText(str(cache2[i]._data[2]))
+            self.memory_group.cache2_widget.item(i, 3).setText(str(cache2[i]._data[3]))
 
     def update_memory(self):
         self.update_ram()
@@ -733,7 +760,7 @@ class EISADialog(QMainWindow):
         exchange_sort_path = '../demos/exchange_sort.out'
 
         with open(exchange_sort_path, 'r') as exchange_sort_file:
-            ARRAY_SIZE = 64
+            ARRAY_SIZE = 128
             RAND_ARRAY = False
 
             i = 0
