@@ -361,14 +361,18 @@ class EISADialog(QMainWindow):
         self.memory_group.cache_widget.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
         self.memory_group.cache2_widget.setSizeAdjustPolicy(QAbstractScrollArea.SizeAdjustPolicy.AdjustToContents)
 
+        self.size_set = False
+
     def changeEvent(self, a0) -> None:
         try:
-            self.memory_group.regs_widget.setMaximumWidth(self.memory_group.regs_box.width()-20)
-            self.memory_group.cache_widget.setMaximumWidth(self.memory_group.cache_box.width()-20)
-            self.memory_group.cache2_widget.setMaximumWidth(self.memory_group.cache2_box.width() - 20)
-            self.memory_group.regs_widget.setMinimumHeight(self.height() / 5)
-            self.memory_group.cache_widget.setMinimumHeight(self.height() / 5)
-            self.memory_group.cache2_widget.setMinimumHeight(self.height() / 5)
+            if not self.size_set:
+                self.memory_group.regs_widget.setMaximumWidth(self.memory_group.regs_box.width()-20)
+                self.memory_group.cache_widget.setMaximumWidth(self.memory_group.cache_box.width()-20)
+                self.memory_group.cache2_widget.setMaximumWidth(self.memory_group.cache2_box.width() - 20)
+                self.memory_group.regs_widget.setMinimumHeight(int(self.height() / 6))
+                self.memory_group.cache_widget.setMinimumHeight(int(self.height() / 6))
+                self.memory_group.cache2_widget.setMinimumHeight(int(self.height() / 6))
+                self.size_set = True
         except AttributeError:
             pass
 
@@ -458,10 +462,10 @@ class EISADialog(QMainWindow):
         self.flags = QLabel(f"Flags: {str(self._pipeline.condition_flags)}")
         self.cycle_counter = QLabel(f"Cycle: {self._pipeline._cycles}")
 
-        counters_layout.addWidget(self.pc_counter, alignment=Qt.Alignment.AlignLeft)
-        counters_layout.addWidget(self.SP, alignment=Qt.Alignment.AlignLeft)
-        counters_layout.addWidget(self.cycle_counter, alignment=Qt.Alignment.AlignLeft)
-        counters_layout.addWidget(self.flags, alignment=Qt.Alignment.AlignLeft)
+        counters_layout.addWidget(self.pc_counter, alignment=Qt.AlignmentFlag.AlignLeft)
+        counters_layout.addWidget(self.SP, alignment=Qt.AlignmentFlag.AlignLeft)
+        counters_layout.addWidget(self.cycle_counter, alignment=Qt.AlignmentFlag.AlignLeft)
+        counters_layout.addWidget(self.flags, alignment=Qt.AlignmentFlag.AlignLeft)
         counters_group.setLayout(counters_layout)
 
         options_group = QGroupBox("Options")
@@ -596,7 +600,7 @@ class EISADialog(QMainWindow):
         self.reset_ram_button = QPushButton("Reset RAM")
         self.reset_ram_button.clicked.connect(self.reset_ram)
         self.reset_ram_button.setAutoDefault(False)
-        ram_button_layout.addWidget(self.reset_ram_button, 1, 3, alignment=Qt.Alignment.AlignRight)
+        ram_button_layout.addWidget(self.reset_ram_button, 1, 3, alignment=Qt.AlignmentFlag.AlignRight)
 
         final_ram_layout = self.memory_group.ram_box.layout()
         final_ram_layout.addLayout(ram_button_layout)
@@ -607,7 +611,7 @@ class EISADialog(QMainWindow):
         self.reset_regs_button = QPushButton("Reset Registers")
         self.reset_regs_button.clicked.connect(self.reset_regs)
         self.reset_regs_button.setAutoDefault(False)
-        regs_button_layout.addWidget(self.reset_regs_button, 1, 3, alignment=Qt.Alignment.AlignRight)
+        regs_button_layout.addWidget(self.reset_regs_button, 1, 3, alignment=Qt.AlignmentFlag.AlignRight)
 
         final_regs_layout = self.memory_group.regs_box.layout()
         final_regs_layout.addLayout(regs_button_layout)
@@ -618,7 +622,7 @@ class EISADialog(QMainWindow):
         self.reset_cache_button = QPushButton("Reset L1 Cache")
         self.reset_cache_button.clicked.connect(self.reset_cache)
         self.reset_cache_button.setAutoDefault(False)
-        cache_button_layout.addWidget(self.reset_cache_button, 1, 3, alignment=Qt.Alignment.AlignRight)
+        cache_button_layout.addWidget(self.reset_cache_button, 1, 3, alignment=Qt.AlignmentFlag.AlignRight)
 
         final_cache_layout = self.memory_group.cache_box.layout()
         final_cache_layout.addLayout(cache_button_layout)
@@ -629,7 +633,7 @@ class EISADialog(QMainWindow):
         self.reset_cache2_button = QPushButton("Reset L2 Cache")
         self.reset_cache2_button.clicked.connect(self.reset_cache2)  # TODO - Implement reset_cache2
         self.reset_cache2_button.setAutoDefault(False)
-        cache2_button_layout.addWidget(self.reset_cache2_button, 1, 3, alignment=Qt.Alignment.AlignRight)
+        cache2_button_layout.addWidget(self.reset_cache2_button, 1, 3, alignment=Qt.AlignmentFlag.AlignRight)
 
         final_cache2_layout = self.memory_group.cache2_box.layout()
         final_cache2_layout.addLayout(cache2_button_layout)
