@@ -7,6 +7,8 @@
   - [Partial Simulation](#partial-simulation)
   - [Full ISA](#full-isa)
   - [GUI](#gui)
+  - [Speculative Execution/Reorder Buffer](#speculative-executionreorder-buffer)
+    - [Pipeline w/ Spec Ex](#pipeline-w-spec-ex)
 
 # System Design
  - Extension for RISC ISA to implement hardware acceleration for AES
@@ -115,4 +117,33 @@ Planning:
  - [ ] Implement AES instructions
 
 ## GUI
- - [ ] Able to view and manipualte registers
+ - [ ] Able to view and manipualte registersz
+
+## Speculative Execution/Reorder Buffer
+ - FIFO queue of speculative executions
+ - When speculatively executing an instruction, it is placed in the ROB
+ - Each ROB entry has 4 fields
+    - Instruction type: 
+    - (ALU, load, store, branch)
+    - Instruction destination 
+      - Where the result of the instruction will be written
+      - Destination register, memory address
+    - Ready flag
+      - Binary indication if the instruction has completed execution or not
+    - Value field
+      - Contains the result calculated by computing the instruction
+ - When the hazard has cleared, if the prediction is correct, the instructions from the ROB can be retired, ie. committed
+ - Instructions in the ROB cannot change the state
+   - Cannot write to registers
+   - Cannot write to memory
+ - They can READ from memory however
+
+### Pipeline w/ Spec Ex
+ - Fetch
+   - Place instruction in ROB
+ - Execute/Memory Read
+   - Write result to ROB
+ - Writeback/Memory Write
+   - Retire the instruction if its ready
+   - For conditional branches, if branch result is incorrect, flush the ROB and fetch correct instruction.
+
