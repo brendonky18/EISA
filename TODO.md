@@ -139,6 +139,7 @@ Planning:
  - They can READ from memory however
 
 ### Pipeline w/ Spec Ex
+Speculate when stuck on a dependency stall
  - Fetch
    - Place instruction in ROB
  - Execute/Memory Read

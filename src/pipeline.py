@@ -65,8 +65,22 @@ class PipeLine(object):
 
     _cycles: int
 
+    # global branch predictor
+    # 2-bit saturating counter
+    # 0, 1 => branch not taken
+    # 2, 3 => branch taken
+    _branch_prediction_counter: int = 0
+
     # N, Z, C, V flags
     condition_flags: Dict[str, bool]
+
+    # Speculative Execution
+    # head/oldest instruction is index 0
+    # use pop(0) and append()
+    _reorder_buffer: list[ROB_Entry] = []
+
+    # incremented by 1 for each speculative branch taken
+    _num_branch_predictions: int = 0
 
     # region registers
     # general purpose registers
@@ -78,6 +92,7 @@ class PipeLine(object):
 
     # Hash registers
     # TODO
+
 
     '''
     # special registers
@@ -234,6 +249,15 @@ class PipeLine(object):
 
     # endregion dependencies
 
+    def update_branch_predictor(self, branch_taken: bool):
+        if branch_taken:
+            self._branch_prediction_counter += 1
+        else:
+            self._branch_prediction_counter -= 1
+
+        # clamp to range [0, 3]
+        self._branch_prediction_counter = sorted([0, self._branch_prediction_counter, 3])[1]
+
     # Destination of new program counter
     def squash(self, newPC: int) -> None:
         """function that squashed the pipeline on a branch and updates the program counter
@@ -269,6 +293,9 @@ class PipeLine(object):
 
         instruction = Instruction(self)
 
+        # mark instruction as speculative, if it's after a predicted branch
+        instruction.speculative = self._num_branch_predictions > 0
+
         # Send NOOP forward from fetch if the pipeline is disabled and the pipeline is not empty
         if ((not self.yes_pipe) and (not self.check_empty_pipeline())) or (self._pipeline[2].opcode == 30): # TODO - figure out a way to check whether a branch was taken or not to reduce how much this happens.
             self._pipeline[0] = instruction
@@ -294,7 +321,8 @@ class PipeLine(object):
 
         if not self._stalled_fetch and not self._stalled_memory and not self._dependency_stall and not self._is_finished:
             self._fd_reg[0] = instruction
-            self._pc += 1
+            # self._pc += 1
+            self.predict_branch()
             self._fetch_isWaiting = False
 
     def stage_decode(self) -> None:
@@ -329,6 +357,9 @@ class PipeLine(object):
                 self.claim_dependency(dependencies)
                 self._de_reg[0] = instruction
                 self._dependency_stall = False
+
+                # place instruction in RoB
+                self._reorder_buffer.append(ROB_Entry(instruction))
 
     def stage_execute(self) -> None:
         """function to run the execute stage
@@ -460,6 +491,18 @@ class PipeLine(object):
         for i in range(cycle_count):
             self.cycle_pipeline()
 
+    def predict_branch(pipeline):
+        pipeline._num_branch_predictions += 1
+
+        target_instruction = pipeline._pipeline[1]
+        # checks if a branch needs to be predicted
+        if isinstance(target_instruction, B_Instruction) and pipeline._branch_prediction_counter >= 2:
+            # predict branch taken
+            pipeline._pc = target_instruction.target_address
+        else:
+            # increment pc like normal, or because branch not taken
+            pipeline._pc += 1
+
     def __str__(self) -> str:
         """pipeline to string function
 
@@ -586,9 +629,11 @@ class Instruction:
     input_regs: List[int]  # list of registers that the instruction reads from
 
     _pipeline: PipeLine
+
+    speculative: bool
     # endregion instance vars
 
-    def __init__(self, pipeline: PipeLine, encoded: Optional[int] = None, fields: Optional[Dict[str, int]] = None):
+    def __init__(self, pipeline: PipeLine, encoded: Optional[int] = None, fields: Optional[Dict[str, int]] = None, speculative: Optional[bool] = False):
         """creates a new instance of an instruction
 
         Parameters
@@ -601,6 +646,8 @@ class Instruction:
         fields: Optional[Dict[str, int]]
             the fields which will attempt to be assigned
             if both fields and encoded are assigned, fields will take priority
+        speculative: bool
+            flag indicating whether the instruction is being executed speculatively or not
         """
 
         self._scoreboard_index = -1
@@ -624,6 +671,8 @@ class Instruction:
         self.output_reg = None  # type: ignore
         self.input_regs = []  # type: ignore
         self.computed = None  # type: ignore
+
+        self.speculative = speculative
 
     def decode(self) -> None:
         """helper function which decodes the instruction
@@ -865,6 +914,11 @@ class B_Instruction(Instruction):
     """wrapper class for the branch instructions:
         B{cond}, BL{cond}
     """
+
+    # Branch predictor
+    predicted_branch_taken: bool = False
+    target_address: int
+
     # B, BL
     encoding = Instruction.encoding.create_subtype('B_Encoding')
     encoding \
@@ -895,10 +949,21 @@ class B_Instruction(Instruction):
             '_on_branch': on_branch
         })
 
+    def decode_stage_func(self):
+        # calculate the target address for the new program counter
+        if self['imm']:  # immediate value used, PC relative
+            self.target_address = self['offset']  # + self._pipeline._pc
+        else:  # no immediate, register indirect used
+            base_reg = self['base']
+            self.target_address = self['offset'] + self._pipeline.get_dependency(base_reg)
+
     def execute_stage_func(self):
         """compares the branch's condition code to that of the pipeline to determine if the branch should be taken.
         Squashes the pipeline if the branch is taken
         """
+
+        # branch is being resolved
+        self._pipeline._num_branch_predictions -= 1
 
         # defines all the different ways of evaluating the different condition codes
         # too bad python doesn't have switch statements
@@ -920,19 +985,32 @@ class B_Instruction(Instruction):
             ConditionCode.AL: lambda: True
         }
 
-        if eval_branch[ConditionCode(self['cond'])]():
-            # perform the other behavior (ie. update the link register)
+        branch_taken = eval_branch[ConditionCode(self['cond'])]()
+
+        # update the branch predictor 
+        self._pipeline.update_branch_predictor(branch_taken)
+
+        # check if our prediction was correct
+        prediction_correct = branch_taken == self.predicted_branch_taken
+
+        if prediction_correct:
+            for rob_entry in self._pipeline._reorder_buffer:
+                # mark all entries as not speculative, predicted branch is correct
+                rob_entry.instruction.speculative = False
+                
+                # stop when encountering another branch
+                if isinstance(rob_entry, B_Instruction):
+                    break
+        # squash pipeline and clear ROB
+        else:
+            # squash the pipeline
+            self._pipeline.squash(self.target_address)
+
+        if branch_taken:
+            # update the link register
             type(self)._on_branch(self._pipeline)
 
-            # calculate the target address for the new program counter
-            if self['imm']:  # immediate value used, PC relative
-                target_address = self['offset']  # + self._pipeline._pc
-            else:  # no immediate, register indirect used
-                base_reg = self['base']
-                target_address = self['offset'] + self._pipeline.get_dependency(base_reg)
 
-            # squash the pipeline
-            self._pipeline.squash(target_address)
 
 def BL_func(pipeline: PipeLine):
     """function to save the PC location to the link register
@@ -1095,3 +1173,36 @@ Instructions: List[Type[Instruction]] = [
     B_Instruction.create_instruction('BL', BL_func),  # TODO implement
     NOOP_Instruction.create_instruction('END')
 ]
+
+class ROB_Entry:
+    """Wrapper class for an Instruction entered in the Re-order Buffer
+    """
+    instruction: Instruction
+    ready: bool = False
+
+    # Destination and Value fields can be handled by using the function's writeback stage
+    #   The memory stage in the case of STR and PUSH
+
+    def __init__(self, instruction: Instruction) -> None:
+        self.instruction = instruction
+
+    @property
+    def instruction_type(self):
+        instruction_types = [
+            ALU_Instruction, 
+            B_Instruction,
+            STR_Instruction,
+            LDR_Instruction,
+            NOOP_Instruction
+        ]
+
+        for i_type in instruction_types:
+            if isinstance(self.instruction, i_type):
+                return i_type
+
+        print("Unknown instruction type")
+        return type(self.instruction)
+    
+
+    
+
